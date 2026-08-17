@@ -1,0 +1,459 @@
+import React, { useState } from 'react';
+import { MatchItem, ScoreFormatType } from '../../types/tennis';
+import { useTennisData } from '../../context/TennisDataContext';
+import {
+  Play,
+  RotateCcw,
+  Clock,
+  MapPin,
+  CheckCircle2,
+  X,
+  Compass,
+  Trophy,
+  Zap,
+  Sparkles,
+  Award,
+  ChevronRight,
+} from 'lucide-react';
+
+const SCORE_FORMATS: ScoreFormatType[] = [
+  '3 Normal Set',
+  '3 Kısa Set',
+  '2 Normal Set, 3. Set 10 Puanlık Maç Tie-Break',
+  '2 Kısa Set, 3. Set 10 Puanlık Maç Tie-Break',
+  '2 Kısa Set, 3. Set 7 Puanlık Maç Tie-Break',
+];
+
+interface MatchSetupModalProps {
+  match: MatchItem | null;
+  isOpen: boolean;
+  onClose: () => void;
+  onStartMatch: (matchId: string) => void;
+}
+
+export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
+  match,
+  isOpen,
+  onClose,
+  onStartMatch,
+}) => {
+  const { saveMatchSetup, currentReferee } = useTennisData();
+
+  const [kuraKazanan, setKuraKazanan] = useState<string>('Secilmedi');
+  const [kuraTercih, setKuraTercih] = useState<string>('Servis');
+  const [sahaTarafi, setSahaTarafi] = useState<string>('Sandalyenin Sağı');
+  const [baslangicSaati, setBaslangicSaati] = useState<string>('');
+  const [bitisSaati, setBitisSaati] = useState<string>('');
+  const [skorFormati, setSkorFormati] = useState<string>('3 Normal Set');
+  
+  // Coin toss interactive visual state
+  const [isFlipping, setIsFlipping] = useState<boolean>(false);
+  const [flipRotation, setFlipRotation] = useState<number>(0);
+  const [coinSide, setCoinSide] = useState<'IDLE' | 'P1' | 'P2'>('IDLE');
+  const [playerTossChoice, setPlayerTossChoice] = useState<1 | 2 | null>(null); // Which player calls the coin
+
+  React.useEffect(() => {
+    if (match) {
+      setKuraKazanan(match.Kura_Kazanan || 'Secilmedi');
+      setKuraTercih(match.Kura_Tercih || 'Servis');
+      setSahaTarafi(match.Saha_Tarafi || 'Sandalyenin Sağı');
+      setSkorFormati(match.Skor_Formati || '3 Normal Set');
+      setCoinSide(match.Kura_Kazanan === match['Oyuncu 1'] ? 'P1' : match.Kura_Kazanan === match['Oyuncu 2'] ? 'P2' : 'IDLE');
+
+      if (match.Baslangic_Saati && match.Baslangic_Saati !== 'Secilmedi') {
+        setBaslangicSaati(match.Baslangic_Saati);
+      } else {
+        const now = new Date();
+        const hh = String(now.getHours()).padStart(2, '0');
+        const mm = String(now.getMinutes()).padStart(2, '0');
+        setBaslangicSaati(`${hh}:${mm}`);
+      }
+      setBitisSaati(match.Bitis_Saati || '');
+    }
+  }, [match, isOpen]);
+
+  if (!isOpen || !match) return null;
+
+  const p1Name = match['Oyuncu 1'];
+  const p2Name = match['Oyuncu 2'];
+
+  const handleSetTimeNow = (field: 'start' | 'end') => {
+    const now = new Date();
+    const hh = String(now.getHours()).padStart(2, '0');
+    const mm = String(now.getMinutes()).padStart(2, '0');
+    const timeStr = `${hh}:${mm}`;
+    if (field === 'start') setBaslangicSaati(timeStr);
+    else setBitisSaati(timeStr);
+  };
+
+  const handleAdjustTime = (field: 'start' | 'end', deltaMinutes: number) => {
+    const currentStr = field === 'start' ? baslangicSaati : bitisSaati;
+    let [h, m] = (currentStr || '10:00').split(':').map(Number);
+    if (isNaN(h) || isNaN(m)) {
+      const now = new Date();
+      h = now.getHours();
+      m = now.getMinutes();
+    }
+    const date = new Date();
+    date.setHours(h, m + deltaMinutes, 0, 0);
+    const hh = String(date.getHours()).padStart(2, '0');
+    const mm = String(date.getMinutes()).padStart(2, '0');
+    const newStr = `${hh}:${mm}`;
+    if (field === 'start') setBaslangicSaati(newStr);
+    else setBitisSaati(newStr);
+  };
+
+  // Interactive 3D Coin Flip for players to watch live
+  const launchInteractiveCoinToss = () => {
+    if (isFlipping) return;
+    setIsFlipping(true);
+    
+    // Pick random winner
+    const isP1 = Math.random() > 0.5;
+    const winnerName = isP1 ? p1Name : p2Name;
+    
+    // Animate rotation (at least 5 full 360 rotations + final angle)
+    const extraRotations = 1800 + Math.floor(Math.random() * 360);
+    setFlipRotation((prev) => prev + extraRotations);
+
+    setTimeout(() => {
+      setKuraKazanan(winnerName);
+      setCoinSide(isP1 ? 'P1' : 'P2');
+      setIsFlipping(false);
+    }, 1400);
+  };
+
+  const handleSaveAndStart = () => {
+    saveMatchSetup(match.id, {
+      durum: 'Oynaniyor',
+      kuraKazanan,
+      kuraTercih,
+      sahaTarafi,
+      baslangicSaati: baslangicSaati || new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),
+      bitisSaati,
+      skorFormati,
+      ilkServisOyuncusu:
+        kuraKazanan === p1Name
+          ? kuraTercih === 'Servis'
+            ? 1
+            : 2
+          : kuraKazanan === p2Name
+          ? kuraTercih === 'Servis'
+            ? 2
+            : 1
+          : 1,
+    });
+
+    onClose();
+    onStartMatch(match.id);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/90 backdrop-blur-md animate-in fade-in overflow-y-auto">
+      <div className="bg-slate-900 border-2 border-amber-500/50 rounded-3xl p-4 sm:p-6 w-full max-w-xl shadow-2xl space-y-4 my-auto">
+        {/* Header */}
+        <div className="flex items-start justify-between pb-3 border-b border-slate-800">
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/40 flex items-center justify-center text-2xl shrink-0 shadow-lg shadow-amber-500/10">
+              🪙
+            </div>
+            <div>
+              <h2 className="text-base sm:text-lg font-black text-white flex items-center gap-2">
+                <span>Maç Öncesi Kura (Toss) & Kurulum</span>
+              </h2>
+              <p className="text-xs text-amber-400 font-semibold mt-0.5 flex items-center gap-1.5">
+                <span>{match.Kort}</span>
+                <span>•</span>
+                <span>{match.Kategori}</span>
+                <span>•</span>
+                <span className="font-mono text-slate-300">Planlanan: {match.Saat}</span>
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Players Card */}
+        <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 flex items-center justify-between shadow-inner">
+          <div className="flex-1">
+            <div className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-lime-400"></span>
+              <span className="text-[10px] text-lime-400 font-extrabold uppercase tracking-wider">1. Oyuncu</span>
+            </div>
+            <div className="font-black text-sm sm:text-base text-white truncate mt-0.5">{p1Name}</div>
+          </div>
+          <div className="px-3 text-xs font-black text-slate-600 bg-slate-900 py-1 rounded-lg border border-slate-800">VS</div>
+          <div className="flex-1 text-right">
+            <div className="flex items-center justify-end gap-1.5">
+              <span className="text-[10px] text-cyan-400 font-extrabold uppercase tracking-wider">2. Oyuncu</span>
+              <span className="w-2.5 h-2.5 rounded-full bg-cyan-400"></span>
+            </div>
+            <div className="font-black text-sm sm:text-base text-white truncate mt-0.5">{p2Name}</div>
+          </div>
+        </div>
+
+        {/* INTERACTIVE 3D COIN TOSS (Oyuncuların Gözü Önünde Canlı Kura) */}
+        <div className="bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 p-4 sm:p-5 rounded-3xl border-2 border-amber-500/40 space-y-4 shadow-xl text-center relative overflow-hidden">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-extrabold text-amber-300 uppercase tracking-wider flex items-center gap-1.5">
+              <Sparkles className="w-4 h-4 text-amber-400" />
+              <span>Canlı Bozuk Para Animasyonu (Oyuncu Kurayı Görsün)</span>
+            </span>
+            <span className="text-[10px] text-slate-400 font-medium">Bozuk paraya veya butona dokunun</span>
+          </div>
+
+          {/* Big Interactive 3D Coin */}
+          <div className="flex flex-col items-center justify-center py-2">
+            <button
+              type="button"
+              onClick={launchInteractiveCoinToss}
+              disabled={isFlipping}
+              className="relative group focus:outline-none"
+              title="Kurayı Çevirmek İçin Tıklayın"
+            >
+              {/* Coin Glow / Halo Effect */}
+              <div className={`absolute inset-0 rounded-full blur-xl transition duration-500 ${
+                isFlipping ? 'bg-amber-400/40 animate-pulse' : kuraKazanan === p1Name ? 'bg-lime-400/30' : kuraKazanan === p2Name ? 'bg-cyan-400/30' : 'bg-amber-500/20'
+              }`}></div>
+
+              {/* Physical Coin Disk with Smooth Flip Transition */}
+              <div
+                style={{
+                  transform: `rotateY(${flipRotation}deg) scale(${isFlipping ? 1.15 : 1})`,
+                  transition: 'transform 1.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+                  transformStyle: 'preserve-3d',
+                }}
+                className={`relative w-28 h-28 sm:w-32 sm:h-32 rounded-full border-4 flex flex-col items-center justify-center shadow-2xl transition-colors cursor-pointer select-none ${
+                  isFlipping
+                    ? 'border-yellow-300 bg-gradient-to-tr from-amber-600 via-yellow-400 to-amber-500 text-slate-950'
+                    : kuraKazanan === p1Name
+                    ? 'border-lime-400 bg-gradient-to-tr from-emerald-700 via-lime-500 to-emerald-400 text-slate-950 shadow-lime-400/30'
+                    : kuraKazanan === p2Name
+                    ? 'border-cyan-400 bg-gradient-to-tr from-blue-700 via-cyan-400 to-teal-400 text-slate-950 shadow-cyan-400/30'
+                    : 'border-amber-400 bg-gradient-to-tr from-amber-500 via-yellow-300 to-amber-600 text-slate-950 shadow-amber-400/20 group-hover:scale-105'
+                }`}
+              >
+                {isFlipping ? (
+                  <div className="flex flex-col items-center justify-center">
+                    <span className="text-3xl animate-bounce">🪙</span>
+                    <span className="text-[10px] font-black tracking-widest uppercase mt-1">DÖNÜYOR</span>
+                  </div>
+                ) : kuraKazanan !== 'Secilmedi' ? (
+                  <div className="flex flex-col items-center justify-center p-2 text-center">
+                    <Trophy className="w-6 h-6 text-slate-950 mb-0.5" />
+                    <span className="text-[9px] uppercase font-black tracking-wider text-slate-900/80">KAZANAN</span>
+                    <span className="font-black text-xs sm:text-sm px-1 truncate max-w-[100px] leading-tight">
+                      {kuraKazanan.split(' ')[0]}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center">
+                    <span className="text-3xl">🪙</span>
+                    <span className="text-xs font-black tracking-wider uppercase mt-0.5">KURA AT</span>
+                  </div>
+                )}
+
+                {/* Coin Edge Ridge Highlight */}
+                <div className="absolute inset-1.5 rounded-full border border-white/40 pointer-events-none"></div>
+              </div>
+            </button>
+
+            {/* Launch Coin Toss Trigger Button */}
+            <div className="mt-3 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={launchInteractiveCoinToss}
+                disabled={isFlipping}
+                className="px-6 py-2.5 rounded-2xl bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:from-amber-300 hover:to-yellow-300 text-slate-950 font-black text-xs sm:text-sm flex items-center gap-2 shadow-lg shadow-amber-400/25 active:scale-95 transition disabled:opacity-50"
+              >
+                <RotateCcw className={`w-4 h-4 ${isFlipping ? 'animate-spin' : ''}`} />
+                <span>{isFlipping ? 'Kura Havada Dönüyor...' : '🪙 Bozuk Parayı Fırlat (Kura Çek)'}</span>
+              </button>
+            </div>
+
+            {kuraKazanan !== 'Secilmedi' && !isFlipping && (
+              <div className="mt-2 text-xs font-black text-emerald-400 bg-emerald-950/40 px-3 py-1 rounded-full border border-emerald-500/30 animate-in fade-in">
+                ✨ Kura Kazananı: <strong>{kuraKazanan}</strong>
+              </div>
+            )}
+          </div>
+
+          {/* Kura Kazananını Doğrudan / Elle Seçme Kartları */}
+          <div>
+            <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 text-left">
+              Veya Kura Kazananını Elle Seçin:
+            </div>
+            <div className="grid grid-cols-2 gap-2.5">
+              <button
+                type="button"
+                onClick={() => setKuraKazanan(p1Name)}
+                className={`p-3 rounded-2xl border text-left transition flex items-center justify-between ${
+                  kuraKazanan === p1Name
+                    ? 'bg-lime-400/20 border-lime-400 text-lime-300 ring-2 ring-lime-400/30 shadow-md shadow-lime-400/10'
+                    : 'bg-slate-950 border-slate-800 text-slate-400 hover:bg-slate-850 hover:text-slate-200'
+                }`}
+              >
+                <div className="truncate">
+                  <div className="text-[10px] font-extrabold uppercase text-slate-400">1. Oyuncu</div>
+                  <div className="text-xs sm:text-sm font-bold text-white truncate mt-0.5">{p1Name}</div>
+                </div>
+                {kuraKazanan === p1Name && <CheckCircle2 className="w-5 h-5 text-lime-400 shrink-0" />}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setKuraKazanan(p2Name)}
+                className={`p-3 rounded-2xl border text-left transition flex items-center justify-between ${
+                  kuraKazanan === p2Name
+                    ? 'bg-cyan-400/20 border-cyan-400 text-cyan-300 ring-2 ring-cyan-400/30 shadow-md shadow-cyan-400/10'
+                    : 'bg-slate-950 border-slate-800 text-slate-400 hover:bg-slate-850 hover:text-slate-200'
+                }`}
+              >
+                <div className="truncate">
+                  <div className="text-[10px] font-extrabold uppercase text-slate-400">2. Oyuncu</div>
+                  <div className="text-xs sm:text-sm font-bold text-white truncate mt-0.5">{p2Name}</div>
+                </div>
+                {kuraKazanan === p2Name && <CheckCircle2 className="w-5 h-5 text-cyan-400 shrink-0" />}
+              </button>
+            </div>
+          </div>
+
+          {/* Tercih & Saha Tarafı */}
+          <div className="grid grid-cols-2 gap-3 pt-1 text-left">
+            <div>
+              <label className="text-[10px] font-extrabold uppercase text-slate-400 block mb-1">
+                Kura Kazananının Tercihi
+              </label>
+              <select
+                value={kuraTercih}
+                onChange={(e) => setKuraTercih(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-400 font-bold"
+              >
+                <option value="Servis">🎾 Servis Atacak</option>
+                <option value="Karşılama">🛡️ Karşılayacak (Receive)</option>
+                <option value="Saha Seçimi">🏟️ Saha Tarafı Seçti</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="text-[10px] font-extrabold uppercase text-slate-400 block mb-1">
+                Saha Tarafı (Kura Kazananı)
+              </label>
+              <select
+                value={sahaTarafi}
+                onChange={(e) => setSahaTarafi(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-400 font-bold"
+              >
+                <option value="Sandalyenin Sağı">🪑 Sandalyenin Sağı</option>
+                <option value="Sandalyenin Solu">🪑 Sandalyenin Solu</option>
+                <option value="Güneş Tarafı">☀️ Güneş Tarafı</option>
+                <option value="Rüzgar Tarafı">💨 Rüzgar Tarafı</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* Start Time Fast Setting */}
+        <div className="bg-slate-950/80 p-3.5 rounded-2xl border border-slate-800 space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+              <Clock className="w-3.5 h-3.5 text-lime-400" />
+              <span>Maç Başlangıç Saati</span>
+            </label>
+            <span className="text-[10px] text-slate-400">Hızlı Ayarlama Butonları</span>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+            <input
+              type="time"
+              value={baslangicSaati}
+              onChange={(e) => setBaslangicSaati(e.target.value)}
+              className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm font-mono font-bold text-white focus:outline-none focus:border-lime-400 shrink-0 w-28 text-center"
+            />
+            
+            <div className="flex items-center gap-1.5 flex-1 overflow-x-auto">
+              <button
+                type="button"
+                onClick={() => handleSetTimeNow('start')}
+                className="px-2.5 py-1.5 rounded-lg bg-lime-400 hover:bg-lime-300 text-slate-950 text-xs font-black shrink-0 active:scale-95 transition"
+              >
+                Şimdi
+              </button>
+              <button
+                type="button"
+                onClick={() => handleAdjustTime('start', -10)}
+                className="px-2 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold shrink-0"
+              >
+                -10 dk
+              </button>
+              <button
+                type="button"
+                onClick={() => handleAdjustTime('start', -5)}
+                className="px-2 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold shrink-0"
+              >
+                -5 dk
+              </button>
+              <button
+                type="button"
+                onClick={() => handleAdjustTime('start', +5)}
+                className="px-2 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold shrink-0"
+              >
+                +5 dk
+              </button>
+              <button
+                type="button"
+                onClick={() => handleAdjustTime('start', +10)}
+                className="px-2 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold shrink-0"
+              >
+                +10 dk
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Score Format Selection */}
+        <div className="bg-slate-950/80 p-3.5 rounded-2xl border border-slate-800 space-y-1.5">
+          <label className="text-xs font-bold text-slate-300 block">
+            Skor Formatı (Kategoriye Göre)
+          </label>
+          <select
+            value={skorFormati}
+            onChange={(e) => setSkorFormati(e.target.value)}
+            className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-lime-400 font-bold focus:outline-none focus:border-lime-400"
+          >
+            {SCORE_FORMATS.map((fmt) => (
+              <option key={fmt} value={fmt} className="text-white">
+                {fmt}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Footer Actions */}
+        <div className="flex items-center gap-3 pt-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 py-3 px-4 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition"
+          >
+            İptal
+          </button>
+
+          <button
+            type="button"
+            onClick={handleSaveAndStart}
+            className="flex-2 py-3 px-5 rounded-2xl bg-gradient-to-r from-lime-400 via-emerald-400 to-lime-500 hover:from-lime-300 hover:to-emerald-300 text-slate-950 font-black text-sm flex items-center justify-center gap-2 shadow-lg shadow-lime-400/25 active:scale-95 transition"
+          >
+            <Play className="w-4 h-4 fill-slate-950" />
+            <span>Maçı Başlat & Canlı Skora Geç</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
