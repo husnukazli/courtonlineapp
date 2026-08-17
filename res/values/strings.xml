@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">CourtOnline</string>
+    <string name="firestoreDatabaseId">ai-studio-courtonline-a8966e92-b486-4eea-a78a-3de4816736bc</string>
+    <string name="default_web_client_id">808716905954-e3d511naccg3g87lntthku9co6mo1c7q.apps.googleusercontent.com</string>
+    <string name="project_id">eastern-burner-38chg</string>
+    <string name="gcm_defaultSenderId">808716905954</string>
+    <string name="google_api_key">AIzaSyB7OY5mJqooB1uZbDBVR-b6ZCNcPu-azag</string>
+    <string name="google_app_id">1:808716905954:web:eba2b4c87a8d58d6f41dbb</string>
+    <string name="google_storage_bucket">eastern-burner-38chg.firebasestorage.app</string>
+</resources>

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { MatchItem } from '../../types/tennis';
 import { useTennisData } from '../../context/TennisDataContext';
 import { parseScoreString, validateSingleSet } from '../../utils/tennisScoringEngine';
@@ -26,6 +26,15 @@ export const CourtCard: React.FC<CourtCardProps> = ({
   onOpenSetup,
 }) => {
   const { updateGameScore, setMatchStatus } = useTennisData();
+  const lastScoreClickRef = useRef<number>(0);
+
+  const handleQuickScore = (e: React.MouseEvent, player: 1 | 2, delta: number) => {
+    e.stopPropagation();
+    const now = Date.now();
+    if (now - lastScoreClickRef.current < 400) return; // Prevent double-tap
+    lastScoreClickRef.current = now;
+    updateGameScore(match.id, currentSetIndex, player, delta);
+  };
 
   const parsed = parseScoreString(match.Skor);
   const s1_p1 = match.detailedState?.set1_p1 ?? parsed.s1_p1;
@@ -248,10 +257,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
               <div className="flex items-center gap-1.5 bg-slate-950 p-1.5 rounded-2xl border border-slate-800">
                 <button
                   type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    updateGameScore(match.id, currentSetIndex, 1, -1);
-                  }}
+                  onClick={(e) => handleQuickScore(e, 1, -1)}
                   className="w-9 h-9 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center font-bold text-xs border border-slate-800 active:scale-95 transition shrink-0"
                   title="-1 Oyun"
                 >
@@ -260,10 +266,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
 
                 <button
                   type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    updateGameScore(match.id, currentSetIndex, 1, 1);
-                  }}
+                  onClick={(e) => handleQuickScore(e, 1, 1)}
                   className="flex-1 py-2 px-2.5 rounded-xl bg-lime-400 hover:bg-lime-300 text-slate-950 font-black text-xs flex items-center justify-center gap-1 shadow-md shadow-lime-400/20 active:scale-95 transition truncate"
                   title="+1 Oyun"
                 >
@@ -276,10 +279,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
               <div className="flex items-center gap-1.5 bg-slate-950 p-1.5 rounded-2xl border border-slate-800">
                 <button
                   type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    updateGameScore(match.id, currentSetIndex, 2, -1);
-                  }}
+                  onClick={(e) => handleQuickScore(e, 2, -1)}
                   className="w-9 h-9 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center font-bold text-xs border border-slate-800 active:scale-95 transition shrink-0"
                   title="-1 Oyun"
                 >
@@ -288,10 +288,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
 
                 <button
                   type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    updateGameScore(match.id, currentSetIndex, 2, 1);
-                  }}
+                  onClick={(e) => handleQuickScore(e, 2, 1)}
                   className="flex-1 py-2 px-2.5 rounded-xl bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-black text-xs flex items-center justify-center gap-1 shadow-md shadow-cyan-400/20 active:scale-95 transition truncate"
                   title="+1 Oyun"
                 >

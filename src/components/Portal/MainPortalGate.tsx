@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useTennisData } from '../../context/TennisDataContext';
+import { ShareRefereeLinkModal } from '../Common/ShareRefereeLinkModal';
 import {
   Shield,
   Smartphone,
@@ -18,12 +19,15 @@ import {
   RefreshCw,
   Trash2,
   Cloud,
+  QrCode,
+  Zap,
 } from 'lucide-react';
 
 export const MainPortalGate: React.FC = () => {
   const {
     referees,
     loginSupervisorByPin,
+    loginRefereeDirect,
     loginDesk,
     deskPin,
     cloudSyncStatus,
@@ -33,6 +37,7 @@ export const MainPortalGate: React.FC = () => {
   } = useTennisData();
 
   const [activeModal, setActiveModal] = useState<'supervisor' | 'desk' | null>(null);
+  const [isShareModalOpen, setIsShareModalOpen] = useState<boolean>(false);
   const [pin, setPin] = useState<string>('');
   const [selectedRefName, setSelectedRefName] = useState<string>('');
   const [showPin, setShowPin] = useState<boolean>(false);
@@ -155,9 +160,20 @@ export const MainPortalGate: React.FC = () => {
             </div>
           </div>
 
-          <div className="hidden sm:flex items-center gap-1.5 text-xs text-slate-400 bg-slate-900/80 px-3.5 py-1.5 rounded-full border border-slate-800 backdrop-blur">
-            <Shield className="w-3.5 h-3.5 text-lime-400" />
-            <span>Şifre Korumalı Erişim</span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setIsShareModalOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-lime-400/20 hover:bg-lime-400/30 text-lime-300 border border-lime-400/40 text-xs font-black transition active:scale-95 shadow-sm"
+              title="Hakemler için telefon bağlantısı ve QR karekod üret"
+            >
+              <QrCode className="w-3.5 h-3.5" />
+              <span>📲 Hakem Telefon Linki & QR</span>
+            </button>
+            <div className="hidden sm:flex items-center gap-1.5 text-xs text-slate-400 bg-slate-900/80 px-3.5 py-1.5 rounded-full border border-slate-800 backdrop-blur">
+              <Shield className="w-3.5 h-3.5 text-lime-400" />
+              <span>Şifre Korumalı Erişim</span>
+            </div>
           </div>
         </div>
       </header>
@@ -406,6 +422,33 @@ export const MainPortalGate: React.FC = () => {
               </button>
             </div>
 
+            {/* If Supervisor: Instant 1-Click Direct Start Button */}
+            {activeModal === 'supervisor' && (
+              <div className="space-y-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    loginRefereeDirect(selectedRefName || undefined);
+                    setSuccessMsg('Giriş başarılı!');
+                    setTimeout(() => {
+                      closeModal();
+                    }, 300);
+                  }}
+                  className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-lime-400 via-emerald-400 to-teal-400 hover:from-lime-300 hover:to-teal-300 text-slate-950 font-black text-sm flex items-center justify-center gap-2 shadow-xl shadow-lime-400/25 active:scale-95 transition"
+                >
+                  <Zap className="w-4 h-4" />
+                  <span>Şifresiz Doğrudan Skor Girişine Başla ⚡</span>
+                </button>
+
+                <div className="relative flex items-center justify-center">
+                  <div className="border-t border-slate-800 w-full" />
+                  <span className="bg-slate-900 px-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider absolute">
+                    veya PIN ile giriş yapın
+                  </span>
+                </div>
+              </div>
+            )}
+
             {/* If Supervisor: Optional Referee Selection */}
             {activeModal === 'supervisor' && (
               <div className="space-y-1.5">
@@ -568,6 +611,12 @@ export const MainPortalGate: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Public Share Referee Link & QR Modal */}
+      <ShareRefereeLinkModal
+        isOpen={isShareModalOpen}
+        onClose={() => setIsShareModalOpen(false)}
+      />
     </div>
   );
 };

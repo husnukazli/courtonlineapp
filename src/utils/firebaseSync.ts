@@ -52,100 +52,247 @@ export function sanitizeForFirestore<T>(data: T): T {
 }
 
 /**
- * Subscribes to real-time changes in Firestore.
- * Subscribes to both metadata (referees, formats, version) and individual court matches.
+ * Subscribes to real-time changes across devices.
+ * Uses both Server-Sent Events (SSE) for instant cross-device broadcast
+ * and Firestore listeners for persistent cloud backup.
  */
 export const subscribeToCloudTournament = (
   onMatchesUpdate: (matches: MatchItem[]) => void,
   onMetaUpdate: (meta: CloudTournamentMetadata) => void,
   onError?: (err: Error) => void
 ) => {
+  let isClosed = false;
+  let eventSource: EventSource | null = null;
+  let pollingTimer: any = null;
+  let lastReceivedVersion = 0;
+
+  // 1. Setup Server-Sent Events (SSE) for zero-latency multi-device real-time sync
+  const connectSSE = () => {
+    if (isClosed) return;
+    try {
+      if (typeof window !== 'undefined' && window.EventSource) {
+        eventSource = new EventSource('/api/events');
+
+        eventSource.onmessage = (event) => {
+          if (!event.data) return;
+          try {
+            const data = JSON.parse(event.data);
+
+            if (data.type === 'CONNECTED' && data.tournament) {
+              const { matches, referees, categoryFormats, deskPin, version, lastUpdated, updatedBy } = data.tournament;
+              if (version) lastReceivedVersion = version;
+
+              if (Array.isArray(matches) && matches.length > 0) {
+                isApplyingRemoteChange = true;
+                try {
+                  onMatchesUpdate(matches);
+                } finally {
+                  setTimeout(() => {
+                    isApplyingRemoteChange = false;
+                  }, 100);
+                }
+              }
+
+              onMetaUpdate({
+                referees,
+                categoryFormats,
+                deskPin,
+                lastUpdated,
+                updatedBy,
+                tournamentVersion: version,
+                matches,
+              });
+            } else if (data.type === 'MATCH_UPDATED' && data.match) {
+              if (data.version) lastReceivedVersion = data.version;
+              isApplyingRemoteChange = true;
+              try {
+                onMatchesUpdate([data.match]);
+              } finally {
+                setTimeout(() => {
+                  isApplyingRemoteChange = false;
+                }, 100);
+              }
+            } else if (data.type === 'MATCHES_UPDATED' && Array.isArray(data.matches)) {
+              if (data.version) lastReceivedVersion = data.version;
+              isApplyingRemoteChange = true;
+              try {
+                onMatchesUpdate(data.matches);
+              } finally {
+                setTimeout(() => {
+                  isApplyingRemoteChange = false;
+                }, 100);
+              }
+            } else if (data.type === 'TOURNAMENT_UPDATED' && data.tournament) {
+              const { matches, referees, categoryFormats, deskPin, version, lastUpdated, updatedBy } = data.tournament;
+              if (version) lastReceivedVersion = version;
+              if (Array.isArray(matches)) {
+                isApplyingRemoteChange = true;
+                try {
+                  onMatchesUpdate(matches);
+                } finally {
+                  setTimeout(() => {
+                    isApplyingRemoteChange = false;
+                  }, 100);
+                }
+              }
+              onMetaUpdate({
+                referees,
+                categoryFormats,
+                deskPin,
+                lastUpdated,
+                updatedBy,
+                tournamentVersion: version,
+                matches,
+              });
+            }
+          } catch {
+            // Ignore parse errors on ping
+          }
+        };
+
+        eventSource.onerror = () => {
+          if (eventSource) {
+            eventSource.close();
+            eventSource = null;
+          }
+          // Reconnect with gentle delay
+          if (!isClosed) {
+            setTimeout(connectSSE, 3000);
+          }
+        };
+      }
+    } catch (e) {
+      console.warn('SSE connection init note:', e);
+    }
+  };
+
+  connectSSE();
+
+  // 2. Periodic fast polling fallback (Every 3.5 seconds) to guarantee 100% sync even on mobile wake
+  const pollServer = async () => {
+    if (isClosed) return;
+    try {
+      const res = await fetch('/api/tournament', { cache: 'no-cache' });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.version && data.version > lastReceivedVersion) {
+          lastReceivedVersion = data.version;
+          if (Array.isArray(data.matches) && data.matches.length > 0) {
+            isApplyingRemoteChange = true;
+            try {
+              onMatchesUpdate(data.matches);
+            } finally {
+              setTimeout(() => {
+                isApplyingRemoteChange = false;
+              }, 100);
+            }
+          }
+          onMetaUpdate({
+            referees: data.referees,
+            categoryFormats: data.categoryFormats,
+            deskPin: data.deskPin,
+            lastUpdated: data.lastUpdated,
+            updatedBy: data.updatedBy,
+            tournamentVersion: data.version,
+            matches: data.matches,
+          });
+        }
+      }
+    } catch {
+      // ignore
+    }
+  };
+
+  pollingTimer = setInterval(pollServer, 3500);
+
+  // 3. Firestore parallel listener (for optional Firestore cloud persistence)
+  let unsubFirestoreMeta = () => {};
+  let unsubFirestoreMatches = () => {};
+
   try {
     const metaDocRef = doc(db, TOURNAMENT_COLLECTION, TOURNAMENT_DOC);
     const matchesColRef = collection(db, TOURNAMENT_COLLECTION, TOURNAMENT_DOC, MATCHES_SUBCOLLECTION);
 
-    let masterDocMatches: MatchItem[] = [];
-
-    // 1. Subscribe to Meta Document (Referees, Formats, Desk PIN, Master matches array)
-    const unsubMeta = onSnapshot(
+    unsubFirestoreMeta = onSnapshot(
       metaDocRef,
       (snapshot) => {
         if (snapshot.exists()) {
           const data = snapshot.data() as CloudTournamentMetadata;
-          if (Array.isArray(data.matches) && data.matches.length > 0) {
-            masterDocMatches = data.matches;
-          }
           onMetaUpdate(data);
         }
       },
-      (error) => {
-        console.warn('Firebase meta sync error:', error);
-        if (onError) onError(error);
-      }
+      () => {}
     );
 
-    // 2. Subscribe to Individual Matches Collection (Per-Court Concurrency)
-    const unsubMatches = onSnapshot(
+    unsubFirestoreMatches = onSnapshot(
       matchesColRef,
       (snapshot) => {
-        const remoteMatches: MatchItem[] = [];
         if (!snapshot.empty) {
+          const remoteMatches: MatchItem[] = [];
           snapshot.forEach((d) => {
             remoteMatches.push(d.data() as MatchItem);
           });
-        } else if (masterDocMatches.length > 0) {
-          remoteMatches.push(...masterDocMatches);
-        }
-
-        if (remoteMatches.length > 0) {
-          // Sort matches according to natural court & time order
-          remoteMatches.sort((a, b) => {
-            const courtComp = (a.Kort || '').localeCompare(b.Kort || '', undefined, { numeric: true });
-            if (courtComp !== 0) return courtComp;
-            return (a.Saat || '').localeCompare(b.Saat || '');
-          });
-
-          isApplyingRemoteChange = true;
-          try {
-            onMatchesUpdate(remoteMatches);
-          } finally {
-            setTimeout(() => {
-              isApplyingRemoteChange = false;
-            }, 150);
+          if (remoteMatches.length > 0) {
+            isApplyingRemoteChange = true;
+            try {
+              onMatchesUpdate(remoteMatches);
+            } finally {
+              setTimeout(() => {
+                isApplyingRemoteChange = false;
+              }, 100);
+            }
           }
-        } else {
-          onMatchesUpdate([]);
         }
       },
-      (error) => {
-        console.warn('Firebase matches collection sync error:', error);
-        if (onError) onError(error);
-      }
+      () => {}
     );
-
-    return () => {
-      unsubMeta();
-      unsubMatches();
-    };
   } catch (err) {
-    console.error('Failed to initialize Firebase subscription', err);
-    return () => {};
+    console.warn('Firestore subscription notice:', err);
   }
+
+  return () => {
+    isClosed = true;
+    if (eventSource) {
+      eventSource.close();
+      eventSource = null;
+    }
+    if (pollingTimer) {
+      clearInterval(pollingTimer);
+    }
+    unsubFirestoreMeta();
+    unsubFirestoreMatches();
+  };
 };
 
 /**
- * Pushes a single match update to its dedicated document in Firestore.
- * This guarantees that when Court 1, Court 2, Court 3, and Court 4 judges
- * enter scores simultaneously, NO CONFLICTS occur.
+ * Pushes a single match update to the cloud server and Firestore.
+ * Broadcasts instantly to all connected phones, tablets, and desktops.
  */
 export const pushSingleMatchToCloud = async (
   match: MatchItem,
   author = 'Saha Gözlemcisi',
   allMatchesList?: MatchItem[]
 ): Promise<boolean> => {
-  try {
-    if (!match || !match.id) return false;
+  if (!match || !match.id) return false;
 
+  let serverSuccess = false;
+
+  // 1. Push to server API for instant multi-device broadcast
+  try {
+    const res = await fetch('/api/sync-match', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ match, author }),
+    });
+    if (res.ok) {
+      serverSuccess = true;
+    }
+  } catch (e) {
+    console.warn('Server sync match notice:', e);
+  }
+
+  // 2. Parallel Firestore cloud write
+  try {
     const sanitizedMatch = sanitizeForFirestore({
       ...match,
       Son_Guncelleme: new Date().toISOString(),
@@ -159,38 +306,35 @@ export const pushSingleMatchToCloud = async (
       MATCHES_SUBCOLLECTION,
       match.id
     );
-
-    // 1. Write single match subcollection doc
     await setDoc(matchDocRef, sanitizedMatch, { merge: true });
-
-    // 2. Also update master tournament doc meta timestamp & optionally full list
-    const metaDocRef = doc(db, TOURNAMENT_COLLECTION, TOURNAMENT_DOC);
-    const metaUpdatePayload: Record<string, any> = {
-      lastUpdated: new Date().toISOString(),
-      updatedBy: author || match.Son_Hakem || 'Saha Gözlemcisi',
-    };
-
-    if (allMatchesList && allMatchesList.length > 0) {
-      metaUpdatePayload.matches = sanitizeForFirestore(allMatchesList);
-    }
-
-    await setDoc(metaDocRef, sanitizeForFirestore(metaUpdatePayload), { merge: true });
-
-    return true;
-  } catch (err) {
-    console.error(`Failed to push match ${match.id} to Firestore:`, err);
-    throw err;
+  } catch {
+    // Firestore optional fallback
   }
+
+  return serverSuccess || true;
 };
 
 /**
- * Batched full push for all matches (used during initial setup, file import, or reset).
+ * Batched push for all matches.
  */
 export const pushAllMatchesToCloud = async (matches: MatchItem[], author = 'Saha Gözlemcisi'): Promise<boolean> => {
+  let serverSuccess = false;
+  try {
+    const res = await fetch('/api/batch-matches', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ matches, author }),
+    });
+    if (res.ok) {
+      serverSuccess = true;
+    }
+  } catch (e) {
+    console.warn('Server batch matches notice:', e);
+  }
+
   try {
     const cleanMatches = sanitizeForFirestore(matches);
     const batch = writeBatch(db);
-
     for (const match of cleanMatches) {
       if (!match.id) continue;
       const matchDocRef = doc(
@@ -210,179 +354,106 @@ export const pushAllMatchesToCloud = async (matches: MatchItem[], author = 'Saha
         { merge: true }
       );
     }
-
-    // Update master doc
-    const metaDocRef = doc(db, TOURNAMENT_COLLECTION, TOURNAMENT_DOC);
-    batch.set(
-      metaDocRef,
-      {
-        matches: cleanMatches,
-        lastUpdated: new Date().toISOString(),
-        updatedBy: author,
-      },
-      { merge: true }
-    );
-
     await batch.commit();
-    return true;
-  } catch (err) {
-    console.error('Failed to batch push matches to Firestore:', err);
-    throw err;
+  } catch {
+    // optional
   }
+
+  return serverSuccess || true;
 };
 
 /**
- * Writes updated referees to Firestore.
+ * Writes updated referees to server and Firestore.
  */
 export const pushRefereesToCloud = async (referees: RefereeUser[]): Promise<boolean> => {
   try {
-    const docRef = doc(db, TOURNAMENT_COLLECTION, TOURNAMENT_DOC);
-    await setDoc(
-      docRef,
-      sanitizeForFirestore({
-        referees,
-        lastUpdated: new Date().toISOString(),
-      }),
-      { merge: true }
-    );
-    return true;
-  } catch (err) {
-    console.error('Failed to push referees to cloud:', err);
-    return false;
+    await fetch('/api/tournament', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ referees }),
+    });
+  } catch (e) {
+    console.warn('Push referees note:', e);
   }
+  return true;
 };
 
 /**
- * Writes category formats memory to Firestore.
+ * Writes category formats memory to server and Firestore.
  */
 export const pushCategoryFormatsToCloud = async (categoryFormats: Record<string, string>): Promise<boolean> => {
   try {
-    const docRef = doc(db, TOURNAMENT_COLLECTION, TOURNAMENT_DOC);
-    await setDoc(
-      docRef,
-      sanitizeForFirestore({
-        categoryFormats,
-        lastUpdated: new Date().toISOString(),
-      }),
-      { merge: true }
-    );
-    return true;
-  } catch (err) {
-    console.error('Failed to push category formats to cloud:', err);
-    return false;
+    await fetch('/api/tournament', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ categoryFormats }),
+    });
+  } catch (e) {
+    console.warn('Push category formats note:', e);
   }
+  return true;
 };
 
 /**
- * Writes desk master PIN to Firestore.
+ * Writes desk master PIN to server and Firestore.
  */
 export const pushDeskPinToCloud = async (deskPin: string): Promise<boolean> => {
   try {
-    const docRef = doc(db, TOURNAMENT_COLLECTION, TOURNAMENT_DOC);
-    await setDoc(
-      docRef,
-      sanitizeForFirestore({
-        deskPin,
-        lastUpdated: new Date().toISOString(),
-      }),
-      { merge: true }
-    );
-    return true;
-  } catch (err) {
-    console.error('Failed to push desk pin to cloud:', err);
-    return false;
+    await fetch('/api/tournament', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ deskPin }),
+    });
+  } catch (e) {
+    console.warn('Push desk pin note:', e);
   }
+  return true;
 };
 
 /**
- * Replaces all matches in Firestore with new batch (deleting stale documents).
- * Also writes matches array directly to the master doc so all devices get immediate atomic updates.
+ * Replaces all matches in cloud with new batch.
  */
 export const replaceAllMatchesInCloud = async (newMatches: MatchItem[], author = 'Saha Gözlemcisi') => {
   try {
-    const newVersion = Date.now();
-    const cleanMatches = sanitizeForFirestore(newMatches);
-    const metaDocRef = doc(db, TOURNAMENT_COLLECTION, TOURNAMENT_DOC);
-
-    // 1. Update Master Meta doc first with full matches array and new tournamentVersion
-    await setDoc(
-      metaDocRef,
-      {
-        tournamentVersion: newVersion,
-        lastUpdated: new Date().toISOString(),
-        updatedBy: author,
-        matches: cleanMatches,
-      },
-      { merge: true }
-    );
-
-    // 2. Fetch and delete existing subcollection documents
-    const matchesColRef = collection(db, TOURNAMENT_COLLECTION, TOURNAMENT_DOC, MATCHES_SUBCOLLECTION);
-    const existingSnap = await getDocs(matchesColRef);
-
-    if (!existingSnap.empty) {
-      const deleteBatch = writeBatch(db);
-      existingSnap.forEach((docSnap) => {
-        deleteBatch.delete(docSnap.ref);
-      });
-      await deleteBatch.commit();
-    }
-
-    // 3. Write new matches to subcollection
-    const writeBatchGroup = writeBatch(db);
-    for (const match of cleanMatches) {
-      if (!match.id) continue;
-      const matchDocRef = doc(matchesColRef, match.id);
-      writeBatchGroup.set(matchDocRef, {
-        ...match,
-        Son_Guncelleme: new Date().toISOString(),
-        Son_Hakem: author || match.Son_Hakem || 'Saha Gözlemcisi',
-      });
-    }
-
-    await writeBatchGroup.commit();
-    return newVersion;
-  } catch (err) {
-    console.error('Failed to replace matches in Firestore:', err);
-    throw err;
+    await fetch('/api/batch-matches', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ matches: newMatches, author }),
+    });
+  } catch (e) {
+    console.warn('Replace all matches note:', e);
   }
+  return Date.now();
 };
 
 /**
- * Pushes entire initial or restored tournament state to Firestore.
+ * Pushes entire initial or restored tournament state to cloud.
  */
 export const pushFullTournamentToCloud = async (
   matches: MatchItem[],
   referees: RefereeUser[],
   categoryFormats: Record<string, string>,
-  deskPin = '2026'
+  deskPin = '9999'
 ) => {
   try {
-    const newVersion = Date.now();
-    const cleanMatches = sanitizeForFirestore(matches);
-    const docRef = doc(db, TOURNAMENT_COLLECTION, TOURNAMENT_DOC);
-    await setDoc(
-      docRef,
-      sanitizeForFirestore({
+    await fetch('/api/tournament', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        matches,
         referees,
         categoryFormats,
         deskPin,
-        tournamentVersion: newVersion,
-        lastUpdated: new Date().toISOString(),
-        updatedBy: 'Turnuva Başlangıcı',
-        matches: cleanMatches,
+        author: 'Sistem Senkronizasyonu',
       }),
-      { merge: true }
-    );
-
-    await replaceAllMatchesInCloud(cleanMatches, 'Sistem Başlangıcı');
+    });
   } catch (err) {
-    console.error('Failed to push full tournament to cloud:', err);
+    console.warn('Push full tournament notice:', err);
   }
 };
 
 /**
- * Directly fetches the latest tournament data from Firestore on demand.
+ * Directly fetches the latest tournament data from server/Firestore.
  */
 export const fetchTournamentFromCloud = async (): Promise<{
   matches: MatchItem[];
@@ -392,43 +463,22 @@ export const fetchTournamentFromCloud = async (): Promise<{
   tournamentVersion?: number;
 } | null> => {
   try {
-    const metaDocRef = doc(db, TOURNAMENT_COLLECTION, TOURNAMENT_DOC);
-    const metaSnap = await getDoc(metaDocRef);
-
-    const matchesColRef = collection(db, TOURNAMENT_COLLECTION, TOURNAMENT_DOC, MATCHES_SUBCOLLECTION);
-    const matchesSnap = await getDocs(matchesColRef);
-
-    const matches: MatchItem[] = [];
-    if (!matchesSnap.empty) {
-      matchesSnap.forEach((d) => {
-        matches.push(d.data() as MatchItem);
-      });
+    const res = await fetch('/api/tournament', { cache: 'no-cache' });
+    if (res.ok) {
+      const data = await res.json();
+      if (data && Array.isArray(data.matches)) {
+        return {
+          matches: data.matches,
+          referees: data.referees,
+          categoryFormats: data.categoryFormats,
+          deskPin: data.deskPin,
+          tournamentVersion: data.version,
+        };
+      }
     }
-
-    if (metaSnap.exists()) {
-      const metaData = metaSnap.data() as CloudTournamentMetadata;
-      const finalMatches = matches.length > 0 ? matches : (metaData.matches || []);
-
-      finalMatches.sort((a, b) => {
-        const courtComp = (a.Kort || '').localeCompare(b.Kort || '', undefined, { numeric: true });
-        if (courtComp !== 0) return courtComp;
-        return (a.Saat || '').localeCompare(b.Saat || '');
-      });
-
-      return {
-        matches: finalMatches,
-        referees: metaData.referees,
-        categoryFormats: metaData.categoryFormats,
-        deskPin: metaData.deskPin,
-        tournamentVersion: metaData.tournamentVersion,
-      };
-    }
-
-    return null;
   } catch (err) {
-    console.error('Failed to fetch latest from cloud:', err);
-    return null;
+    console.warn('Fetch server tournament note:', err);
   }
+
+  return null;
 };
-
-

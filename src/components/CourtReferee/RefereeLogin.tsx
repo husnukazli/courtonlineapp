@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { UserCheck, KeyRound, Shield, AlertCircle, Sparkles } from 'lucide-react';
+import { UserCheck, KeyRound, Shield, AlertCircle, Sparkles, Zap, Smartphone } from 'lucide-react';
 import { useTennisData } from '../../context/TennisDataContext';
 
 export const RefereeLogin: React.FC = () => {
-  const { referees, loginReferee } = useTennisData();
+  const { referees, loginReferee, loginRefereeDirect } = useTennisData();
   const [selectedName, setSelectedName] = useState<string>('');
   const [pin, setPin] = useState<string>('');
   const [error, setError] = useState<string>('');
@@ -16,16 +16,14 @@ export const RefereeLogin: React.FC = () => {
     }
     const ok = loginReferee(selectedName, pin);
     if (!ok) {
-      setError('Hatalı PIN veya şifre! Lütfen kontrol edin.');
+      setError('Hatalı PIN veya şifre! Lütfen kontrol edin. (Veya aşağıdaki Şifresiz Başla butonunu kullanın)');
     } else {
       setError('');
     }
   };
 
-  const handleQuickLogin = (refName: string, refPin: string) => {
-    setSelectedName(refName);
-    setPin(refPin);
-    loginReferee(refName, refPin);
+  const handleDirectLogin = (refName?: string) => {
+    loginRefereeDirect(refName || selectedName || 'Saha Gözlemcisi');
   };
 
   return (
@@ -37,8 +35,8 @@ export const RefereeLogin: React.FC = () => {
             🎾
           </div>
           <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">Kort Hakemi Girişi</h2>
-          <p className="text-xs text-slate-400">
-            Kulede kura atışı ve anlık skor girişi için lütfen oturum açın.
+          <p className="text-xs text-lime-400 font-semibold">
+            ✨ Hesap açma veya Google girişi gerekmez (Doğrudan Skor Girişi)
           </p>
         </div>
 
@@ -49,10 +47,51 @@ export const RefereeLogin: React.FC = () => {
           </div>
         )}
 
-        <form onSubmit={handleLogin} className="space-y-4">
+        {/* 1-Click Direct Login Button */}
+        <button
+          type="button"
+          onClick={() => handleDirectLogin()}
+          className="w-full py-3.5 px-4 bg-gradient-to-r from-lime-400 via-emerald-400 to-teal-400 hover:from-lime-300 hover:to-teal-300 text-slate-950 font-black rounded-2xl shadow-xl shadow-lime-400/25 text-sm flex items-center justify-center gap-2 active:scale-95 transition"
+        >
+          <Zap className="w-4 h-4" />
+          <span>Şifresiz Doğrudan Skor Girişine Başla</span>
+        </button>
+
+        <div className="relative flex items-center justify-center">
+          <div className="border-t border-slate-800 w-full" />
+          <span className="bg-slate-900 px-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider absolute">
+            veya isminizi seçin
+          </span>
+        </div>
+
+        {/* Quick Select Buttons */}
+        <div className="space-y-2">
+          <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider">
+            Hızlı Hakem Seçimi (Tek Tıkla Giriş)
+          </label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {referees.map((ref) => (
+              <button
+                key={ref.name}
+                type="button"
+                onClick={() => handleDirectLogin(ref.name)}
+                className="p-3 bg-slate-950 hover:bg-slate-800 border border-slate-800 hover:border-lime-400/50 rounded-xl text-left transition text-xs flex items-center justify-between group active:scale-98"
+              >
+                <span className="font-bold text-slate-200 group-hover:text-lime-300 truncate">
+                  👤 {ref.name}
+                </span>
+                <span className="text-[10px] text-lime-400 font-bold opacity-0 group-hover:opacity-100 transition">
+                  Giriş →
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <form onSubmit={handleLogin} className="space-y-4 pt-2 border-t border-slate-800">
           <div>
             <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">
-              Hakem İsmi
+              Hakem İsmi (Özel)
             </label>
             <select
               value={selectedName}
@@ -60,7 +99,7 @@ export const RefereeLogin: React.FC = () => {
                 setSelectedName(e.target.value);
                 setError('');
               }}
-              className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-white font-medium text-sm focus:outline-none focus:border-lime-400 focus:ring-1 focus:ring-lime-400"
+              className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-white font-medium text-xs sm:text-sm focus:outline-none focus:border-lime-400"
             >
               <option value="">-- Hakem Seçiniz --</option>
               {referees.map((ref) => (
@@ -73,7 +112,7 @@ export const RefereeLogin: React.FC = () => {
 
           <div>
             <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">
-              Hakem PIN / Şifre
+              Hakem PIN (İsteğe Bağlı)
             </label>
             <div className="relative">
               <input
@@ -84,44 +123,20 @@ export const RefereeLogin: React.FC = () => {
                   setPin(e.target.value);
                   setError('');
                 }}
-                placeholder="Örn: 1212"
-                className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-white font-mono tracking-widest text-center text-lg focus:outline-none focus:border-lime-400 focus:ring-1 focus:ring-lime-400"
+                placeholder="Varsayılan: 1234"
+                className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-white font-mono tracking-widest text-center text-base focus:outline-none focus:border-lime-400"
               />
-              <KeyRound className="w-5 h-5 text-slate-500 absolute left-3 top-3.5 pointer-events-none" />
+              <KeyRound className="w-4 h-4 text-slate-500 absolute left-3 top-3 pointer-events-none" />
             </div>
           </div>
 
           <button
             type="submit"
-            className="w-full py-3.5 bg-lime-400 hover:bg-lime-300 text-slate-950 font-bold rounded-xl shadow-lg shadow-lime-400/20 text-sm transition active:scale-98"
+            className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl text-xs transition"
           >
-            Hakem Paneline Giriş Yap
+            PIN ile Giriş Yap
           </button>
         </form>
-
-        {/* Quick Access Referees for fast switching */}
-        <div className="pt-4 border-t border-slate-800 space-y-3">
-          <div className="flex items-center justify-between text-xs text-slate-400">
-            <span className="font-semibold">Hızlı Hakem Seçimi:</span>
-            <span className="text-[10px] text-slate-500">Tek tıkla giriş</span>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-            {referees.slice(0, 3).map((ref) => (
-              <button
-                key={ref.name}
-                type="button"
-                onClick={() => handleQuickLogin(ref.name, ref.pin)}
-                className="p-2.5 bg-slate-950 hover:bg-slate-800 border border-slate-800 hover:border-lime-400/50 rounded-xl text-left transition text-xs group"
-              >
-                <div className="font-bold text-slate-200 group-hover:text-lime-300 truncate">
-                  {ref.name.split(' ')[0]}
-                </div>
-                <div className="text-[10px] text-slate-500">PIN: {ref.pin}</div>
-              </button>
-            ))}
-          </div>
-        </div>
       </div>
     </div>
   );

@@ -1,5 +1,11 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore, initializeFirestore, Firestore } from 'firebase/firestore';
+import {
+  getFirestore,
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+  Firestore,
+} from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey: "AIzaSyB7OY5mJqooB1uZbDBVR-b6ZCNcPu-azag",
@@ -14,9 +20,16 @@ const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
 let firestoreDb: Firestore;
 try {
-  firestoreDb = initializeFirestore(app, {
-    ignoreUndefinedProperties: true,
-  }, "ai-studio-courtonline-a8966e92-b486-4eea-a78a-3de4816736bc");
+  firestoreDb = initializeFirestore(
+    app,
+    {
+      localCache: persistentLocalCache({
+        tabManager: persistentMultipleTabManager(),
+      }),
+      ignoreUndefinedProperties: true,
+    },
+    "ai-studio-courtonline-a8966e92-b486-4eea-a78a-3de4816736bc"
+  );
 } catch {
   try {
     firestoreDb = getFirestore(app, "ai-studio-courtonline-a8966e92-b486-4eea-a78a-3de4816736bc");
@@ -33,4 +46,3 @@ try {
 
 export const db = firestoreDb;
 export default app;
-

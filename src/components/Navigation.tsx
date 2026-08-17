@@ -14,9 +14,11 @@ import {
   EyeOff,
   Cloud,
   RefreshCw,
+  QrCode,
 } from 'lucide-react';
 import { useTennisData } from '../context/TennisDataContext';
 import { RefereeLoginModal } from './RefereeLoginModal';
+import { ShareRefereeLinkModal } from './Common/ShareRefereeLinkModal';
 
 interface NavigationProps {
   currentTab: 'supervisor' | 'desk';
@@ -43,6 +45,7 @@ export const Navigation: React.FC<NavigationProps> = ({
   } = useTennisData();
 
   const [isRefereeModalOpen, setIsRefereeModalOpen] = useState(false);
+  const [isShareLinkModalOpen, setIsShareLinkModalOpen] = useState(false);
   const [isDeskPinModalOpen, setIsDeskPinModalOpen] = useState(false);
   const [deskPinInput, setDeskPinInput] = useState('');
   const [deskPinError, setDeskPinError] = useState('');
@@ -184,6 +187,17 @@ export const Navigation: React.FC<NavigationProps> = ({
                 </span>
               </button>
 
+              {/* Share Referee Phone Link & QR Code */}
+              <button
+                type="button"
+                onClick={() => setIsShareLinkModalOpen(true)}
+                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-lime-400/15 hover:bg-lime-400/25 border border-lime-400/40 text-lime-300 text-xs font-black transition active:scale-95 shadow-sm"
+                title="Hakemler için telefon bağlantısı ve QR karekod üret / paylaş"
+              >
+                <QrCode className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Hakem Linki & QR</span>
+              </button>
+
               {/* Referee Authentication Pill Button */}
               <button
                 type="button"
@@ -196,7 +210,7 @@ export const Navigation: React.FC<NavigationProps> = ({
                 title={
                   currentReferee
                     ? `Aktif Hakem: ${currentReferee.name} (Profil/Değiştir)`
-                    : 'Hakem Girişi Yap (PIN Şifre)'
+                    : 'Hakem Girişi Yap'
                 }
               >
                 {currentReferee ? (
@@ -248,6 +262,12 @@ export const Navigation: React.FC<NavigationProps> = ({
       <RefereeLoginModal
         isOpen={isRefereeModalOpen}
         onClose={() => setIsRefereeModalOpen(false)}
+      />
+
+      {/* Share Referee Public Phone Link & QR Code Modal */}
+      <ShareRefereeLinkModal
+        isOpen={isShareLinkModalOpen}
+        onClose={() => setIsShareLinkModalOpen(false)}
       />
 
       {/* Desk Master PIN Prompt Modal when switching tab */}

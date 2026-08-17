@@ -31,7 +31,7 @@ export const QuickScoreEditModal: React.FC<QuickScoreEditModalProps> = ({
   isOpen,
   onClose,
 }) => {
-  const { setDirectSetScores, setMatchStatus, finishAndReportMatch } = useTennisData();
+  const { saveDirectScoreAndStatus } = useTennisData();
 
   const [s1_p1, setS1_p1] = useState(0);
   const [s1_p2, setS1_p2] = useState(0);
@@ -197,28 +197,32 @@ export const QuickScoreEditModal: React.FC<QuickScoreEditModalProps> = ({
       }
     }
 
-    // Direct score update
-    setDirectSetScores(match.id, s1_p1, s1_p2, s2_p1, s2_p2, s3_p1, s3_p2);
+    const finalWinner = isFinishing && !isSpecialFinish && scoreWinnerName
+      ? scoreWinnerName
+      : selectedWinner !== 'Secilmedi'
+      ? selectedWinner
+      : match.Kazanan;
 
-    if (isResumingToLive) {
-      // Returning match to live play!
-      setMatchStatus(match.id, 'Oynaniyor', 'Secilmedi', '');
-    } else {
-      const finalWinner = isFinishing && !isSpecialFinish && scoreWinnerName ? scoreWinnerName : (selectedWinner !== 'Secilmedi' ? selectedWinner : match.Kazanan);
+    const finalEndTime =
+      status === 'Bitti' || status === 'Retired' || status === 'Walkover'
+        ? endTime || new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })
+        : status === 'Oynaniyor'
+        ? ''
+        : match.Bitis_Saati;
 
-      if ((isFinishing || isSpecialFinish) && finalWinner && finalWinner !== 'Secilmedi') {
-        finishAndReportMatch(
-          match.id,
-          finalWinner,
-          status,
-          buildScoreString(s1_p1, s1_p2, s2_p1, s2_p2, s3_p1, s3_p2),
-          startTime || match.Baslangic_Saati,
-          endTime || new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })
-        );
-      } else {
-        setMatchStatus(match.id, status, finalWinner !== 'Secilmedi' ? finalWinner : undefined, endTime);
-      }
-    }
+    // Perform SINGLE atomic save for both score and match status
+    saveDirectScoreAndStatus(match.id, {
+      s1_p1,
+      s1_p2,
+      s2_p1,
+      s2_p2,
+      s3_p1,
+      s3_p2,
+      status: isResumingToLive ? 'Oynaniyor' : status,
+      winner: isResumingToLive ? 'Secilmedi' : (finalWinner !== 'Secilmedi' ? finalWinner : undefined),
+      startTime: startTime || match.Baslangic_Saati,
+      endTime: finalEndTime,
+    });
 
     onClose();
   };

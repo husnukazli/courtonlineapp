@@ -40,6 +40,7 @@ export const LiveScoringTab: React.FC<LiveScoringTabProps> = ({ onBackToSetup })
   const [showHistory, setShowHistory] = useState(false);
   const [showEndOptions, setShowEndOptions] = useState(false);
   const [selectedPointType, setSelectedPointType] = useState<PointType>('NORMAL');
+  const lastPointClickRef = useRef<number>(0);
 
   if (!activeMatch) {
     return (
@@ -86,6 +87,9 @@ export const LiveScoringTab: React.FC<LiveScoringTabProps> = ({ onBackToSetup })
   };
 
   const handlePoint = (playerWon: 1 | 2, type: PointType = 'NORMAL') => {
+    const now = Date.now();
+    if (now - lastPointClickRef.current < 400) return; // Prevent double trigger
+    lastPointClickRef.current = now;
     awardPointToMatch(activeMatch.id, playerWon, type);
     // Haptic feedback if on mobile browser
     if (typeof navigator !== 'undefined' && navigator.vibrate) {

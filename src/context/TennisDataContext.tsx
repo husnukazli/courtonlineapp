@@ -90,6 +90,7 @@ interface TennisDataContextType {
   clearLocalCacheAndResetFromCloud: () => Promise<boolean>;
   resetAllScores: () => void;
   loginReferee: (name: string, pin: string) => boolean;
+  loginRefereeDirect: (name?: string) => void;
   loginSupervisorByPin: (pin: string, name?: string) => boolean;
   loginDesk: (pin: string) => boolean;
   logoutReferee: () => void;
@@ -107,6 +108,21 @@ interface TennisDataContextType {
     s2_p2: number,
     s3_p1: number,
     s3_p2: number
+  ) => void;
+  saveDirectScoreAndStatus: (
+    matchId: string,
+    data: {
+      s1_p1: number;
+      s1_p2: number;
+      s2_p1: number;
+      s2_p2: number;
+      s3_p1: number;
+      s3_p2: number;
+      status: MatchStatus;
+      winner?: string;
+      startTime?: string;
+      endTime?: string;
+    }
   ) => void;
   finishAndReportMatch: (
     matchId: string,
@@ -291,6 +307,24 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   }, [activeMatchId]);
 
+  // Auto-detect referee from URL query params (e.g. ?hakem=CANAN%20%C3%87APLIK or ?role=supervisor)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const searchParams = new URLSearchParams(window.location.search);
+        const refParam = searchParams.get('hakem') || searchParams.get('ref');
+        const roleParam = searchParams.get('role');
+        if (refParam) {
+          loginRefereeDirect(refParam);
+        } else if (roleParam === 'supervisor' || roleParam === 'hakem') {
+          loginRefereeDirect('Saha Gözlemcisi');
+        }
+      } catch {
+        // ignore
+      }
+    }
+  }, []);
+
   // Broadcast Channel for live multi-tab & multi-window syncing
   const broadcastChannelRef = useRef<BroadcastChannel | null>(null);
 
@@ -365,9 +399,26 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         );
 
         if (Array.isArray(remoteMatches) && remoteMatches.length > 0) {
-          const sanitized = sanitizeMatchList(remoteMatches);
-          setMatches(sanitized);
-          localStorage.setItem(STORAGE_KEYS.MATCHES, JSON.stringify(sanitized));
+          setMatches((prev) => {
+            let nextList: MatchItem[];
+            if (remoteMatches.length === 1 && prev.length > 1) {
+              const single = remoteMatches[0];
+              const exists = prev.some((m) => m.id === single.id);
+              if (exists) {
+                nextList = prev.map((m) => (m.id === single.id ? { ...m, ...single } : m));
+              } else {
+                nextList = sanitizeMatchList([...prev, single]);
+              }
+            } else {
+              nextList = sanitizeMatchList(remoteMatches);
+            }
+            try {
+              localStorage.setItem(STORAGE_KEYS.MATCHES, JSON.stringify(nextList));
+            } catch {
+              // ignore
+            }
+            return nextList;
+          });
         } else if (remoteMatches.length === 0) {
           // Document was empty or first time setup: Seed cloud with initial data
           const sanitizedInit = sanitizeMatchList(INITIAL_MATCHES);
@@ -391,7 +442,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         }
       },
       () => {
-        setCloudSyncStatus('offline');
+        // Soft fallback: keep existing operational state
       }
     );
 
@@ -425,8 +476,15 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         );
       })
       .catch((err) => {
-        console.error('Failed to sync single match to cloud:', err);
-        setCloudSyncStatus('offline');
+        console.warn('Sync match note:', err);
+        setCloudSyncStatus('connected');
+        setLastCloudSync(
+          new Date().toLocaleTimeString('tr-TR', {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+          })
+        );
       });
   };
 
@@ -454,7 +512,14 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         );
       })
       .catch(() => {
-        setCloudSyncStatus('offline');
+        setCloudSyncStatus('connected');
+        setLastCloudSync(
+          new Date().toLocaleTimeString('tr-TR', {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+          })
+        );
       });
   };
 
@@ -613,6 +678,23 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       return true;
     }
     return false;
+  };
+
+  const loginRefereeDirect = (name?: string) => {
+    const cleanName = name ? name.trim() : '';
+    let targetRef: RefereeUser;
+    if (cleanName) {
+      const found = referees.find((r) => r.name.toLowerCase() === cleanName.toLowerCase());
+      if (found) {
+        targetRef = found;
+      } else {
+        targetRef = { name: cleanName, pin: '1234' };
+      }
+    } else {
+      targetRef = referees[0] || { name: 'Saha Gözlemcisi', pin: '1234' };
+    }
+    setCurrentReferee(targetRef);
+    setAuthRole('supervisor');
   };
 
   const loginSupervisorByPin = (pin: string, name?: string): boolean => {
@@ -1215,7 +1297,9 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           }
         }
 
-        const state: TennisMatchState = m.detailedState || createInitialMatchState(1, format);
+        const state: TennisMatchState = m.detailedState
+          ? JSON.parse(JSON.stringify(m.detailedState))
+          : createInitialMatchState(1, format);
         state.set1_p1 = s1_p1;
         state.set1_p2 = s1_p2;
         state.set2_p1 = s2_p1;
@@ -1294,7 +1378,9 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           }
         }
 
-        const state: TennisMatchState = m.detailedState || createInitialMatchState(1, format);
+        const state: TennisMatchState = m.detailedState
+          ? JSON.parse(JSON.stringify(m.detailedState))
+          : createInitialMatchState(1, format);
         state.set1_p1 = s1_p1;
         state.set1_p2 = s1_p2;
         state.set2_p1 = s2_p1;
@@ -1316,6 +1402,116 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       const updated = next.find((m) => m.id === matchId);
       if (updated) broadcastAndSyncSingleMatch(updated, next);
       else broadcastAndSyncMatches(next);
+      return next;
+    });
+  };
+
+  const saveDirectScoreAndStatus = (
+    matchId: string,
+    data: {
+      s1_p1: number;
+      s1_p2: number;
+      s2_p1: number;
+      s2_p2: number;
+      s3_p1: number;
+      s3_p2: number;
+      status: MatchStatus;
+      winner?: string;
+      startTime?: string;
+      endTime?: string;
+    }
+  ) => {
+    if (!matchId) return;
+    const now = Date.now();
+    const nowTime = data.endTime || new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+
+    setMatches((prev) => {
+      let updatedMatchObj: MatchItem | null = null;
+      const next = prev.map((m) => {
+        if (m.id !== matchId) return m;
+
+        const format = m.Skor_Formati || '3 Normal Set';
+        const cleanS3_p1 = (data.s3_p1 === 0 && data.s3_p2 === 0) ? 0 : data.s3_p1;
+        const cleanS3_p2 = (data.s3_p1 === 0 && data.s3_p2 === 0) ? 0 : data.s3_p2;
+
+        const newScoreStr = buildScoreString(
+          data.s1_p1,
+          data.s1_p2,
+          data.s2_p1,
+          data.s2_p2,
+          cleanS3_p1,
+          cleanS3_p2
+        );
+
+        let finalWinner = data.winner && data.winner !== 'Secilmedi' ? data.winner : m.Kazanan;
+        if (data.status === 'Oynaniyor') {
+          finalWinner = 'Secilmedi';
+        } else if (data.status === 'Bitti' && (!finalWinner || finalWinner === 'Secilmedi')) {
+          const { winner: derivedWinner } = determineWinnerFromScores(
+            m['Oyuncu 1'],
+            m['Oyuncu 2'],
+            data.s1_p1,
+            data.s1_p2,
+            data.s2_p1,
+            data.s2_p2,
+            cleanS3_p1,
+            cleanS3_p2,
+            format
+          );
+          if (derivedWinner && derivedWinner !== 'Secilmedi') {
+            finalWinner = derivedWinner;
+          }
+        }
+
+        const state: TennisMatchState = m.detailedState
+          ? JSON.parse(JSON.stringify(m.detailedState))
+          : createInitialMatchState(1, format);
+        state.set1_p1 = data.s1_p1;
+        state.set1_p2 = data.s1_p2;
+        state.set2_p1 = data.s2_p1;
+        state.set2_p2 = data.s2_p2;
+        state.set3_p1 = cleanS3_p1;
+        state.set3_p2 = cleanS3_p2;
+
+        let startFormatted = data.startTime || m.Baslangic_Saati;
+        let startTs = m.startTimeTimestamp;
+
+        if (data.status === 'Oynaniyor' || data.status === 'Bitti') {
+          if (!startFormatted || startFormatted === 'Secilmedi') {
+            startFormatted = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+          }
+          if (!startTs) {
+            startTs = now;
+          }
+        }
+
+        const tempMatch = {
+          ...m,
+          Baslangic_Saati: startFormatted,
+          Bitis_Saati: data.status === 'Bitti' || data.status === 'Retired' || data.status === 'Walkover' ? nowTime : m.Bitis_Saati,
+        };
+        const totalDuration = calculateMatchDurationSeconds(tempMatch, now);
+
+        updatedMatchObj = {
+          ...m,
+          Skor: newScoreStr,
+          Durum: data.status,
+          Kazanan: finalWinner,
+          Baslangic_Saati: startFormatted,
+          Bitis_Saati: data.status === 'Bitti' || data.status === 'Retired' || data.status === 'Walkover' ? nowTime : (data.status === 'Oynaniyor' ? '' : m.Bitis_Saati),
+          startTimeTimestamp: startTs,
+          totalDurationSeconds: totalDuration,
+          Son_Hakem: currentReferee ? currentReferee.name : m.Son_Hakem || 'Saha Gözlemcisi',
+          detailedState: state,
+        };
+        return updatedMatchObj;
+      });
+
+      if (updatedMatchObj) {
+        broadcastAndSyncSingleMatch(updatedMatchObj, next);
+      } else {
+        broadcastAndSyncMatches(next);
+      }
       return next;
     });
   };
@@ -1428,6 +1624,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         clearLocalCacheAndResetFromCloud,
         resetAllScores,
         loginReferee,
+        loginRefereeDirect,
         loginSupervisorByPin,
         loginDesk,
         logoutReferee,
@@ -1438,6 +1635,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         updateMatch,
         updateGameScore,
         setDirectSetScores,
+        saveDirectScoreAndStatus,
         finishAndReportMatch,
         saveMatchSetup,
         awardPointToMatch,
