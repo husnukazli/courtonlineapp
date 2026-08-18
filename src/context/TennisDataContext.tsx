@@ -307,7 +307,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   }, [activeMatchId]);
 
-  // Auto-detect referee from URL query params (e.g. ?hakem=CANAN%20%C3%87APLIK or ?role=supervisor)
+  // Auto-detect referee from URL query params
   useEffect(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -365,7 +365,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     };
   }, []);
 
-  // Firebase Real-time Multi-Device Sync Subscription
+  // Real-time Multi-Device Sync Subscription
   useEffect(() => {
     fetchTournamentFromCloud().then((remote) => {
       if (remote && Array.isArray(remote.matches) && remote.matches.length > 0) {
@@ -420,9 +420,8 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             return nextList;
           });
         } else if (remoteMatches.length === 0) {
-          // Document was empty or first time setup: Seed cloud with initial data
-          const sanitizedInit = sanitizeMatchList(INITIAL_MATCHES);
-          pushFullTournamentToCloud(sanitizedInit, INITIAL_REFEREES, INITIAL_CATEGORY_FORMAT_MEMORY, deskPin);
+          // KRİTİK DÜZELTME: Buluttan boş gelirse, eskiden yaptığı gibi veriyi sabote edip EZMESİNİ ENGELLEDİK.
+          console.warn('Buluttan gelen maç listesi boş, veri ezilmesi engellendi.');
         }
       },
       (meta) => {
@@ -451,7 +450,6 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     };
   }, [deskPin]);
 
-  // Sync a single match to Firestore without touching other courts (Zero-conflict concurrency)
   const broadcastAndSyncSingleMatch = (updatedMatch: MatchItem, allMatchesList?: MatchItem[]) => {
     const fullList = allMatchesList || matches.map((m) => (m.id === updatedMatch.id ? updatedMatch : m));
     try {
@@ -498,7 +496,6 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       // ignore
     }
 
-    // Push batch update to Firebase cloud
     setCloudSyncStatus('syncing');
     pushAllMatchesToCloud(newMatches, currentReferee?.name || 'Saha Gözlemcisi')
       .then(() => {
@@ -553,7 +550,8 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         );
         return true;
       } else {
-        await pushFullTournamentToCloud(matches, referees, categoryFormats, deskPin);
+        // KRİTİK DÜZELTME: Eskiden burada veri boşsa senin yüklediğin veriyi silip kendi boş verisini atıyordu. O kısmı SİLDİK.
+        console.warn('Bulut verisi okunamadı veya boş. Verilerin ezilmemesi için hiçbir işlem yapılmadı.');
         setCloudSyncStatus('connected');
         return true;
       }
@@ -567,7 +565,6 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const clearLocalCacheAndResetFromCloud = async (): Promise<boolean> => {
     setCloudSyncStatus('syncing');
     try {
-      // Clear local storage completely for tournament keys
       localStorage.removeItem(STORAGE_KEYS.MATCHES);
       localStorage.removeItem(STORAGE_KEYS.REFEREES);
       localStorage.removeItem(STORAGE_KEYS.CATEGORY_FORMATS);
@@ -590,11 +587,11 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           localStorage.setItem(STORAGE_KEYS.DESK_PIN, remote.deskPin);
         }
       } else {
+        // KRİTİK DÜZELTME: Temizle dediğimizde bulutta veri yoksa eskisi gibi boş veriyi zorla İTMİYORUZ. 
         const initialSanitized = sanitizeMatchList(INITIAL_MATCHES);
         setMatches(initialSanitized);
         setReferees(INITIAL_REFEREES);
         setCategoryFormats(INITIAL_CATEGORY_FORMAT_MEMORY);
-        await pushFullTournamentToCloud(initialSanitized, INITIAL_REFEREES, INITIAL_CATEGORY_FORMAT_MEMORY, deskPin);
       }
 
       setCloudSyncStatus('connected');
@@ -710,7 +707,6 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       }
     }
 
-    // Check if pin matches any referee
     const matchingRef = referees.find((r) => r.pin === cleanPin);
     if (matchingRef) {
       setCurrentReferee(matchingRef);
@@ -718,7 +714,6 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       return true;
     }
 
-    // Default supervisor bypass / fallback pin 1234
     if (cleanPin === '1234') {
       const defaultRef = referees[0] || { name: 'Saha Gözlemcisi', pin: '1234' };
       setCurrentReferee(defaultRef);
@@ -775,7 +770,6 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       const next = prev.map((m) => {
         if (!m.id || m.id !== matchId) return m;
 
-        // If becoming 'Oynaniyor' and detailed state not yet initialized
         let detState = m.detailedState;
         const chosenFormat = data.skorFormati || m.Skor_Formati || '3 Normal Set';
 
@@ -827,7 +821,6 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       const next = prev.map((m) => {
         if (!m.id || m.id !== matchId) return m;
 
-        // Initialize state if not present
         const currState =
           m.detailedState ||
           createInitialMatchState(1, m.Skor_Formati || '3 Normal Set');
@@ -836,7 +829,6 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         const p2Name = m['Oyuncu 2'];
         const format = m.Skor_Formati || '3 Normal Set';
 
-        // Snapshot current state for point history / undo
         const historyItem: PointHistoryItem = {
           id: 'pt-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4),
           timestamp: new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
@@ -848,7 +840,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           scoreDisplay: formatScoreString(currState) + ` [${currState.gamePoint_p1}-${currState.gamePoint_p2}]`,
         };
 
-        const { nextState, matchEnded, matchWinner, summary } = awardPoint(
+        const { nextState, matchEnded, matchWinner } = awardPoint(
           currState,
           playerWon,
           pointType,
@@ -965,7 +957,6 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         const currChallenges = [...(m.challenges || []), challengeRecord];
         let currState = m.detailedState ? JSON.parse(JSON.stringify(m.detailedState)) : createInitialMatchState(1);
 
-        // Deduct challenge if OVERTURNED (player was wrong)
         if (outcome === 'OVERTURNED') {
           if (player === 1 && currState.p1ChallengesLeft > 0) {
             currState.p1ChallengesLeft--;
@@ -990,7 +981,6 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       return next;
     });
 
-    // If challenge resulted in point change:
     if (actionType === 'REPLAY_POINT') {
       undoLastPoint(matchId);
     } else if (actionType === 'AWARD_POINT' && outcome === 'UPHELD') {
@@ -1245,17 +1235,16 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           const currentP1 = setIndex === 1 ? s1_p1 : setIndex === 2 ? s2_p1 : s3_p1;
           const currentP2 = setIndex === 1 ? s1_p2 : setIndex === 2 ? s2_p2 : s3_p2;
 
-          // Check if set 3 is even allowed (sets 1 and 2 must be split)
           if (setIndex === 3) {
             const val1 = validateSingleSet(s1_p1, s1_p2, 1, format);
             const val2 = validateSingleSet(s2_p1, s2_p2, 2, format);
             if (!val1.isComplete || !val2.isComplete || val1.winner === val2.winner) {
-              return m; // Cannot increment set 3 if 2-0 or sets 1-2 not completed
+              return m; 
             }
           }
 
           if (!canIncrementSetScore(currentP1, currentP2, player, setIndex, format)) {
-            return m; // Block illegal increments beyond tennis score limits
+            return m; 
           }
         }
 
@@ -1343,7 +1332,6 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
         const format = m.Skor_Formati || '3 Normal Set';
 
-        // Check if sets 1 and 2 result in 2-0; if so, clear set 3
         const val1 = validateSingleSet(s1_p1, s1_p2, 1, format);
         const val2 = validateSingleSet(s2_p1, s2_p2, 2, format);
         const is20 = val1.isComplete && val2.isComplete && val1.winner === val2.winner && val1.winner !== null;
@@ -1534,7 +1522,6 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         const finalScore = customScore || m.Skor;
         let finalWinner = winner || m.Kazanan;
 
-        // If normal "Bitti", double check if a legitimate score winner is derived
         if (status === 'Bitti') {
           const parsed = parseScoreString(finalScore);
           const { winner: scoreDerivedWinner, isMatchFinished } = determineWinnerFromScores(
