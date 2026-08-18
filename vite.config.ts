@@ -34,30 +34,9 @@ const INITIAL_CATEGORY_FORMATS = {
   'Büyükler': '3 Normal Set',
 };
 
-// Bu sadece son çare (fallback) listesidir. Sistem artık mac_programi.json'u okuyacak.
-const INITIAL_MATCHES = [
-  {
-    id: 'm-1',
-    Kort: 'KAPALI KORT 2',
-    Saat: '09:30',
-    'Oyuncu 1': 'NIL ÇOLAKOĞLU',
-    'Oyuncu 2': 'ELA DEREN INAM',
-    Kategori: 'Kadın 8 Yaş T',
-    Skor_Formati: '2 Kısa Set, 3. Set 10 Puanlık Maç Tie-Break',
-    Durum: 'Bitti',
-    Skor: '4/0 4/2 0/0',
-    Kura_Kazanan: 'NIL ÇOLAKOĞLU',
-    Kura_Tercih: 'Karşılama',
-    Saha_Tarafi: 'Sandalyenin Sağı',
-    Baslangic_Saati: '09:35',
-    Bitis_Saati: '21:00',
-    Son_Hakem: 'CANAN ÇAPLIK',
-    Kazanan: 'NIL ÇOLAKOĞLU',
-  }
-];
+const INITIAL_MATCHES: any[] = [];
 
 function loadState(): TournamentState {
-  // 1. Önce aktif oynanan maç durumu (tournament_state.json) var mı bak
   try {
     if (fs.existsSync(STORAGE_FILE)) {
       const raw = fs.readFileSync(STORAGE_FILE, 'utf-8');
@@ -67,10 +46,9 @@ function loadState(): TournamentState {
       }
     }
   } catch (err) {
-    console.error('Failed to read tournament_state.json:', err);
+    console.error('State okunamadi:', err);
   }
 
-  // 2. YENİ: Senin yüklediğin mac_programi.json dosyasını GÜÇLE OKU
   let startingMatches = INITIAL_MATCHES;
   try {
     const macProgramiPath = path.resolve(__dirname, 'mac_programi.json');
@@ -78,7 +56,6 @@ function loadState(): TournamentState {
       const rawMac = fs.readFileSync(macProgramiPath, 'utf-8');
       const parsedMac = JSON.parse(rawMac);
       if (Array.isArray(parsedMac) && parsedMac.length > 0) {
-        // Maçlara sistemin tanıması için ID ekleyip listeyi alıyoruz
         startingMatches = parsedMac.map((m: any, index: number) => ({
           id: `m-${index + 1}`,
           ...m
@@ -86,10 +63,9 @@ function loadState(): TournamentState {
       }
     }
   } catch (err) {
-    console.error('mac_programi.json okunamadi, varsayilana donuluyor:', err);
+    console.error('mac_programi.json okunamadi:', err);
   }
 
-  // 3. Dosyayı kur ve kaydet
   const initial: TournamentState = {
     version: 1,
     lastUpdated: new Date().toISOString(),
@@ -107,7 +83,7 @@ function saveState(state: TournamentState) {
   try {
     fs.writeFileSync(STORAGE_FILE, JSON.stringify(state, null, 2), 'utf-8');
   } catch (err) {
-    console.error('Failed to save tournament_state.json:', err);
+    console.error('State kaydedilemedi:', err);
   }
 }
 
@@ -118,195 +94,108 @@ function tournamentSyncPlugin(): Plugin {
   const broadcastEvent = (eventData: any) => {
     const message = `data: ${JSON.stringify(eventData)}\n\n`;
     for (const client of sseClients) {
-      try {
-        client.write(message);
-      } catch {
-        sseClients.delete(client);
-      }
+      try { client.write(message); } catch { sseClients.delete(client); }
     }
   };
 
-  // Mobil ağlar (NAT/Proxy) bağlantıyı kesmesin diye 15 saniyede bir sinyal
   setInterval(() => {
     for (const client of sseClients) {
-      try {
-        client.write(': keepalive\n\n');
-      } catch {
-        sseClients.delete(client);
-      }
+      try { client.write(': keepalive\n\n'); } catch { sseClients.delete(client); }
     }
   }, 15000);
 
   const readBody = (req: IncomingMessage): Promise<any> => {
     return new Promise((resolve, reject) => {
       let body = '';
-      req.on('data', (chunk) => {
-        body += chunk;
-      });
-      req.on('end', () => {
-        try {
-          resolve(body ? JSON.parse(body) : {});
-        } catch (e) {
-          reject(e);
-        }
-      });
+      req.on('data', chunk => body += chunk);
+      req.on('end', () => resolve(body ? JSON.parse(body) : {}));
       req.on('error', reject);
     });
   };
 
+  // API Yönlendirme Motoru (Hem Dev hem Canlı için ortak)
+  const apiMiddleware = async (req: any, res: any, next: any) => {
+    const url = req.url?.split('?')[0] || '';
+
+    if (url === '/api/events' && req.method === 'GET') {
+      res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache, no-transform',
+        'Connection': 'keep-alive',
+        'Access-Control-Allow-Origin': '*',
+      });
+      res.write(`data: ${JSON.stringify({ type: 'CONNECTED', tournament: tournamentState })}\n\n`);
+      sseClients.add(res);
+      req.on('close', () => sseClients.delete(res));
+      return;
+    }
+
+    if (url === '/api/tournament' && req.method === 'GET') {
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+      res.end(JSON.stringify(tournamentState));
+      return;
+    }
+
+    if (url === '/api/sync-match' && req.method === 'POST') {
+      try {
+        const { match, author } = await readBody(req);
+        if (!match || !match.id) {
+          res.writeHead(400); res.end(JSON.stringify({ error: 'Eksik veri' })); return;
+        }
+        const matchIndex = tournamentState.matches.findIndex(m => m.id === match.id);
+        if (matchIndex >= 0) {
+          tournamentState.matches[matchIndex] = { ...tournamentState.matches[matchIndex], ...match, Son_Guncelleme: new Date().toISOString() };
+        } else {
+          tournamentState.matches.push({ ...match, Son_Guncelleme: new Date().toISOString() });
+        }
+        saveState(tournamentState);
+        broadcastEvent({ type: 'MATCH_UPDATED', match: tournamentState.matches[matchIndex >= 0 ? matchIndex : tournamentState.matches.length - 1] });
+        res.writeHead(200); res.end(JSON.stringify({ success: true }));
+        return;
+      } catch (e) {
+        res.writeHead(500); res.end(JSON.stringify({ error: 'Server error' })); return;
+      }
+    }
+
+    if (url === '/api/batch-matches' && req.method === 'POST') {
+      try {
+        const { matches } = await readBody(req);
+        if (Array.isArray(matches)) {
+          tournamentState.matches = matches;
+          saveState(tournamentState);
+          broadcastEvent({ type: 'MATCHES_UPDATED', matches: tournamentState.matches });
+        }
+        res.writeHead(200); res.end(JSON.stringify({ success: true }));
+        return;
+      } catch (e) {
+        res.writeHead(500); res.end(JSON.stringify({ error: 'Server error' })); return;
+      }
+    }
+
+    if (url === '/api/tournament' && req.method === 'POST') {
+      try {
+        const body = await readBody(req);
+        if (body.matches) tournamentState.matches = body.matches;
+        if (body.referees) tournamentState.referees = body.referees;
+        if (body.categoryFormats) tournamentState.categoryFormats = body.categoryFormats;
+        if (body.deskPin) tournamentState.deskPin = body.deskPin;
+        saveState(tournamentState);
+        broadcastEvent({ type: 'TOURNAMENT_UPDATED', tournament: tournamentState });
+        res.writeHead(200); res.end(JSON.stringify({ success: true }));
+        return;
+      } catch (e) {
+        res.writeHead(500); res.end(JSON.stringify({ error: 'Server error' })); return;
+      }
+    }
+
+    next();
+  };
+
   return {
     name: 'tournament-sync-server',
-    configureServer(server) {
-      server.middlewares.use(async (req, res, next) => {
-        const url = req.url?.split('?')[0] || '';
-
-        // 1. SSE Real-time Stream
-        if (url === '/api/events' && req.method === 'GET') {
-          res.writeHead(200, {
-            'Content-Type': 'text/event-stream',
-            'Cache-Control': 'no-cache, no-transform',
-            'Connection': 'keep-alive',
-            'Access-Control-Allow-Origin': '*',
-          });
-          res.write(`data: ${JSON.stringify({ type: 'CONNECTED', tournament: tournamentState })}\n\n`);
-          sseClients.add(res);
-
-          req.on('close', () => {
-            sseClients.delete(res);
-          });
-          return;
-        }
-
-        // 2. GET full tournament state
-        if (url === '/api/tournament' && req.method === 'GET') {
-          res.writeHead(200, {
-            'Content-Type': 'application/json',
-            'Cache-Control': 'no-cache',
-            'Access-Control-Allow-Origin': '*',
-          });
-          res.end(JSON.stringify(tournamentState));
-          return;
-        }
-
-        // 3. POST single match update
-        if (url === '/api/sync-match' && req.method === 'POST') {
-          try {
-            const body = await readBody(req);
-            const { match, author } = body;
-            if (!match || !match.id) {
-              res.writeHead(400, { 'Content-Type': 'application/json' });
-              res.end(JSON.stringify({ error: 'Missing match object or match.id' }));
-              return;
-            }
-
-            const matchIndex = tournamentState.matches.findIndex((m) => m.id === match.id);
-            if (matchIndex >= 0) {
-              tournamentState.matches[matchIndex] = {
-                ...tournamentState.matches[matchIndex],
-                ...match,
-                Son_Guncelleme: new Date().toISOString(),
-                Son_Hakem: author || match.Son_Hakem || 'Saha Gözlemcisi',
-              };
-            } else {
-              tournamentState.matches.push({
-                ...match,
-                Son_Guncelleme: new Date().toISOString(),
-                Son_Hakem: author || 'Saha Gözlemcisi',
-              });
-            }
-
-            tournamentState.version = (tournamentState.version || 1) + 1;
-            tournamentState.lastUpdated = new Date().toISOString();
-            tournamentState.updatedBy = author || match.Son_Hakem || 'Saha Gözlemcisi';
-
-            saveState(tournamentState);
-
-            broadcastEvent({
-              type: 'MATCH_UPDATED',
-              match: tournamentState.matches[matchIndex >= 0 ? matchIndex : tournamentState.matches.length - 1],
-              version: tournamentState.version,
-              lastUpdated: tournamentState.lastUpdated,
-              updatedBy: tournamentState.updatedBy,
-            });
-
-            res.writeHead(200, {
-              'Content-Type': 'application/json',
-              'Access-Control-Allow-Origin': '*',
-            });
-            res.end(JSON.stringify({ success: true, version: tournamentState.version }));
-            return;
-          } catch (err: any) {
-            res.writeHead(500, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: err?.message || 'Server error' }));
-            return;
-          }
-        }
-
-        // 4. POST batch matches
-        if (url === '/api/batch-matches' && req.method === 'POST') {
-          try {
-            const body = await readBody(req);
-            const { matches, author } = body;
-            if (Array.isArray(matches)) {
-              tournamentState.matches = matches;
-              tournamentState.version = (tournamentState.version || 1) + 1;
-              tournamentState.lastUpdated = new Date().toISOString();
-              tournamentState.updatedBy = author || 'Saha Gözlemcisi';
-
-              saveState(tournamentState);
-
-              broadcastEvent({
-                type: 'MATCHES_UPDATED',
-                matches: tournamentState.matches,
-                version: tournamentState.version,
-                lastUpdated: tournamentState.lastUpdated,
-                updatedBy: tournamentState.updatedBy,
-              });
-            }
-
-            res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-            res.end(JSON.stringify({ success: true, version: tournamentState.version }));
-            return;
-          } catch (err: any) {
-            res.writeHead(500, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: err?.message }));
-            return;
-          }
-        }
-
-        // 5. POST full tournament replacement
-        if (url === '/api/tournament' && req.method === 'POST') {
-          try {
-            const body = await readBody(req);
-            if (body.matches) tournamentState.matches = body.matches;
-            if (body.referees) tournamentState.referees = body.referees;
-            if (body.categoryFormats) tournamentState.categoryFormats = body.categoryFormats;
-            if (body.deskPin) tournamentState.deskPin = body.deskPin;
-
-            tournamentState.version = (tournamentState.version || 1) + 1;
-            tournamentState.lastUpdated = new Date().toISOString();
-            tournamentState.updatedBy = body.author || 'Başhakem Masası';
-
-            saveState(tournamentState);
-
-            broadcastEvent({
-              type: 'TOURNAMENT_UPDATED',
-              tournament: tournamentState,
-            });
-
-            res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-            res.end(JSON.stringify({ success: true, version: tournamentState.version }));
-            return;
-          } catch (err: any) {
-            res.writeHead(500, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: err?.message }));
-            return;
-          }
-        }
-
-        next();
-      });
-    },
+    // Hem bilgisayardaki test (dev) hem de Render'daki canlı (preview) sunucuya API'yi zorla ekliyoruz
+    configureServer(server) { server.middlewares.use(apiMiddleware); },
+    configurePreviewServer(server) { server.middlewares.use(apiMiddleware); }
   };
 }
 
@@ -316,8 +205,11 @@ export default defineConfig({
     host: '0.0.0.0',
     port: Number(process.env.PORT) || 3000,
     allowedHosts: true,
-    watch: {
-      ignored: ['**/tournament_state.json'] // Hata ve restart döngüsünü kesin olarak bitiren satır
-    }
+    watch: { ignored: ['**/tournament_state.json'] }
   },
+  preview: {
+    host: '0.0.0.0',
+    port: Number(process.env.PORT) || 3000,
+    allowedHosts: true,
+  }
 });
