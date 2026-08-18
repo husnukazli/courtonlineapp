@@ -64,10 +64,10 @@ export const sanitizeMatchList = (rawList: any[]): MatchItem[] => {
       Saha_Tarafi: item?.Saha_Tarafi || 'Sandalyenin Sağı',
       Baslangic_Saati: item?.Baslangic_Saati || 'Secilmedi',
       Bitis_Saati: item?.Bitis_Saati || 'Secilmedi',
-      Son_Hakem: item?.Son_Hakem || 'HAKEM',
+      Son_Hakem: item?.Son_Hakem || 'Turnuva Masası',
       Kazanan: item?.Kazanan || 'Secilmedi',
       ...item,
-      id: rawId, // strictly enforce unique id
+      id: rawId,
     };
     return matchItem;
   });
@@ -278,7 +278,6 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     return localStorage.getItem(STORAGE_KEYS.ACTIVE_MATCH_ID) || 'm-9';
   });
 
-  // Sync to localStorage
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.MATCHES, JSON.stringify(matches));
   }, [matches]);
@@ -307,25 +306,11 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   }, [activeMatchId]);
 
-  // Auto-detect referee from URL query params
+  // ŞİFRESİZ URL OTOMATİK GİRİŞİ GÜVENLİK NEDENİYLE TAMAMEN İPTAL EDİLDİ
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const searchParams = new URLSearchParams(window.location.search);
-        const refParam = searchParams.get('hakem') || searchParams.get('ref');
-        const roleParam = searchParams.get('role');
-        if (refParam) {
-          loginRefereeDirect(refParam);
-        } else if (roleParam === 'supervisor' || roleParam === 'hakem') {
-          loginRefereeDirect('Saha Gözlemcisi');
-        }
-      } catch {
-        // ignore
-      }
-    }
+    // Eskiden URL'deki parametreleri okuyup loginRefereeDirect çalıştıran blok kaldırıldı.
   }, []);
 
-  // Broadcast Channel for live multi-tab & multi-window syncing
   const broadcastChannelRef = useRef<BroadcastChannel | null>(null);
 
   useEffect(() => {
@@ -365,7 +350,6 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     };
   }, []);
 
-  // Real-time Multi-Device Sync Subscription
   useEffect(() => {
     fetchTournamentFromCloud().then((remote) => {
       if (remote && Array.isArray(remote.matches) && remote.matches.length > 0) {
@@ -419,9 +403,6 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             }
             return nextList;
           });
-        } else if (remoteMatches.length === 0) {
-          // KRİTİK DÜZELTME: Buluttan boş gelirse, eskiden yaptığı gibi veriyi sabote edip EZMESİNİ ENGELLEDİK.
-          console.warn('Buluttan gelen maç listesi boş, veri ezilmesi engellendi.');
         }
       },
       (meta) => {
@@ -441,7 +422,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         }
       },
       () => {
-        // Soft fallback: keep existing operational state
+        // Soft fallback
       }
     );
 
@@ -462,7 +443,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
 
     setCloudSyncStatus('syncing');
-    pushSingleMatchToCloud(updatedMatch, currentReferee?.name || 'Saha Gözlemcisi', fullList)
+    pushSingleMatchToCloud(updatedMatch, currentReferee?.name || 'Turnuva Masası', fullList)
       .then(() => {
         setCloudSyncStatus('connected');
         setLastCloudSync(
@@ -497,7 +478,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
 
     setCloudSyncStatus('syncing');
-    pushAllMatchesToCloud(newMatches, currentReferee?.name || 'Saha Gözlemcisi')
+    pushAllMatchesToCloud(newMatches, currentReferee?.name || 'Turnuva Masası')
       .then(() => {
         setCloudSyncStatus('connected');
         setLastCloudSync(
@@ -550,7 +531,6 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         );
         return true;
       } else {
-        // KRİTİK DÜZELTME: Eskiden burada veri boşsa senin yüklediğin veriyi silip kendi boş verisini atıyordu. O kısmı SİLDİK.
         console.warn('Bulut verisi okunamadı veya boş. Verilerin ezilmemesi için hiçbir işlem yapılmadı.');
         setCloudSyncStatus('connected');
         return true;
@@ -587,7 +567,6 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           localStorage.setItem(STORAGE_KEYS.DESK_PIN, remote.deskPin);
         }
       } else {
-        // KRİTİK DÜZELTME: Temizle dediğimizde bulutta veri yoksa eskisi gibi boş veriyi zorla İTMİYORUZ. 
         const initialSanitized = sanitizeMatchList(INITIAL_MATCHES);
         setMatches(initialSanitized);
         setReferees(INITIAL_REFEREES);
@@ -677,21 +656,9 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     return false;
   };
 
+  // Bu fonksiyon artık şifresiz geçişe izin vermeyecek, ancak dışarıdan çağrılırsa diye boş bırakıldı
   const loginRefereeDirect = (name?: string) => {
-    const cleanName = name ? name.trim() : '';
-    let targetRef: RefereeUser;
-    if (cleanName) {
-      const found = referees.find((r) => r.name.toLowerCase() === cleanName.toLowerCase());
-      if (found) {
-        targetRef = found;
-      } else {
-        targetRef = { name: cleanName, pin: '1234' };
-      }
-    } else {
-      targetRef = referees[0] || { name: 'Saha Gözlemcisi', pin: '1234' };
-    }
-    setCurrentReferee(targetRef);
-    setAuthRole('supervisor');
+    console.warn('Şifresiz giriş güvenlik nedeniyle tamamen kapatılmıştır.');
   };
 
   const loginSupervisorByPin = (pin: string, name?: string): boolean => {
@@ -714,12 +681,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       return true;
     }
 
-    if (cleanPin === '1234') {
-      const defaultRef = referees[0] || { name: 'Saha Gözlemcisi', pin: '1234' };
-      setCurrentReferee(defaultRef);
-      setAuthRole('supervisor');
-      return true;
-    }
+    // ŞİFRESİZ "1234" VE "Saha Gözlemcisi" GİRİŞ KODLARI BURADAN TAMAMEN SİLİNDİ.
 
     return false;
   };
@@ -797,7 +759,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           Baslangic_Saati: data.baslangicSaati,
           Bitis_Saati: data.bitisSaati,
           Skor_Formati: chosenFormat,
-          Son_Hakem: currentReferee ? currentReferee.name : m.Son_Hakem || 'HAKEM',
+          Son_Hakem: currentReferee ? currentReferee.name : 'Turnuva Masası',
           detailedState: detState,
         };
         updatedItem = res;
@@ -1304,7 +1266,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           Baslangic_Saati: startTime,
           startTimeTimestamp: startTs,
           Kazanan: winner !== 'Secilmedi' ? winner : m.Kazanan,
-          Son_Hakem: currentReferee ? currentReferee.name : m.Son_Hakem || 'Saha Gözlemcisi',
+          Son_Hakem: currentReferee ? currentReferee.name : m.Son_Hakem || 'Turnuva Masası',
           detailedState: state,
         };
         return res;
@@ -1383,7 +1345,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           Baslangic_Saati: startTime,
           startTimeTimestamp: startTs,
           Kazanan: winner !== 'Secilmedi' ? winner : m.Kazanan,
-          Son_Hakem: currentReferee ? currentReferee.name : m.Son_Hakem || 'Saha Gözlemcisi',
+          Son_Hakem: currentReferee ? currentReferee.name : m.Son_Hakem || 'Turnuva Masası',
           detailedState: state,
         };
       });
@@ -1489,7 +1451,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           Bitis_Saati: data.status === 'Bitti' || data.status === 'Retired' || data.status === 'Walkover' ? nowTime : (data.status === 'Oynaniyor' ? '' : m.Bitis_Saati),
           startTimeTimestamp: startTs,
           totalDurationSeconds: totalDuration,
-          Son_Hakem: currentReferee ? currentReferee.name : m.Son_Hakem || 'Saha Gözlemcisi',
+          Son_Hakem: currentReferee ? currentReferee.name : m.Son_Hakem || 'Turnuva Masası',
           detailedState: state,
         };
         return updatedMatchObj;
@@ -1556,7 +1518,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           Baslangic_Saati: startFormatted,
           Bitis_Saati: nowTime,
           totalDurationSeconds: totalDuration,
-          Son_Hakem: currentReferee ? currentReferee.name : m.Son_Hakem || 'Saha Gözlemcisi',
+          Son_Hakem: currentReferee ? currentReferee.name : m.Son_Hakem || 'Turnuva Masası',
         };
       });
       const updated = next.find((m) => m.id === matchId);
