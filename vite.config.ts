@@ -34,10 +34,30 @@ const INITIAL_CATEGORY_FORMATS = {
   'Büyükler': '3 Normal Set',
 };
 
-// Hayalet verileri sildik! Artık sistem boş ve temiz bir sayfa açacak.
-const INITIAL_MATCHES: any[] = [];
+// Bu sadece son çare (fallback) listesidir. Sistem artık mac_programi.json'u okuyacak.
+const INITIAL_MATCHES = [
+  {
+    id: 'm-1',
+    Kort: 'KAPALI KORT 2',
+    Saat: '09:30',
+    'Oyuncu 1': 'NIL ÇOLAKOĞLU',
+    'Oyuncu 2': 'ELA DEREN INAM',
+    Kategori: 'Kadın 8 Yaş T',
+    Skor_Formati: '2 Kısa Set, 3. Set 10 Puanlık Maç Tie-Break',
+    Durum: 'Bitti',
+    Skor: '4/0 4/2 0/0',
+    Kura_Kazanan: 'NIL ÇOLAKOĞLU',
+    Kura_Tercih: 'Karşılama',
+    Saha_Tarafi: 'Sandalyenin Sağı',
+    Baslangic_Saati: '09:35',
+    Bitis_Saati: '21:00',
+    Son_Hakem: 'CANAN ÇAPLIK',
+    Kazanan: 'NIL ÇOLAKOĞLU',
+  }
+];
 
 function loadState(): TournamentState {
+  // 1. Önce aktif oynanan maç durumu (tournament_state.json) var mı bak
   try {
     if (fs.existsSync(STORAGE_FILE)) {
       const raw = fs.readFileSync(STORAGE_FILE, 'utf-8');
@@ -50,6 +70,26 @@ function loadState(): TournamentState {
     console.error('Failed to read tournament_state.json:', err);
   }
 
+  // 2. YENİ: Senin yüklediğin mac_programi.json dosyasını GÜÇLE OKU
+  let startingMatches = INITIAL_MATCHES;
+  try {
+    const macProgramiPath = path.resolve(__dirname, 'mac_programi.json');
+    if (fs.existsSync(macProgramiPath)) {
+      const rawMac = fs.readFileSync(macProgramiPath, 'utf-8');
+      const parsedMac = JSON.parse(rawMac);
+      if (Array.isArray(parsedMac) && parsedMac.length > 0) {
+        // Maçlara sistemin tanıması için ID ekleyip listeyi alıyoruz
+        startingMatches = parsedMac.map((m: any, index: number) => ({
+          id: `m-${index + 1}`,
+          ...m
+        }));
+      }
+    }
+  } catch (err) {
+    console.error('mac_programi.json okunamadi, varsayilana donuluyor:', err);
+  }
+
+  // 3. Dosyayı kur ve kaydet
   const initial: TournamentState = {
     version: 1,
     lastUpdated: new Date().toISOString(),
@@ -57,7 +97,7 @@ function loadState(): TournamentState {
     deskPin: '9999',
     referees: INITIAL_REFEREES,
     categoryFormats: INITIAL_CATEGORY_FORMATS,
-    matches: INITIAL_MATCHES,
+    matches: startingMatches,
   };
   saveState(initial);
   return initial;
@@ -86,6 +126,17 @@ function tournamentSyncPlugin(): Plugin {
     }
   };
 
+  // Mobil ağlar (NAT/Proxy) bağlantıyı kesmesin diye 15 saniyede bir sinyal
+  setInterval(() => {
+    for (const client of sseClients) {
+      try {
+        client.write(': keepalive\n\n');
+      } catch {
+        sseClients.delete(client);
+      }
+    }
+  }, 15000);
+
   const readBody = (req: IncomingMessage): Promise<any> => {
     return new Promise((resolve, reject) => {
       let body = '';
@@ -106,16 +157,6 @@ function tournamentSyncPlugin(): Plugin {
   return {
     name: 'tournament-sync-server',
     configureServer(server) {
-      setInterval(() => {
-        for (const client of sseClients) {
-          try {
-            client.write(': keepalive\n\n');
-          } catch {
-            sseClients.delete(client);
-          }
-        }
-      }, 15000);
-
       server.middlewares.use(async (req, res, next) => {
         const url = req.url?.split('?')[0] || '';
 
@@ -276,7 +317,7 @@ export default defineConfig({
     port: Number(process.env.PORT) || 3000,
     allowedHosts: true,
     watch: {
-      ignored: ['**/tournament_state.json'] // İŞTE HAYAT KURTARAN VE RESTARTI ENGELLEYEN SATIR
+      ignored: ['**/tournament_state.json'] // Hata ve restart döngüsünü kesin olarak bitiren satır
     }
   },
 });
