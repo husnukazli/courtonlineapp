@@ -275,5 +275,8 @@ export default defineConfig({
     host: '0.0.0.0',
     port: Number(process.env.PORT) || 3000,
     allowedHosts: true,
+    watch: {
+      ignored: ['**/tournament_state.json'] // İŞTE HAYAT KURTARAN VE RESTARTI ENGELLEYEN SATIR
+    }
   },
 });
