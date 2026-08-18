@@ -14,7 +14,8 @@ interface TournamentState {
   matches: Array<any>;
 }
 
-const STORAGE_FILE = path.resolve(__dirname, 'tournament_state.json');
+// KRİTİK DÜZELTME: __dirname komutunun çökmesini engellemek için process.cwd() kullanıldı
+const STORAGE_FILE = path.resolve(process.cwd(), 'tournament_state.json');
 
 const INITIAL_REFEREES = [
   { name: 'CANAN ÇAPLIK', pin: '1212' },
@@ -51,7 +52,8 @@ function loadState(): TournamentState {
 
   let startingMatches = INITIAL_MATCHES;
   try {
-    const macProgramiPath = path.resolve(__dirname, 'mac_programi.json');
+    // KRİTİK DÜZELTME: mac_programi.json dosyası için de process.cwd() kullanıldı
+    const macProgramiPath = path.resolve(process.cwd(), 'mac_programi.json');
     if (fs.existsSync(macProgramiPath)) {
       const rawMac = fs.readFileSync(macProgramiPath, 'utf-8');
       const parsedMac = JSON.parse(rawMac);
@@ -113,7 +115,6 @@ function tournamentSyncPlugin(): Plugin {
     });
   };
 
-  // API Yönlendirme Motoru (Hem Dev hem Canlı için ortak)
   const apiMiddleware = async (req: any, res: any, next: any) => {
     const url = req.url?.split('?')[0] || '';
 
@@ -179,6 +180,11 @@ function tournamentSyncPlugin(): Plugin {
         if (body.referees) tournamentState.referees = body.referees;
         if (body.categoryFormats) tournamentState.categoryFormats = body.categoryFormats;
         if (body.deskPin) tournamentState.deskPin = body.deskPin;
+        
+        tournamentState.version = (tournamentState.version || 1) + 1;
+        tournamentState.updatedBy = body.author || 'Başhakem Masası';
+        tournamentState.lastUpdated = new Date().toISOString();
+
         saveState(tournamentState);
         broadcastEvent({ type: 'TOURNAMENT_UPDATED', tournament: tournamentState });
         res.writeHead(200); res.end(JSON.stringify({ success: true }));
@@ -193,7 +199,6 @@ function tournamentSyncPlugin(): Plugin {
 
   return {
     name: 'tournament-sync-server',
-    // Hem bilgisayardaki test (dev) hem de Render'daki canlı (preview) sunucuya API'yi zorla ekliyoruz
     configureServer(server) { server.middlewares.use(apiMiddleware); },
     configurePreviewServer(server) { server.middlewares.use(apiMiddleware); }
   };
