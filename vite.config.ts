@@ -374,17 +374,6 @@ function tournamentSyncPlugin(): Plugin {
     }
   };
 
-  // Heartbeat to keep SSE alive through mobile carrier NAT/proxies
-  setInterval(() => {
-    for (const client of sseClients) {
-      try {
-        client.write(': keepalive\n\n');
-      } catch {
-        sseClients.delete(client);
-      }
-    }
-  }, 15000);
-
   const readBody = (req: IncomingMessage): Promise<any> => {
     return new Promise((resolve, reject) => {
       let body = '';
@@ -405,6 +394,18 @@ function tournamentSyncPlugin(): Plugin {
   return {
     name: 'tournament-sync-server',
     configureServer(server) {
+      // Heartbeat to keep SSE alive through mobile carrier NAT/proxies
+      // Buraya taşıdık! Artık derleme (build) sırasında sistemi kilitlemeyecek.
+      setInterval(() => {
+        for (const client of sseClients) {
+          try {
+            client.write(': keepalive\n\n');
+          } catch {
+            sseClients.delete(client);
+          }
+        }
+      }, 15000);
+
       server.middlewares.use(async (req, res, next) => {
         const url = req.url?.split('?')[0] || '';
 
