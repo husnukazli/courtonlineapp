@@ -24,6 +24,7 @@ import {
   canIncrementSetScore,
   validateFullMatchScores,
   validateSingleSet,
+  checkMatchWinner,
 } from '../utils/tennisScoringEngine';
 import { calculateMatchDurationSeconds } from '../utils/timerUtils';
 import {
@@ -778,12 +779,14 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     });
   };
 
+  // KRİTİK GÜVENLİK DÜZELTMESİ: Puan eklemeden önce maçın bitip bitmediğini kontrol et
   const awardPointToMatch = (
     matchId: string,
     playerWon: 1 | 2,
     pointType: PointType = 'NORMAL'
   ) => {
     if (!matchId) return;
+
     setMatches((prev) => {
       let updatedItem: MatchItem | null = null;
       const next = prev.map((m) => {
@@ -793,9 +796,16 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           m.detailedState ||
           createInitialMatchState(1, m.Skor_Formati || '3 Normal Set');
 
+        const format = m.Skor_Formati || '3 Normal Set';
+
+        // 1. ZIRHLI KONTROL: Eğer maç kural gereği bitmişse, ASLA yeni puan işleme!
+        const matchSafetyCheck = checkMatchWinner(currState, format);
+        if (matchSafetyCheck.matchEnded || m.Durum === 'Bitti' || m.Durum === 'Retired' || m.Durum === 'Walkover') {
+          return m; // Durumu değiştirmeden aynen iade et. Puan verilemez.
+        }
+
         const p1Name = m['Oyuncu 1'];
         const p2Name = m['Oyuncu 2'];
-        const format = m.Skor_Formati || '3 Normal Set';
 
         const historyItem: PointHistoryItem = {
           id: 'pt-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4),
