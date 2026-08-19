@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { MatchItem } from '../../types/tennis';
 import { calculateMatchDurationSeconds, formatDuration } from '../../utils/timerUtils';
 import { useTennisData } from '../../context/TennisDataContext';
-import { Clock, Play, Pause, RotateCcw, Activity } from 'lucide-react';
+import { Clock, Play, Pause, Activity } from 'lucide-react';
 
 interface MatchLiveTimerProps {
   match: MatchItem;
@@ -20,26 +20,53 @@ export const MatchLiveTimer: React.FC<MatchLiveTimerProps> = ({
   const { setMatchStatus } = useTennisData();
   const [now, setNow] = useState<number>(Date.now());
 
-  const isLive = match.Durum === 'Oynaniyor';
-  const isPaused = match.Durum === 'Duraklatildi';
-  const isFinished = match.Durum === 'Bitti' || match.Durum === 'Retired' || match.Durum === 'Walkover';
-  const isUpcoming = match.Durum === 'Baslamadi';
+  // Türkçe karakter ve büyük/küçük harf toleransı (Örn: Oynanıyor vs Oynaniyor)
+  const safeDurum = match.Durum ? match.Durum.replace('ı', 'i').toLowerCase() : '';
+  
+  const isLive = safeDurum === 'oynaniyor';
+  const isPaused = safeDurum === 'duraklatildi';
+  const isFinished = safeDurum === 'bitti' || safeDurum === 'retired' || safeDurum === 'walkover';
+  const isUpcoming = safeDurum === 'baslamadi';
 
-  // Only run 1-second interval if the match is live
+  // Zamanlayıcı motoru HER ZAMAN çalışsın (durum gecikmelerinde donmayı önler)
   useEffect(() => {
-    if (!isLive) return;
-
     const interval = setInterval(() => {
       setNow(Date.now());
     }, 1000);
-
     return () => clearInterval(interval);
-  }, [isLive]);
+  }, []);
 
-  const durationSeconds = calculateMatchDurationSeconds(match, now);
+  // Orijinal utils'i kullanıyoruz ama çökerse diye kendi "zırhlı" hesabımızı devreye sokuyoruz
+  let durationSeconds = calculateMatchDurationSeconds(match, now);
+
+  if (!durationSeconds || isNaN(durationSeconds) || durationSeconds < 0) {
+    if ((isLive || isPaused || isFinished) && match.Baslangic_Saati && match.Baslangic_Saati.includes(':')) {
+      const [h, m] = match.Baslangic_Saati.split(':').map(Number);
+      if (!isNaN(h) && !isNaN(m)) {
+        const start = new Date();
+        start.setHours(h, m, 0, 0);
+        
+        // Eğer maç bittiyse ve bitiş saati varsa, saati bitişte dondur
+        if (isFinished && match.Bitis_Saati && match.Bitis_Saati.includes(':')) {
+          const [endH, endM] = match.Bitis_Saati.split(':').map(Number);
+          const end = new Date();
+          end.setHours(endH, endM, 0, 0);
+          durationSeconds = Math.max(0, Math.floor((end.getTime() - start.getTime()) / 1000));
+        } else {
+          // Canlı maçlar için şu anki zamandan çıkar
+          durationSeconds = Math.max(0, Math.floor((now - start.getTime()) / 1000));
+        }
+      } else {
+        durationSeconds = 0;
+      }
+    } else {
+      durationSeconds = 0;
+    }
+  }
+
   const formattedTime = formatDuration(durationSeconds);
 
-  // Quick Controls
+  // Hızlı Kontroller
   const handleTogglePlayPause = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (isLive) {
@@ -112,12 +139,12 @@ export const MatchLiveTimer: React.FC<MatchLiveTimerProps> = ({
             <div className="text-[10px] uppercase font-bold tracking-wider text-slate-400 flex items-center gap-1.5">
               <span>Maç Süresi</span>
               {isLive && (
-                <span className="px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-400 text-[9px] font-extrabold animate-pulse">
+                <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 text-[9px] font-extrabold animate-pulse">
                   Canlı Sayıyor
                 </span>
               )}
               {isPaused && (
-                <span className="px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-400 text-[9px] font-extrabold">
+                <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 text-[9px] font-extrabold">
                   Duraklatıldı
                 </span>
               )}
@@ -159,7 +186,7 @@ export const MatchLiveTimer: React.FC<MatchLiveTimerProps> = ({
     );
   }
 
-  // Default 'md' size
+  // Varsayılan 'md' boyutu
   return (
     <div
       className={`inline-flex items-center gap-2 px-2.5 py-1.5 rounded-xl text-xs font-mono font-extrabold tracking-tight transition ${
