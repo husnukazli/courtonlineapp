@@ -6,7 +6,7 @@ import {
   buildScoreString,
   determineWinnerFromScores,
   validateFullMatchScores,
-  canIncrementSetScore, // KİLİT MOTORU BURADA ÇAĞRILIYOR
+  canIncrementSetScore, 
 } from '../../utils/tennisScoringEngine';
 import {
   Trophy,
@@ -18,18 +18,21 @@ import {
   AlertCircle,
   Lock,
   Play,
+  Settings, // Ayarlar ikonu eklendi
 } from 'lucide-react';
 
 interface QuickScoreEditModalProps {
   match: MatchItem | null;
   isOpen: boolean;
   onClose: () => void;
+  onOpenSetup?: () => void; // YENİ: Kura ekranına geçiş tetikleyicisi
 }
 
 export const QuickScoreEditModal: React.FC<QuickScoreEditModalProps> = ({
   match,
   isOpen,
   onClose,
+  onOpenSetup,
 }) => {
   const { saveDirectScoreAndStatus } = useTennisData();
 
@@ -221,7 +224,6 @@ export const QuickScoreEditModal: React.FC<QuickScoreEditModalProps> = ({
     onClose();
   };
 
-  // YENİ GÜVENLİK MOTORU: ++ Butonları için
   const handleScoreIncrease = (setNum: 1 | 2 | 3, player: 1 | 2) => {
     let cp1 = setNum === 1 ? s1_p1 : setNum === 2 ? s2_p1 : s3_p1;
     let cp2 = setNum === 1 ? s1_p2 : setNum === 2 ? s2_p2 : s3_p2;
@@ -245,6 +247,19 @@ export const QuickScoreEditModal: React.FC<QuickScoreEditModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/90 backdrop-blur-md animate-in fade-in duration-150 overflow-y-auto">
       <div className="bg-slate-900 border-2 border-slate-700/80 rounded-3xl p-4 sm:p-6 w-full max-w-xl shadow-2xl space-y-4 my-auto">
+        
+        {/* YENİ: KURA VE AYARLARA GİT BUTONU BURADA! */}
+        {onOpenSetup && (
+          <button
+            type="button"
+            onClick={onOpenSetup}
+            className="w-full py-3 mb-2 bg-slate-800 hover:bg-slate-700 border-2 border-slate-700 rounded-2xl flex items-center justify-center gap-2 text-slate-200 font-black shadow-lg transition active:scale-95"
+          >
+            <Settings className="w-5 h-5 text-cyan-400" />
+            <span>⚙️ KURA VE MAÇ AYARLARINA GİT</span>
+          </button>
+        )}
+
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-800 pb-3">
           <div className="flex items-center gap-3">
@@ -343,47 +358,20 @@ export const QuickScoreEditModal: React.FC<QuickScoreEditModalProps> = ({
             </div>
 
             <div className="grid grid-cols-2 gap-3 items-center">
-              {/* S1 P1 */}
               <div className="flex items-center justify-between bg-slate-900 px-3 py-2 rounded-xl border border-slate-800">
                 <span className="text-xs text-lime-400 font-bold truncate mr-2">{p1Name.split(' ')[0]}</span>
                 <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => { setS1_p1(Math.max(0, s1_p1 - 1)); setErrorMessage(''); }}
-                    className="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 text-white flex items-center justify-center font-bold active:scale-95 transition"
-                  >
-                    <Minus className="w-4 h-4" />
-                  </button>
+                  <button type="button" onClick={() => { setS1_p1(Math.max(0, s1_p1 - 1)); setErrorMessage(''); }} className="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 text-white flex items-center justify-center font-bold active:scale-95 transition"><Minus className="w-4 h-4" /></button>
                   <span className="font-mono text-xl font-black w-7 text-center text-white">{s1_p1}</span>
-                  <button
-                    type="button"
-                    onClick={() => handleScoreIncrease(1, 1)}
-                    className="w-9 h-9 rounded-xl bg-lime-400 hover:bg-lime-300 text-slate-950 flex items-center justify-center font-black active:scale-95 transition shadow-sm shadow-lime-400/20"
-                  >
-                    <Plus className="w-4 h-4" />
-                  </button>
+                  <button type="button" onClick={() => handleScoreIncrease(1, 1)} className="w-9 h-9 rounded-xl bg-lime-400 hover:bg-lime-300 text-slate-950 flex items-center justify-center font-black active:scale-95 transition shadow-sm shadow-lime-400/20"><Plus className="w-4 h-4" /></button>
                 </div>
               </div>
-
-              {/* S1 P2 */}
               <div className="flex items-center justify-between bg-slate-900 px-3 py-2 rounded-xl border border-slate-800">
                 <span className="text-xs text-cyan-400 font-bold truncate mr-2">{p2Name.split(' ')[0]}</span>
                 <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => { setS1_p2(Math.max(0, s1_p2 - 1)); setErrorMessage(''); }}
-                    className="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 text-white flex items-center justify-center font-bold active:scale-95 transition"
-                  >
-                    <Minus className="w-4 h-4" />
-                  </button>
+                  <button type="button" onClick={() => { setS1_p2(Math.max(0, s1_p2 - 1)); setErrorMessage(''); }} className="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 text-white flex items-center justify-center font-bold active:scale-95 transition"><Minus className="w-4 h-4" /></button>
                   <span className="font-mono text-xl font-black w-7 text-center text-white">{s1_p2}</span>
-                  <button
-                    type="button"
-                    onClick={() => handleScoreIncrease(1, 2)}
-                    className="w-9 h-9 rounded-xl bg-cyan-400 hover:bg-cyan-300 text-slate-950 flex items-center justify-center font-black active:scale-95 transition shadow-sm shadow-cyan-400/20"
-                  >
-                    <Plus className="w-4 h-4" />
-                  </button>
+                  <button type="button" onClick={() => handleScoreIncrease(1, 2)} className="w-9 h-9 rounded-xl bg-cyan-400 hover:bg-cyan-300 text-slate-950 flex items-center justify-center font-black active:scale-95 transition shadow-sm shadow-cyan-400/20"><Plus className="w-4 h-4" /></button>
                 </div>
               </div>
             </div>
@@ -392,114 +380,50 @@ export const QuickScoreEditModal: React.FC<QuickScoreEditModalProps> = ({
           {/* SET 2 */}
           <div className="bg-slate-950/90 p-3.5 rounded-2xl border border-slate-800 space-y-2.5">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-black uppercase tracking-wider text-slate-300">
-                2. Set Oyunları
-              </span>
-              <span className="text-xs font-mono font-bold text-slate-400">
-                Skor: <strong className="text-white">{s2_p1} - {s2_p2}</strong>
-              </span>
+              <span className="text-xs font-black uppercase tracking-wider text-slate-300">2. Set Oyunları</span>
+              <span className="text-xs font-mono font-bold text-slate-400">Skor: <strong className="text-white">{s2_p1} - {s2_p2}</strong></span>
             </div>
-
             <div className="grid grid-cols-2 gap-3 items-center">
-              {/* S2 P1 */}
               <div className="flex items-center justify-between bg-slate-900 px-3 py-2 rounded-xl border border-slate-800">
                 <span className="text-xs text-lime-400 font-bold truncate mr-2">{p1Name.split(' ')[0]}</span>
                 <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => { setS2_p1(Math.max(0, s2_p1 - 1)); setErrorMessage(''); }}
-                    className="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 text-white flex items-center justify-center font-bold active:scale-95 transition"
-                  >
-                    <Minus className="w-4 h-4" />
-                  </button>
+                  <button type="button" onClick={() => { setS2_p1(Math.max(0, s2_p1 - 1)); setErrorMessage(''); }} className="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 text-white flex items-center justify-center font-bold active:scale-95 transition"><Minus className="w-4 h-4" /></button>
                   <span className="font-mono text-xl font-black w-7 text-center text-white">{s2_p1}</span>
-                  <button
-                    type="button"
-                    onClick={() => handleScoreIncrease(2, 1)}
-                    className="w-9 h-9 rounded-xl bg-lime-400 hover:bg-lime-300 text-slate-950 flex items-center justify-center font-black active:scale-95 transition shadow-sm shadow-lime-400/20"
-                  >
-                    <Plus className="w-4 h-4" />
-                  </button>
+                  <button type="button" onClick={() => handleScoreIncrease(2, 1)} className="w-9 h-9 rounded-xl bg-lime-400 hover:bg-lime-300 text-slate-950 flex items-center justify-center font-black active:scale-95 transition shadow-sm shadow-lime-400/20"><Plus className="w-4 h-4" /></button>
                 </div>
               </div>
-
-              {/* S2 P2 */}
               <div className="flex items-center justify-between bg-slate-900 px-3 py-2 rounded-xl border border-slate-800">
                 <span className="text-xs text-cyan-400 font-bold truncate mr-2">{p2Name.split(' ')[0]}</span>
                 <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => { setS2_p2(Math.max(0, s2_p2 - 1)); setErrorMessage(''); }}
-                    className="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 text-white flex items-center justify-center font-bold active:scale-95 transition"
-                  >
-                    <Minus className="w-4 h-4" />
-                  </button>
+                  <button type="button" onClick={() => { setS2_p2(Math.max(0, s2_p2 - 1)); setErrorMessage(''); }} className="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 text-white flex items-center justify-center font-bold active:scale-95 transition"><Minus className="w-4 h-4" /></button>
                   <span className="font-mono text-xl font-black w-7 text-center text-white">{s2_p2}</span>
-                  <button
-                    type="button"
-                    onClick={() => handleScoreIncrease(2, 2)}
-                    className="w-9 h-9 rounded-xl bg-cyan-400 hover:bg-cyan-300 text-slate-950 flex items-center justify-center font-black active:scale-95 transition shadow-sm shadow-cyan-400/20"
-                  >
-                    <Plus className="w-4 h-4" />
-                  </button>
+                  <button type="button" onClick={() => handleScoreIncrease(2, 2)} className="w-9 h-9 rounded-xl bg-cyan-400 hover:bg-cyan-300 text-slate-950 flex items-center justify-center font-black active:scale-95 transition shadow-sm shadow-cyan-400/20"><Plus className="w-4 h-4" /></button>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* SET 3 (Veya Maç Tie-Break) */}
+          {/* SET 3 */}
           <div className="bg-slate-950/90 p-3.5 rounded-2xl border border-slate-800 space-y-2.5">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-black uppercase tracking-wider text-slate-300">
-                3. Set / Karar Seti
-              </span>
-              <span className="text-xs font-mono font-bold text-slate-400">
-                Skor: <strong className="text-white">{s3_p1} - {s3_p2}</strong>
-              </span>
+              <span className="text-xs font-black uppercase tracking-wider text-slate-300">3. Set / Karar Seti</span>
+              <span className="text-xs font-mono font-bold text-slate-400">Skor: <strong className="text-white">{s3_p1} - {s3_p2}</strong></span>
             </div>
-
             <div className="grid grid-cols-2 gap-3 items-center">
-              {/* S3 P1 */}
               <div className="flex items-center justify-between bg-slate-900 px-3 py-2 rounded-xl border border-slate-800">
                 <span className="text-xs text-lime-400 font-bold truncate mr-2">{p1Name.split(' ')[0]}</span>
                 <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => { setS3_p1(Math.max(0, s3_p1 - 1)); setErrorMessage(''); }}
-                    className="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 text-white flex items-center justify-center font-bold active:scale-95 transition"
-                  >
-                    <Minus className="w-4 h-4" />
-                  </button>
+                  <button type="button" onClick={() => { setS3_p1(Math.max(0, s3_p1 - 1)); setErrorMessage(''); }} className="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 text-white flex items-center justify-center font-bold active:scale-95 transition"><Minus className="w-4 h-4" /></button>
                   <span className="font-mono text-xl font-black w-7 text-center text-white">{s3_p1}</span>
-                  <button
-                    type="button"
-                    onClick={() => handleScoreIncrease(3, 1)}
-                    className="w-9 h-9 rounded-xl bg-lime-400 hover:bg-lime-300 text-slate-950 flex items-center justify-center font-black active:scale-95 transition shadow-sm shadow-lime-400/20"
-                  >
-                    <Plus className="w-4 h-4" />
-                  </button>
+                  <button type="button" onClick={() => handleScoreIncrease(3, 1)} className="w-9 h-9 rounded-xl bg-lime-400 hover:bg-lime-300 text-slate-950 flex items-center justify-center font-black active:scale-95 transition shadow-sm shadow-lime-400/20"><Plus className="w-4 h-4" /></button>
                 </div>
               </div>
-
-              {/* S3 P2 */}
               <div className="flex items-center justify-between bg-slate-900 px-3 py-2 rounded-xl border border-slate-800">
                 <span className="text-xs text-cyan-400 font-bold truncate mr-2">{p2Name.split(' ')[0]}</span>
                 <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => { setS3_p2(Math.max(0, s3_p2 - 1)); setErrorMessage(''); }}
-                    className="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 text-white flex items-center justify-center font-bold active:scale-95 transition"
-                  >
-                    <Minus className="w-4 h-4" />
-                  </button>
+                  <button type="button" onClick={() => { setS3_p2(Math.max(0, s3_p2 - 1)); setErrorMessage(''); }} className="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 text-white flex items-center justify-center font-bold active:scale-95 transition"><Minus className="w-4 h-4" /></button>
                   <span className="font-mono text-xl font-black w-7 text-center text-white">{s3_p2}</span>
-                  <button
-                    type="button"
-                    onClick={() => handleScoreIncrease(3, 2)}
-                    className="w-9 h-9 rounded-xl bg-cyan-400 hover:bg-cyan-300 text-slate-950 flex items-center justify-center font-black active:scale-95 transition shadow-sm shadow-cyan-400/20"
-                  >
-                    <Plus className="w-4 h-4" />
-                  </button>
+                  <button type="button" onClick={() => handleScoreIncrease(3, 2)} className="w-9 h-9 rounded-xl bg-cyan-400 hover:bg-cyan-300 text-slate-950 flex items-center justify-center font-black active:scale-95 transition shadow-sm shadow-cyan-400/20"><Plus className="w-4 h-4" /></button>
                 </div>
               </div>
             </div>
@@ -552,131 +476,47 @@ export const QuickScoreEditModal: React.FC<QuickScoreEditModalProps> = ({
           {status !== 'Oynaniyor' ? (
             <div className="space-y-1.5 pt-1">
               <div className="flex items-center justify-between">
-                <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                  Kazanan Oyuncu:
-                </label>
+                <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Kazanan Oyuncu:</label>
                 {status === 'Bitti' && scoreWinnerName && (
-                  <span className="text-[11px] text-lime-400 font-bold flex items-center gap-1">
-                    <Lock className="w-3 h-3" />
-                    <span>Skorla Uyumlu</span>
-                  </span>
+                  <span className="text-[11px] text-lime-400 font-bold flex items-center gap-1"><Lock className="w-3 h-3" /><span>Skorla Uyumlu</span></span>
                 )}
               </div>
-
               <div className="grid grid-cols-2 gap-2.5">
-                <button
-                  type="button"
-                  onClick={() => handleSelectWinner(p1Name)}
-                  className={`p-3 rounded-2xl font-black text-xs sm:text-sm flex items-center justify-center gap-2 transition border ${
-                    selectedWinner === p1Name
-                      ? 'bg-lime-400 text-slate-950 border-lime-400 shadow-md shadow-lime-400/20'
-                      : status === 'Bitti' && scoreWinnerName === p2Name
-                      ? 'bg-slate-950/40 border-slate-800/60 text-slate-600 cursor-not-allowed'
-                      : 'bg-slate-900 hover:bg-slate-850 text-lime-300 border-slate-800'
-                  }`}
-                >
-                  <Trophy className="w-4 h-4" />
-                  <span className="truncate">{p1Name.split(' ')[0]} Kazandı</span>
+                <button type="button" onClick={() => handleSelectWinner(p1Name)} className={`p-3 rounded-2xl font-black text-xs sm:text-sm flex items-center justify-center gap-2 transition border ${selectedWinner === p1Name ? 'bg-lime-400 text-slate-950 border-lime-400 shadow-md shadow-lime-400/20' : status === 'Bitti' && scoreWinnerName === p2Name ? 'bg-slate-950/40 border-slate-800/60 text-slate-600 cursor-not-allowed' : 'bg-slate-900 hover:bg-slate-850 text-lime-300 border-slate-800'}`}>
+                  <Trophy className="w-4 h-4" /><span className="truncate">{p1Name.split(' ')[0]} Kazandı</span>
                 </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleSelectWinner(p2Name)}
-                  className={`p-3 rounded-2xl font-black text-xs sm:text-sm flex items-center justify-center gap-2 transition border ${
-                    selectedWinner === p2Name
-                      ? 'bg-cyan-400 text-slate-950 border-cyan-400 shadow-md shadow-cyan-400/20'
-                      : status === 'Bitti' && scoreWinnerName === p1Name
-                      ? 'bg-slate-950/40 border-slate-800/60 text-slate-600 cursor-not-allowed'
-                      : 'bg-slate-900 hover:bg-slate-850 text-cyan-300 border-slate-800'
-                  }`}
-                >
-                  <Trophy className="w-4 h-4" />
-                  <span className="truncate">{p2Name.split(' ')[0]} Kazandı</span>
+                <button type="button" onClick={() => handleSelectWinner(p2Name)} className={`p-3 rounded-2xl font-black text-xs sm:text-sm flex items-center justify-center gap-2 transition border ${selectedWinner === p2Name ? 'bg-cyan-400 text-slate-950 border-cyan-400 shadow-md shadow-cyan-400/20' : status === 'Bitti' && scoreWinnerName === p1Name ? 'bg-slate-950/40 border-slate-800/60 text-slate-600 cursor-not-allowed' : 'bg-slate-900 hover:bg-slate-850 text-cyan-300 border-slate-800'}`}>
+                  <Trophy className="w-4 h-4" /><span className="truncate">{p2Name.split(' ')[0]} Kazandı</span>
                 </button>
               </div>
             </div>
           ) : (
             <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-between text-xs text-emerald-300">
-              <span className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                <span>Bu maç <strong>Canlı / Oynanıyor</strong> olarak kaydedilecek ve canlı skor ekranına taşınacaktır.</span>
-              </span>
+              <span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span><span>Bu maç <strong>Canlı / Oynanıyor</strong> olarak kaydedilecek.</span></span>
             </div>
           )}
 
-          {/* End Time Settings with +5 dk / -5 dk / Şimdi Buttons (When finished) */}
+          {/* End Time Settings */}
           {(status === 'Bitti' || status === 'Retired' || status === 'Walkover') && (
             <div className="pt-2 border-t border-slate-800/80 space-y-2">
               <div className="flex items-center justify-between text-xs">
-                <span className="text-slate-300 font-bold flex items-center gap-1">
-                  <Clock className="w-3.5 h-3.5 text-cyan-400" />
-                  <span>Bitiş Saati:</span>
-                </span>
-                <input
-                  type="text"
-                  value={endTime}
-                  onChange={(e) => setEndTime(e.target.value)}
-                  placeholder="15:30"
-                  className="w-20 px-2 py-1 bg-slate-900 border border-slate-700 rounded-lg text-center font-mono font-bold text-white text-xs"
-                />
+                <span className="text-slate-300 font-bold flex items-center gap-1"><Clock className="w-3.5 h-3.5 text-cyan-400" /><span>Bitiş Saati:</span></span>
+                <input type="text" value={endTime} onChange={(e) => setEndTime(e.target.value)} placeholder="15:30" className="w-20 px-2 py-1 bg-slate-900 border border-slate-700 rounded-lg text-center font-mono font-bold text-white text-xs" />
               </div>
-
               <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => adjustTimeMinutes('end', -5)}
-                  className="flex-1 py-1.5 px-2 rounded-xl bg-slate-900 hover:bg-slate-850 text-slate-300 border border-slate-800 text-xs font-bold transition flex items-center justify-center gap-1 active:scale-95"
-                >
-                  <Minus className="w-3 h-3" />
-                  <span>-5 dk</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => adjustTimeMinutes('end', 5)}
-                  className="flex-1 py-1.5 px-2 rounded-xl bg-slate-900 hover:bg-slate-850 text-slate-300 border border-slate-800 text-xs font-bold transition flex items-center justify-center gap-1 active:scale-95"
-                >
-                  <Plus className="w-3 h-3" />
-                  <span>+5 dk</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleSetTimeNow('end')}
-                  className="py-1.5 px-3 rounded-xl bg-cyan-400/20 hover:bg-cyan-400/30 text-cyan-300 border border-cyan-400/30 text-xs font-bold transition active:scale-95"
-                >
-                  Şimdi
-                </button>
+                <button type="button" onClick={() => adjustTimeMinutes('end', -5)} className="flex-1 py-1.5 px-2 rounded-xl bg-slate-900 hover:bg-slate-850 text-slate-300 border border-slate-800 text-xs font-bold transition flex items-center justify-center gap-1"><Minus className="w-3 h-3" /><span>-5 dk</span></button>
+                <button type="button" onClick={() => adjustTimeMinutes('end', 5)} className="flex-1 py-1.5 px-2 rounded-xl bg-slate-900 hover:bg-slate-850 text-slate-300 border border-slate-800 text-xs font-bold transition flex items-center justify-center gap-1"><Plus className="w-3 h-3" /><span>+5 dk</span></button>
+                <button type="button" onClick={() => handleSetTimeNow('end')} className="py-1.5 px-3 rounded-xl bg-cyan-400/20 hover:bg-cyan-400/30 text-cyan-300 border border-cyan-400/30 text-xs font-bold transition">Şimdi</button>
               </div>
             </div>
           )}
-        </div>
-
-        {/* Live Sync Information Note */}
-        <div className="bg-slate-950/80 border border-emerald-500/20 rounded-2xl p-2.5 px-3 flex items-center justify-between text-[11px] text-slate-300">
-          <span className="flex items-center gap-1.5 text-emerald-400 font-medium">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-            <span>Otomatik Canlı Senkronizasyon</span>
-          </span>
-          <span className="text-slate-400">Kaydettiğiniz anda Turnuva Masasına anında iletilir.</span>
         </div>
 
         {/* Footer Actions */}
         <div className="flex items-center gap-3 pt-1">
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex-1 py-3.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs sm:text-sm transition"
-          >
-            İptal
-          </button>
-          <button
-            type="button"
-            onClick={handleSave}
-            className="flex-2 py-3.5 px-5 rounded-2xl font-black text-sm shadow-xl transition flex items-center justify-center gap-2 active:scale-95 bg-gradient-to-r from-lime-400 via-emerald-400 to-teal-400 text-slate-950 shadow-emerald-400/25 hover:from-lime-300 hover:to-emerald-300"
-          >
-            <Check className="w-5 h-5 stroke-[3]" />
-            <span>Kaydet & Turnuva Masasına Gönder</span>
+          <button type="button" onClick={onClose} className="flex-1 py-3.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs sm:text-sm transition">İptal</button>
+          <button type="button" onClick={handleSave} className="flex-2 py-3.5 px-5 rounded-2xl font-black text-sm shadow-xl transition flex items-center justify-center gap-2 bg-gradient-to-r from-lime-400 via-emerald-400 to-teal-400 text-slate-950">
+            <Check className="w-5 h-5 stroke-[3]" /><span>Kaydet & Gönder</span>
           </button>
         </div>
       </div>
