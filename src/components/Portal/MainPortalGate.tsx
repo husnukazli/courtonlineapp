@@ -13,21 +13,18 @@ import {
   User,
   Eye,
   EyeOff,
-  Sparkles,
   ChevronRight,
   ShieldCheck,
   RefreshCw,
   Trash2,
   Cloud,
   QrCode,
-  Zap,
 } from 'lucide-react';
 
 export const MainPortalGate: React.FC = () => {
   const {
     referees,
     loginSupervisorByPin,
-    loginRefereeDirect,
     loginDesk,
     deskPin,
     cloudSyncStatus,
@@ -93,19 +90,24 @@ export const MainPortalGate: React.FC = () => {
     setErrorMsg('');
     setSuccessMsg('');
 
+    if (!selectedRefName) {
+      setErrorMsg('Lütfen listeden isminizi seçiniz.');
+      return;
+    }
+
     if (!pin.trim()) {
       setErrorMsg('Lütfen PIN şifrenizi giriniz.');
       return;
     }
 
-    const success = loginSupervisorByPin(pin, selectedRefName || undefined);
+    const success = loginSupervisorByPin(pin, selectedRefName);
     if (success) {
-      setSuccessMsg('Giriş başarılı! Saha Gözlemcisi paneli açılıyor...');
+      setSuccessMsg('Giriş başarılı! Kort Hakemi paneli açılıyor...');
       setTimeout(() => {
         closeModal();
       }, 500);
     } else {
-      setErrorMsg('Hatalı PIN! Lütfen kayıtlı hakem PIN kodunuzu veya varsayılan 1234 kodunu girin.');
+      setErrorMsg('Hatalı PIN! Lütfen kayıtlı şifrenizi girin.');
     }
   };
 
@@ -115,18 +117,18 @@ export const MainPortalGate: React.FC = () => {
     setSuccessMsg('');
 
     if (!pin.trim()) {
-      setErrorMsg('Lütfen Turnuva Masası şifresini giriniz.');
+      setErrorMsg('Lütfen Başhakem şifresini giriniz.');
       return;
     }
 
     const success = loginDesk(pin);
     if (success) {
-      setSuccessMsg('Yetkilendirme başarılı! Turnuva Masası açılıyor...');
+      setSuccessMsg('Yetkilendirme başarılı! Başhakem Masası açılıyor...');
       setTimeout(() => {
         closeModal();
       }, 500);
     } else {
-      setErrorMsg(`Hatalı Turnuva Masası Şifresi! Lütfen doğru şifreyi giriniz. (Varsayılan: ${deskPin})`);
+      setErrorMsg(`Hatalı Şifre! Lütfen doğru şifreyi giriniz. (Varsayılan: ${deskPin})`);
     }
   };
 
@@ -168,7 +170,7 @@ export const MainPortalGate: React.FC = () => {
               title="Hakemler için telefon bağlantısı ve QR karekod üret"
             >
               <QrCode className="w-3.5 h-3.5" />
-              <span>📲 Hakem Telefon Linki & QR</span>
+              <span>📲 Hakem Linki & QR</span>
             </button>
             <div className="hidden sm:flex items-center gap-1.5 text-xs text-slate-400 bg-slate-900/80 px-3.5 py-1.5 rounded-full border border-slate-800 backdrop-blur">
               <Shield className="w-3.5 h-3.5 text-lime-400" />
@@ -192,18 +194,17 @@ export const MainPortalGate: React.FC = () => {
           </h1>
 
           <p className="text-sm sm:text-base text-slate-400 leading-relaxed">
-            Turnuva skorları ve yönetim paneli şifreyle korunmaktadır. Lütfen kullanmak istediğiniz paneli seçip PIN şifrenizi giriniz.
+            Turnuva skorları ve yönetim paneli şifreyle korunmaktadır. Lütfen yetki alanınıza göre uygun paneli seçip giriş yapın.
           </p>
         </div>
 
         {/* 2 Big Primary Role Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5 sm:gap-6">
-          {/* Card 1: Saha Gözlemcisi */}
+          {/* Card 1: Kort Hakemi */}
           <div
             onClick={openSupervisorModal}
             className="group relative bg-slate-900/90 hover:bg-slate-850 border-2 border-slate-800 hover:border-lime-400/80 rounded-3xl p-6 sm:p-8 transition-all duration-200 cursor-pointer shadow-xl hover:shadow-lime-400/15 flex flex-col justify-between overflow-hidden active:scale-[0.99]"
           >
-            {/* Top badge & glow */}
             <div className="absolute top-0 right-0 w-36 h-36 bg-lime-400/10 rounded-full blur-2xl group-hover:bg-lime-400/20 transition-all pointer-events-none" />
 
             <div className="space-y-4 relative z-10">
@@ -212,29 +213,29 @@ export const MainPortalGate: React.FC = () => {
                   <Smartphone className="w-7 h-7" />
                 </div>
                 <span className="text-[11px] font-black uppercase px-3 py-1 rounded-full bg-lime-400/15 text-lime-300 border border-lime-400/30">
-                  Kortlar & Hakem
+                  KORT HAKEMİ
                 </span>
               </div>
 
               <div>
                 <h2 className="text-xl sm:text-2xl font-black text-white group-hover:text-lime-300 transition">
-                  Saha Gözlemcisi
+                  Kort Hakemi
                 </h2>
                 <p className="text-xs sm:text-sm text-slate-400 mt-1 leading-relaxed">
-                  Kortlar arası mobil skor takibi, canlı set düzenleme, maç başlatma ve hakem yönetimi.
+                  Sadece korttaki maçı yönetme, kura atışı ve canlı skor girişi yapar. Diğer kortları salt okunur (misafir) izleyebilir.
                 </p>
               </div>
 
               <div className="pt-2 flex flex-wrap gap-2 text-[11px] text-slate-300 font-medium">
-                <span className="px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800">🎾 Canlı Kort Skorları</span>
-                <span className="px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800">⚡ Hızlı Skor Düzeltme</span>
-                <span className="px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800">📋 Hakem Atama</span>
+                <span className="px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800">🎾 Canlı Skor Girişi</span>
+                <span className="px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800">🪙 Kura Atışı</span>
+                <span className="px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800">👁️ Salt Okunur İzleme</span>
               </div>
             </div>
 
             <div className="pt-6 mt-6 border-t border-slate-800/80 flex items-center justify-between relative z-10">
               <span className="text-xs text-slate-400 font-bold">
-                Varsayılan PIN: <strong className="text-lime-300 font-mono">1234</strong>
+                Bireysel PIN <strong className="text-lime-300 font-mono">Gerekli</strong>
               </span>
               <button
                 type="button"
@@ -246,12 +247,11 @@ export const MainPortalGate: React.FC = () => {
             </div>
           </div>
 
-          {/* Card 2: Turnuva Masası */}
+          {/* Card 2: Başhakem Masası */}
           <div
             onClick={openDeskModal}
             className="group relative bg-slate-900/90 hover:bg-slate-850 border-2 border-slate-800 hover:border-cyan-400/80 rounded-3xl p-6 sm:p-8 transition-all duration-200 cursor-pointer shadow-xl hover:shadow-cyan-400/15 flex flex-col justify-between overflow-hidden active:scale-[0.99]"
           >
-            {/* Top badge & glow */}
             <div className="absolute top-0 right-0 w-36 h-36 bg-cyan-400/10 rounded-full blur-2xl group-hover:bg-cyan-400/20 transition-all pointer-events-none" />
 
             <div className="space-y-4 relative z-10">
@@ -260,29 +260,29 @@ export const MainPortalGate: React.FC = () => {
                   <Tv className="w-7 h-7" />
                 </div>
                 <span className="text-[11px] font-black uppercase px-3 py-1 rounded-full bg-cyan-400/15 text-cyan-300 border border-cyan-400/30">
-                  Başhakem & Fikstür
+                  BAŞHAKEM & YÖNETİM
                 </span>
               </div>
 
               <div>
                 <h2 className="text-xl sm:text-2xl font-black text-white group-hover:text-cyan-300 transition">
-                  Turnuva Masası
+                  Başhakem Masası
                 </h2>
                 <p className="text-xs sm:text-sm text-slate-400 mt-1 leading-relaxed">
-                  Başhakem masası, tüm kortların anlık tablosu, fikstür yükleme, kategori formatları ve sonuç raporlama.
+                  Tüm kortları yönetir. Hakem atamaları, maç programı (fikstür) oluşturma, skor düzenleme ve genel turnuva kontrolü.
                 </p>
               </div>
 
               <div className="pt-2 flex flex-wrap gap-2 text-[11px] text-slate-300 font-medium">
-                <span className="px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800">📊 Genel Durum & Akış</span>
+                <span className="px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800">📋 Hakem Atama</span>
                 <span className="px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800">📂 Fikstür Yükleme</span>
-                <span className="px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800">📥 Excel / CSV İndir</span>
+                <span className="px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800">📊 Izgara (Grid) Tablosu</span>
               </div>
             </div>
 
             <div className="pt-6 mt-6 border-t border-slate-800/80 flex items-center justify-between relative z-10">
               <span className="text-xs text-slate-400 font-bold">
-                Varsayılan PIN: <strong className="text-cyan-300 font-mono">{deskPin}</strong>
+                Masa Şifresi <strong className="text-cyan-300 font-mono">Gerekli</strong>
               </span>
               <button
                 type="button"
@@ -378,7 +378,7 @@ export const MainPortalGate: React.FC = () => {
 
       {/* Footer */}
       <footer className="relative z-10 py-5 border-t border-slate-900 text-center text-xs text-slate-500">
-        CourtOnline Tenis Skor & Saha Gözlemcisi Sistemi • Güvenli Giriş Portalı
+        CourtOnline Tenis Skor Sistemi • Güvenli Giriş Portalı
       </footer>
 
       {/* PIN Entry Modal */}
@@ -404,13 +404,13 @@ export const MainPortalGate: React.FC = () => {
                 <div>
                   <h3 className="font-black text-white text-base sm:text-lg">
                     {activeModal === 'supervisor'
-                      ? 'Saha Gözlemcisi Girişi'
-                      : 'Turnuva Masası Girişi'}
+                      ? 'Kort Hakemi Girişi'
+                      : 'Başhakem Girişi'}
                   </h3>
                   <p className="text-xs text-slate-400">
                     {activeModal === 'supervisor'
-                      ? 'Lütfen hakem PIN kodunuzu girin'
-                      : 'Lütfen Başhakem Masa Şifresini girin'}
+                      ? 'Lütfen isminizi seçip PIN şifrenizi girin.'
+                      : 'Lütfen Başhakem Masa Şifresini girin.'}
                   </p>
                 </div>
               </div>
@@ -422,46 +422,22 @@ export const MainPortalGate: React.FC = () => {
               </button>
             </div>
 
-            {/* If Supervisor: Instant 1-Click Direct Start Button */}
-            {activeModal === 'supervisor' && (
-              <div className="space-y-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    loginRefereeDirect(selectedRefName || undefined);
-                    setSuccessMsg('Giriş başarılı!');
-                    setTimeout(() => {
-                      closeModal();
-                    }, 300);
-                  }}
-                  className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-lime-400 via-emerald-400 to-teal-400 hover:from-lime-300 hover:to-teal-300 text-slate-950 font-black text-sm flex items-center justify-center gap-2 shadow-xl shadow-lime-400/25 active:scale-95 transition"
-                >
-                  <Zap className="w-4 h-4" />
-                  <span>Şifresiz Doğrudan Skor Girişine Başla ⚡</span>
-                </button>
-
-                <div className="relative flex items-center justify-center">
-                  <div className="border-t border-slate-800 w-full" />
-                  <span className="bg-slate-900 px-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider absolute">
-                    veya PIN ile giriş yapın
-                  </span>
-                </div>
-              </div>
-            )}
-
-            {/* If Supervisor: Optional Referee Selection */}
+            {/* If Supervisor (Referee): Mandatory Referee Selection */}
             {activeModal === 'supervisor' && (
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
                   <User className="w-3.5 h-3.5 text-lime-400" />
-                  <span>Hakem Adı (İsteğe Bağlı)</span>
+                  <span>Hakem Adı</span>
                 </label>
                 <select
                   value={selectedRefName}
-                  onChange={(e) => setSelectedRefName(e.target.value)}
+                  onChange={(e) => {
+                    setSelectedRefName(e.target.value);
+                    setErrorMsg('');
+                  }}
                   className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs sm:text-sm text-white font-bold focus:outline-none focus:border-lime-400"
                 >
-                  <option value="">Tüm Saha Gözlemcileri (Hızlı Giriş)</option>
+                  <option value="">-- Hakem Seçiniz --</option>
                   {referees.map((ref) => (
                     <option key={ref.name} value={ref.name}>
                       {ref.name} (PIN: {ref.pin})
@@ -576,19 +552,6 @@ export const MainPortalGate: React.FC = () => {
                 <span>{successMsg}</span>
               </div>
             )}
-
-            {/* Quick Default Pin Helper Note */}
-            <div className="text-[11px] text-center text-slate-400 bg-slate-950/60 p-2 rounded-xl border border-slate-800/80">
-              {activeModal === 'supervisor' ? (
-                <span>
-                  💡 Varsayılan Saha Gözlemcisi PIN: <strong className="text-lime-400 font-mono">1234</strong>
-                </span>
-              ) : (
-                <span>
-                  💡 Varsayılan Turnuva Masası Şifresi: <strong className="text-cyan-400 font-mono">{deskPin}</strong>
-                </span>
-              )}
-            </div>
 
             {/* Submit Action */}
             <div className="pt-2">
