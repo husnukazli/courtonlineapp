@@ -1,10 +1,9 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { MatchItem } from '../../types/tennis';
 import { useTennisData } from '../../context/TennisDataContext';
 import { parseScoreString, validateSingleSet } from '../../utils/tennisScoringEngine';
 import {
   Trophy,
-  Edit3,
   Clock,
   CheckCircle2,
   PlayCircle,
@@ -15,26 +14,20 @@ import {
 interface CourtCardProps {
   match: MatchItem;
   onFinishMatch: (match: MatchItem) => void;
-  onEditScore: (match: MatchItem) => void;
+  onEditScore?: (match: MatchItem) => void; // Artık kullanılmayacak ama prop hatası vermemesi için bıraktık
   onOpenSetup?: (match: MatchItem) => void;
 }
 
 export const CourtCard: React.FC<CourtCardProps> = ({
   match,
   onFinishMatch,
-  onEditScore,
   onOpenSetup,
 }) => {
   const { updateGameScore, setMatchStatus } = useTennisData();
   const lastScoreClickRef = useRef<number>(0);
 
-  const handleQuickScore = (e: React.MouseEvent, player: 1 | 2, delta: number) => {
-    e.stopPropagation();
-    const now = Date.now();
-    if (now - lastScoreClickRef.current < 400) return; // Prevent double-tap
-    lastScoreClickRef.current = now;
-    updateGameScore(match.id, currentSetIndex, player, delta);
-  };
+  // Set Selector State
+  const [selectedSet, setSelectedSet] = useState<1 | 2 | 3>(1);
 
   const parsed = parseScoreString(match.Skor);
   const s1_p1 = match.detailedState?.set1_p1 ?? parsed.s1_p1;
@@ -48,31 +41,43 @@ export const CourtCard: React.FC<CourtCardProps> = ({
   const isFinished = match.Durum === 'Bitti' || match.Durum === 'Retired' || match.Durum === 'Walkover';
   const isUpcoming = match.Durum === 'Baslamadi';
 
-  // Determine current active set for quick tallying
   const format = match.Skor_Formati || '3 Normal Set';
-  const val1 = validateSingleSet(s1_p1, s1_p2, 1, format);
-  const val2 = validateSingleSet(s2_p1, s2_p2, 2, format);
-  
-  let currentSetIndex: 1 | 2 | 3 = 1;
-  if (val1.isComplete && !val2.isComplete) {
-    currentSetIndex = 2;
-  } else if (val1.isComplete && val2.isComplete && val1.winner !== val2.winner) {
-    currentSetIndex = 3;
-  } else if (s3_p1 > 0 || s3_p2 > 0) {
-    currentSetIndex = 3;
-  } else if (s2_p1 > 0 || s2_p2 > 0) {
-    currentSetIndex = 2;
-  }
 
-  // Handle card click: If not started, prompt setup modal first. If started/finished, open score modal.
-  const handleCardClick = () => {
-    if (isUpcoming) {
-      if (onOpenSetup) {
-        onOpenSetup(match);
-        return;
+  // Auto-select the active set when component mounts or updates
+  useEffect(() => {
+    if (isLive) {
+      const val1 = validateSingleSet(s1_p1, s1_p2, 1, format);
+      const val2 = validateSingleSet(s2_p1, s2_p2, 2, format);
+      
+      let activeSet: 1 | 2 | 3 = 1;
+      if (val1.isComplete && !val2.isComplete) {
+        activeSet = 2;
+      } else if (val1.isComplete && val2.isComplete && val1.winner !== val2.winner) {
+        activeSet = 3;
+      } else if (s3_p1 > 0 || s3_p2 > 0) {
+        activeSet = 3;
+      } else if (s2_p1 > 0 || s2_p2 > 0) {
+        activeSet = 2;
       }
+      setSelectedSet(activeSet);
     }
-    onEditScore(match);
+  }, [match.Skor, match.detailedState, isLive, format, s1_p1, s1_p2, s2_p1, s2_p2, s3_p1, s3_p2]);
+
+
+  const handleQuickScore = (e: React.MouseEvent, player: 1 | 2, delta: number) => {
+    e.stopPropagation();
+    const now = Date.now();
+    if (now - lastScoreClickRef.current < 400) return; // Prevent double-tap
+    lastScoreClickRef.current = now;
+    
+    // updateGameScore will automatically check if the format limit is reached when incrementing!
+    updateGameScore(match.id, selectedSet, player, delta);
+  };
+
+  const handleCardClick = () => {
+    if (isUpcoming && onOpenSetup) {
+      onOpenSetup(match);
+    }
   };
 
   const handleStartMatchDirect = (e: React.MouseEvent) => {
@@ -81,7 +86,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
       onOpenSetup(match);
     } else {
       setMatchStatus(match.id, 'Oynaniyor', undefined, undefined);
-      onEditScore(match);
     }
   };
 
@@ -174,7 +178,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
           )}
         </div>
 
-        <div className="text-slate-400 font-sans text-[11px]">
+        <div className="text-slate-400 font-sans text-[11px] truncate pl-2 max-w-[110px]" title={match.Skor_Formati}>
           {match.Skor_Formati}
         </div>
       </div>
@@ -186,9 +190,9 @@ export const CourtCard: React.FC<CourtCardProps> = ({
           {/* Header */}
           <div className="grid grid-cols-12 bg-slate-900/80 text-[10px] font-extrabold uppercase tracking-wider text-slate-400 py-1.5 px-3 border-b border-slate-800">
             <div className="col-span-6">Oyuncu</div>
-            <div className="col-span-2 text-center">1. Set</div>
-            <div className="col-span-2 text-center">2. Set</div>
-            <div className="col-span-2 text-center">3. Set</div>
+            <div className={`col-span-2 text-center transition-colors ${selectedSet === 1 && isLive ? 'text-lime-400' : ''}`}>1. Set</div>
+            <div className={`col-span-2 text-center transition-colors ${selectedSet === 2 && isLive ? 'text-lime-400' : ''}`}>2. Set</div>
+            <div className={`col-span-2 text-center transition-colors ${selectedSet === 3 && isLive ? 'text-lime-400' : ''}`}>3. Set</div>
           </div>
 
           {/* Player 1 Row */}
@@ -206,13 +210,13 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                 <Trophy className="w-3.5 h-3.5 text-lime-400 shrink-0" />
               )}
             </div>
-            <div className={`col-span-2 text-center font-mono text-base font-black ${s1_p1 > 0 ? 'text-lime-300' : 'text-slate-500'}`}>
+            <div className={`col-span-2 text-center font-mono text-base font-black ${s1_p1 > 0 || (selectedSet === 1 && isLive) ? 'text-lime-300' : 'text-slate-500'}`}>
               {isUpcoming ? '-' : s1_p1}
             </div>
-            <div className={`col-span-2 text-center font-mono text-base font-black ${s2_p1 > 0 ? 'text-lime-300' : 'text-slate-500'}`}>
+            <div className={`col-span-2 text-center font-mono text-base font-black ${s2_p1 > 0 || (selectedSet === 2 && isLive) ? 'text-lime-300' : 'text-slate-500'}`}>
               {isUpcoming ? '-' : s2_p1}
             </div>
-            <div className={`col-span-2 text-center font-mono text-base font-black ${s3_p1 > 0 ? 'text-lime-300' : 'text-slate-500'}`}>
+            <div className={`col-span-2 text-center font-mono text-base font-black ${s3_p1 > 0 || (selectedSet === 3 && isLive) ? 'text-lime-300' : 'text-slate-500'}`}>
               {isUpcoming ? '-' : s3_p1}
             </div>
           </div>
@@ -232,70 +236,94 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                 <Trophy className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
               )}
             </div>
-            <div className={`col-span-2 text-center font-mono text-base font-black ${s1_p2 > 0 ? 'text-cyan-300' : 'text-slate-500'}`}>
+            <div className={`col-span-2 text-center font-mono text-base font-black ${s1_p2 > 0 || (selectedSet === 1 && isLive) ? 'text-cyan-300' : 'text-slate-500'}`}>
               {isUpcoming ? '-' : s1_p2}
             </div>
-            <div className={`col-span-2 text-center font-mono text-base font-black ${s2_p2 > 0 ? 'text-cyan-300' : 'text-slate-500'}`}>
+            <div className={`col-span-2 text-center font-mono text-base font-black ${s2_p2 > 0 || (selectedSet === 2 && isLive) ? 'text-cyan-300' : 'text-slate-500'}`}>
               {isUpcoming ? '-' : s2_p2}
             </div>
-            <div className={`col-span-2 text-center font-mono text-base font-black ${s3_p2 > 0 ? 'text-cyan-300' : 'text-slate-500'}`}>
+            <div className={`col-span-2 text-center font-mono text-base font-black ${s3_p2 > 0 || (selectedSet === 3 && isLive) ? 'text-cyan-300' : 'text-slate-500'}`}>
               {isUpcoming ? '-' : s3_p2}
             </div>
           </div>
         </div>
 
-        {/* Live Match Quick Buttons (+1 and -1 Oyun for referee single-tap convenience) */}
+        {/* Live Match Quick Buttons with Set Selector */}
         {isLive && (
-          <div className="space-y-2 pt-1">
-            <div className="flex items-center justify-between px-1 text-[11px] font-bold text-slate-400">
-              <span>Hızlı Skor ({currentSetIndex}. Set)</span>
-              <span className="text-emerald-400 font-mono text-[10px] uppercase">Tek Dokunuş</span>
+          <div className="bg-slate-900 border border-slate-700/80 rounded-2xl p-3 mt-2 shadow-inner">
+            
+            {/* Set Selector Tabs */}
+            <div className="flex bg-slate-950 p-1 rounded-xl mb-3 border border-slate-800">
+              <button 
+                type="button" 
+                onClick={(e) => { e.stopPropagation(); setSelectedSet(1); }} 
+                className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-colors ${selectedSet === 1 ? 'bg-slate-800 text-white shadow' : 'text-slate-400 hover:text-slate-300'}`}
+              >
+                1. SET
+              </button>
+              <button 
+                type="button" 
+                onClick={(e) => { e.stopPropagation(); setSelectedSet(2); }} 
+                className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-colors ${selectedSet === 2 ? 'bg-slate-800 text-white shadow' : 'text-slate-400 hover:text-slate-300'}`}
+              >
+                2. SET
+              </button>
+              <button 
+                type="button" 
+                onClick={(e) => { e.stopPropagation(); setSelectedSet(3); }} 
+                className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-colors ${selectedSet === 3 ? 'bg-slate-800 text-white shadow' : 'text-slate-400 hover:text-slate-300'}`}
+              >
+                3. SET
+              </button>
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-3">
               {/* Player 1 (+1 / -1) */}
-              <div className="flex items-center gap-1.5 bg-slate-950 p-1.5 rounded-2xl border border-slate-800">
-                <button
-                  type="button"
-                  onClick={(e) => handleQuickScore(e, 1, -1)}
-                  className="w-9 h-9 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center font-bold text-xs border border-slate-800 active:scale-95 transition shrink-0"
-                  title="-1 Oyun"
-                >
-                  <Minus className="w-4 h-4" />
-                </button>
-
+              <div className="flex flex-col gap-1.5">
                 <button
                   type="button"
                   onClick={(e) => handleQuickScore(e, 1, 1)}
-                  className="flex-1 py-2 px-2.5 rounded-xl bg-lime-400 hover:bg-lime-300 text-slate-950 font-black text-xs flex items-center justify-center gap-1 shadow-md shadow-lime-400/20 active:scale-95 transition truncate"
-                  title="+1 Oyun"
+                  className="w-full py-3 rounded-xl bg-lime-400 hover:bg-lime-300 text-slate-950 font-black text-sm flex items-center justify-center gap-1 shadow-md shadow-lime-400/20 active:scale-95 transition"
+                  title={`${selectedSet}. Set: ${match['Oyuncu 1'].split(' ')[0]} +1`}
                 >
-                  <Plus className="w-4 h-4 shrink-0" />
-                  <span className="truncate">+1 ({match['Oyuncu 1'].split(' ')[0]})</span>
+                  <Plus className="w-5 h-5" />
+                  <span>+1 OYUN</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => handleQuickScore(e, 1, -1)}
+                  className="w-full py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-400 font-bold text-xs flex items-center justify-center gap-1 active:scale-95 transition"
+                  title={`${selectedSet}. Set: ${match['Oyuncu 1'].split(' ')[0]} -1`}
+                >
+                  <Minus className="w-4 h-4" />
+                  <span>-1 Düş</span>
                 </button>
               </div>
 
               {/* Player 2 (+1 / -1) */}
-              <div className="flex items-center gap-1.5 bg-slate-950 p-1.5 rounded-2xl border border-slate-800">
-                <button
-                  type="button"
-                  onClick={(e) => handleQuickScore(e, 2, -1)}
-                  className="w-9 h-9 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center font-bold text-xs border border-slate-800 active:scale-95 transition shrink-0"
-                  title="-1 Oyun"
-                >
-                  <Minus className="w-4 h-4" />
-                </button>
-
+              <div className="flex flex-col gap-1.5">
                 <button
                   type="button"
                   onClick={(e) => handleQuickScore(e, 2, 1)}
-                  className="flex-1 py-2 px-2.5 rounded-xl bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-black text-xs flex items-center justify-center gap-1 shadow-md shadow-cyan-400/20 active:scale-95 transition truncate"
-                  title="+1 Oyun"
+                  className="w-full py-3 rounded-xl bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-black text-sm flex items-center justify-center gap-1 shadow-md shadow-cyan-400/20 active:scale-95 transition"
+                  title={`${selectedSet}. Set: ${match['Oyuncu 2'].split(' ')[0]} +1`}
                 >
-                  <Plus className="w-4 h-4 shrink-0" />
-                  <span className="truncate">+1 ({match['Oyuncu 2'].split(' ')[0]})</span>
+                  <Plus className="w-5 h-5" />
+                  <span>+1 OYUN</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => handleQuickScore(e, 2, -1)}
+                  className="w-full py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-cyan-400 font-bold text-xs flex items-center justify-center gap-1 active:scale-95 transition"
+                  title={`${selectedSet}. Set: ${match['Oyuncu 2'].split(' ')[0]} -1`}
+                >
+                  <Minus className="w-4 h-4" />
+                  <span>-1 Düş</span>
                 </button>
               </div>
+            </div>
+            <div className="text-center mt-2">
+               <span className="text-[10px] font-medium text-slate-500">Düzenlenen Set: {selectedSet}. Set</span>
             </div>
           </div>
         )}
@@ -330,43 +358,20 @@ export const CourtCard: React.FC<CourtCardProps> = ({
           </div>
         ) : isLive ? (
           <div className="flex items-center gap-2 w-full">
+             {/* Skor Düzenle butonu kaldırıldı, dış kart yetiyor. */}
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                onEditScore(match);
+                onFinishMatch(match); // Direkt olarak FinishMatchModal'ı tetikler
               }}
-              className="flex-1 py-2.5 px-3 rounded-xl bg-gradient-to-r from-lime-400 to-emerald-400 hover:from-lime-300 hover:to-emerald-300 text-slate-950 font-black text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-md shadow-lime-400/20 transition active:scale-95"
-            >
-              <Edit3 className="w-4 h-4" />
-              <span>Skor Gir / Düzenle</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onFinishMatch(match);
-              }}
-              className="py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs flex items-center gap-1 transition"
+              className="w-full py-3 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-sm flex justify-center items-center gap-2 transition"
             >
               <Trophy className="w-4 h-4 text-cyan-400" />
-              <span>Bitir</span>
+              <span>Maçı Sonlandır / Bitir</span>
             </button>
           </div>
-        ) : (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onEditScore(match);
-            }}
-            className="w-full py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition"
-          >
-            <Trophy className="w-4 h-4 text-cyan-400" />
-            <span>Sonucu Gör / Düzenle</span>
-          </button>
-        )}
+        ) : null}
       </div>
     </div>
   );
