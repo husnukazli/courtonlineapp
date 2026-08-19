@@ -6,6 +6,7 @@ import {
   buildScoreString,
   determineWinnerFromScores,
   validateFullMatchScores,
+  canIncrementSetScore, // KİLİT MOTORU BURADA ÇAĞRILIYOR
 } from '../../utils/tennisScoringEngine';
 import {
   Trophy,
@@ -17,7 +18,6 @@ import {
   AlertCircle,
   Lock,
   Play,
-  RotateCcw,
 } from 'lucide-react';
 
 interface QuickScoreEditModalProps {
@@ -95,7 +95,6 @@ export const QuickScoreEditModal: React.FC<QuickScoreEditModalProps> = ({
   const matchFormat = match?.Skor_Formati || '3 Normal Set';
   const isOriginallyFinished = match ? ['Bitti', 'Retired', 'Walkover'].includes(match.Durum) : false;
 
-  // Validation
   const validationResult = useMemo(() => {
     if (!match) return { valid: true, error: '', isMatchFinished: false, winner: null };
     return validateFullMatchScores(
@@ -114,14 +113,12 @@ export const QuickScoreEditModal: React.FC<QuickScoreEditModalProps> = ({
   const p2Name = match?.['Oyuncu 2'] || 'Oyuncu 2';
   const scoreWinnerName = validationResult.winner === 1 ? p1Name : validationResult.winner === 2 ? p2Name : null;
 
-  // Auto-sync winner if status is Bitti and score has a decisive winner
   useEffect(() => {
     if (status === 'Bitti' && scoreWinnerName) {
       setSelectedWinner(scoreWinnerName);
     }
   }, [status, scoreWinnerName]);
 
-  // Adjust time by minutes
   const adjustTimeMinutes = (type: 'start' | 'end', deltaMinutes: number) => {
     let current = type === 'start' ? startTime : endTime;
     const timeRegex = /^([0-1]?[0-9]|2[0-3]):([0-5][0-9])$/;
@@ -146,7 +143,6 @@ export const QuickScoreEditModal: React.FC<QuickScoreEditModalProps> = ({
 
   const currentScorePreview = buildScoreString(s1_p1, s1_p2, s2_p1, s2_p2, s3_p1, s3_p2);
 
-  // Resume to live match helper
   const handleResumeLiveMode = () => {
     setStatus('Oynaniyor');
     setSelectedWinner('Secilmedi');
@@ -174,7 +170,6 @@ export const QuickScoreEditModal: React.FC<QuickScoreEditModalProps> = ({
     const isSpecialFinish = status === 'Retired' || status === 'Walkover';
     const isResumingToLive = status === 'Oynaniyor';
 
-    // STRICT VALIDATION FOR NORMAL "BITTI" FINISH
     if (isFinishing && !isSpecialFinish) {
       if (!validationResult.valid) {
         setErrorMessage(
@@ -210,7 +205,6 @@ export const QuickScoreEditModal: React.FC<QuickScoreEditModalProps> = ({
         ? ''
         : match.Bitis_Saati;
 
-    // Perform SINGLE atomic save for both score and match status
     saveDirectScoreAndStatus(match.id, {
       s1_p1,
       s1_p2,
@@ -225,6 +219,27 @@ export const QuickScoreEditModal: React.FC<QuickScoreEditModalProps> = ({
     });
 
     onClose();
+  };
+
+  // YENİ GÜVENLİK MOTORU: ++ Butonları için
+  const handleScoreIncrease = (setNum: 1 | 2 | 3, player: 1 | 2) => {
+    let cp1 = setNum === 1 ? s1_p1 : setNum === 2 ? s2_p1 : s3_p1;
+    let cp2 = setNum === 1 ? s1_p2 : setNum === 2 ? s2_p2 : s3_p2;
+
+    if (!canIncrementSetScore(cp1, cp2, player, setNum, matchFormat)) {
+      setErrorMessage(`${setNum}. Set format sınırına ulaştı. Daha fazla skor girilemez.`);
+      setTimeout(() => setErrorMessage(''), 3000);
+      return;
+    }
+
+    if (setNum === 1) {
+      if (player === 1) setS1_p1(s1_p1 + 1); else setS1_p2(s1_p2 + 1);
+    } else if (setNum === 2) {
+      if (player === 1) setS2_p1(s2_p1 + 1); else setS2_p2(s2_p2 + 1);
+    } else {
+      if (player === 1) setS3_p1(s3_p1 + 1); else setS3_p2(s3_p2 + 1);
+    }
+    setErrorMessage('');
   };
 
   return (
@@ -334,10 +349,7 @@ export const QuickScoreEditModal: React.FC<QuickScoreEditModalProps> = ({
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => {
-                      setS1_p1(Math.max(0, s1_p1 - 1));
-                      setErrorMessage('');
-                    }}
+                    onClick={() => { setS1_p1(Math.max(0, s1_p1 - 1)); setErrorMessage(''); }}
                     className="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 text-white flex items-center justify-center font-bold active:scale-95 transition"
                   >
                     <Minus className="w-4 h-4" />
@@ -345,10 +357,7 @@ export const QuickScoreEditModal: React.FC<QuickScoreEditModalProps> = ({
                   <span className="font-mono text-xl font-black w-7 text-center text-white">{s1_p1}</span>
                   <button
                     type="button"
-                    onClick={() => {
-                      setS1_p1(s1_p1 + 1);
-                      setErrorMessage('');
-                    }}
+                    onClick={() => handleScoreIncrease(1, 1)}
                     className="w-9 h-9 rounded-xl bg-lime-400 hover:bg-lime-300 text-slate-950 flex items-center justify-center font-black active:scale-95 transition shadow-sm shadow-lime-400/20"
                   >
                     <Plus className="w-4 h-4" />
@@ -362,10 +371,7 @@ export const QuickScoreEditModal: React.FC<QuickScoreEditModalProps> = ({
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => {
-                      setS1_p2(Math.max(0, s1_p2 - 1));
-                      setErrorMessage('');
-                    }}
+                    onClick={() => { setS1_p2(Math.max(0, s1_p2 - 1)); setErrorMessage(''); }}
                     className="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 text-white flex items-center justify-center font-bold active:scale-95 transition"
                   >
                     <Minus className="w-4 h-4" />
@@ -373,10 +379,7 @@ export const QuickScoreEditModal: React.FC<QuickScoreEditModalProps> = ({
                   <span className="font-mono text-xl font-black w-7 text-center text-white">{s1_p2}</span>
                   <button
                     type="button"
-                    onClick={() => {
-                      setS1_p2(s1_p2 + 1);
-                      setErrorMessage('');
-                    }}
+                    onClick={() => handleScoreIncrease(1, 2)}
                     className="w-9 h-9 rounded-xl bg-cyan-400 hover:bg-cyan-300 text-slate-950 flex items-center justify-center font-black active:scale-95 transition shadow-sm shadow-cyan-400/20"
                   >
                     <Plus className="w-4 h-4" />
@@ -404,10 +407,7 @@ export const QuickScoreEditModal: React.FC<QuickScoreEditModalProps> = ({
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => {
-                      setS2_p1(Math.max(0, s2_p1 - 1));
-                      setErrorMessage('');
-                    }}
+                    onClick={() => { setS2_p1(Math.max(0, s2_p1 - 1)); setErrorMessage(''); }}
                     className="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 text-white flex items-center justify-center font-bold active:scale-95 transition"
                   >
                     <Minus className="w-4 h-4" />
@@ -415,10 +415,7 @@ export const QuickScoreEditModal: React.FC<QuickScoreEditModalProps> = ({
                   <span className="font-mono text-xl font-black w-7 text-center text-white">{s2_p1}</span>
                   <button
                     type="button"
-                    onClick={() => {
-                      setS2_p1(s2_p1 + 1);
-                      setErrorMessage('');
-                    }}
+                    onClick={() => handleScoreIncrease(2, 1)}
                     className="w-9 h-9 rounded-xl bg-lime-400 hover:bg-lime-300 text-slate-950 flex items-center justify-center font-black active:scale-95 transition shadow-sm shadow-lime-400/20"
                   >
                     <Plus className="w-4 h-4" />
@@ -432,10 +429,7 @@ export const QuickScoreEditModal: React.FC<QuickScoreEditModalProps> = ({
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => {
-                      setS2_p2(Math.max(0, s2_p2 - 1));
-                      setErrorMessage('');
-                    }}
+                    onClick={() => { setS2_p2(Math.max(0, s2_p2 - 1)); setErrorMessage(''); }}
                     className="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 text-white flex items-center justify-center font-bold active:scale-95 transition"
                   >
                     <Minus className="w-4 h-4" />
@@ -443,10 +437,7 @@ export const QuickScoreEditModal: React.FC<QuickScoreEditModalProps> = ({
                   <span className="font-mono text-xl font-black w-7 text-center text-white">{s2_p2}</span>
                   <button
                     type="button"
-                    onClick={() => {
-                      setS2_p2(s2_p2 + 1);
-                      setErrorMessage('');
-                    }}
+                    onClick={() => handleScoreIncrease(2, 2)}
                     className="w-9 h-9 rounded-xl bg-cyan-400 hover:bg-cyan-300 text-slate-950 flex items-center justify-center font-black active:scale-95 transition shadow-sm shadow-cyan-400/20"
                   >
                     <Plus className="w-4 h-4" />
@@ -474,10 +465,7 @@ export const QuickScoreEditModal: React.FC<QuickScoreEditModalProps> = ({
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => {
-                      setS3_p1(Math.max(0, s3_p1 - 1));
-                      setErrorMessage('');
-                    }}
+                    onClick={() => { setS3_p1(Math.max(0, s3_p1 - 1)); setErrorMessage(''); }}
                     className="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 text-white flex items-center justify-center font-bold active:scale-95 transition"
                   >
                     <Minus className="w-4 h-4" />
@@ -485,10 +473,7 @@ export const QuickScoreEditModal: React.FC<QuickScoreEditModalProps> = ({
                   <span className="font-mono text-xl font-black w-7 text-center text-white">{s3_p1}</span>
                   <button
                     type="button"
-                    onClick={() => {
-                      setS3_p1(s3_p1 + 1);
-                      setErrorMessage('');
-                    }}
+                    onClick={() => handleScoreIncrease(3, 1)}
                     className="w-9 h-9 rounded-xl bg-lime-400 hover:bg-lime-300 text-slate-950 flex items-center justify-center font-black active:scale-95 transition shadow-sm shadow-lime-400/20"
                   >
                     <Plus className="w-4 h-4" />
@@ -502,10 +487,7 @@ export const QuickScoreEditModal: React.FC<QuickScoreEditModalProps> = ({
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => {
-                      setS3_p2(Math.max(0, s3_p2 - 1));
-                      setErrorMessage('');
-                    }}
+                    onClick={() => { setS3_p2(Math.max(0, s3_p2 - 1)); setErrorMessage(''); }}
                     className="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 text-white flex items-center justify-center font-bold active:scale-95 transition"
                   >
                     <Minus className="w-4 h-4" />
@@ -513,10 +495,7 @@ export const QuickScoreEditModal: React.FC<QuickScoreEditModalProps> = ({
                   <span className="font-mono text-xl font-black w-7 text-center text-white">{s3_p2}</span>
                   <button
                     type="button"
-                    onClick={() => {
-                      setS3_p2(s3_p2 + 1);
-                      setErrorMessage('');
-                    }}
+                    onClick={() => handleScoreIncrease(3, 2)}
                     className="w-9 h-9 rounded-xl bg-cyan-400 hover:bg-cyan-300 text-slate-950 flex items-center justify-center font-black active:scale-95 transition shadow-sm shadow-cyan-400/20"
                   >
                     <Plus className="w-4 h-4" />
