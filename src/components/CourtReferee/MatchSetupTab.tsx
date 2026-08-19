@@ -52,12 +52,15 @@ export const MatchSetupTab: React.FC<MatchSetupTabProps> = ({ onStartScoring }) 
   const [isCoinTossOpen, setIsCoinTossOpen] = useState<boolean>(false);
   const [successMsg, setSuccessMsg] = useState<string>('');
 
+  // KRİTİK DÜZELTME: Sadece Match ID'yi değil, tüm activeMatch objesini dinliyoruz
+  // Böylece masadan format veya saat değiştiğinde kort hakeminin ekranı anında güncellenecek
   useEffect(() => {
     if (activeMatch) {
       setDurum(activeMatch.Durum === 'Baslamadi' ? 'Oynaniyor' : activeMatch.Durum);
       setKuraKazanan(activeMatch.Kura_Kazanan || 'Secilmedi');
       setKuraTercih(activeMatch.Kura_Tercih || 'Servis');
       setSahaTarafi(activeMatch.Saha_Tarafi || 'Sandalyenin Sağı');
+      // Masadan gelen formatı okuyoruz, yoksa varsayılanı atıyoruz
       setSkorFormati(activeMatch.Skor_Formati || '3 Normal Set');
 
       if (activeMatch.Baslangic_Saati && activeMatch.Baslangic_Saati !== 'Secilmedi') {
@@ -71,7 +74,7 @@ export const MatchSetupTab: React.FC<MatchSetupTabProps> = ({ onStartScoring }) 
       }
       setBitisSaati(activeMatch.Bitis_Saati || '');
     }
-  }, [activeMatch?.id]);
+  }, [activeMatch]); // <-- Düzeltme burada: activeMatch?.id yerine activeMatch'in tamamını dinliyor.
 
   const handleCourtChange = (court: string) => {
     setSelectedCourt(court);
@@ -93,7 +96,7 @@ export const MatchSetupTab: React.FC<MatchSetupTabProps> = ({ onStartScoring }) 
       sahaTarafi,
       baslangicSaati,
       bitisSaati,
-      skorFormati,
+      skorFormati, // Hakem değiştirdiyse yeni formatı, değiştirmediyse masadan geleni kaydeder
       ilkServisOyuncusu:
         kuraKazanan === activeMatch['Oyuncu 1']
           ? kuraTercih === 'Servis' ? 1 : 2
@@ -112,7 +115,7 @@ export const MatchSetupTab: React.FC<MatchSetupTabProps> = ({ onStartScoring }) 
   };
 
   const handleTossConfirm = (winner: string) => {
-    setKuraKazanan(winner); // Sadece kazananı alıyor, diğerlerini hakem kendisi seçecek
+    setKuraKazanan(winner);
   };
 
   if (!activeMatch) {
