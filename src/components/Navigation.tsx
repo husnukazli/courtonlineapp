@@ -5,14 +5,12 @@ import {
   HelpCircle,
   ShieldCheck,
   LogIn,
-  LogOut,
   Lock,
   X,
   KeyRound,
   AlertCircle,
   Eye,
   EyeOff,
-  Cloud,
   RefreshCw,
   QrCode,
 } from 'lucide-react';
@@ -37,9 +35,7 @@ export const Navigation: React.FC<NavigationProps> = ({
     authRole,
     deskPin,
     cloudSyncStatus,
-    lastCloudSync,
     pullFromCloudNow,
-    syncWithCloudNow,
     loginDesk,
     logoutAuth,
   } = useTennisData();
@@ -56,7 +52,7 @@ export const Navigation: React.FC<NavigationProps> = ({
 
   const handleTabClick = (tab: 'supervisor' | 'desk') => {
     if (tab === 'desk' && authRole !== 'desk') {
-      // Prompt for desk master PIN before granting access
+      // Başhakem masasına geçiş için PIN sor
       setDeskPinInput('');
       setDeskPinError('');
       setIsDeskPinModalOpen(true);
@@ -100,14 +96,14 @@ export const Navigation: React.FC<NavigationProps> = ({
                         : 'bg-cyan-400/20 text-cyan-400 border-cyan-400/30'
                     }`}
                   >
-                    {currentTab === 'supervisor' ? 'Saha Gözlemcisi' : 'Turnuva Masası'}
+                    {currentTab === 'supervisor' ? 'Kort Hakemi' : 'Başhakem Masası'}
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
                   <p className="text-[11px] text-slate-400 hidden md:block">
                     {currentTab === 'supervisor'
-                      ? 'Kortlar Arası Gezici Skor & Hakem Yönetimi'
-                      : 'Başhakem Masası & Canlı Fikstür'}
+                      ? 'Canlı Maç Yönetimi ve Skor Girişi'
+                      : 'Tüm Kortlar, Fikstür ve Hakem Atamaları'}
                   </p>
                   <span className="hidden lg:inline-flex items-center gap-1 text-[10px] font-bold text-emerald-400 bg-emerald-950/60 border border-emerald-500/30 px-2 py-0.5 rounded-full">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
@@ -117,7 +113,7 @@ export const Navigation: React.FC<NavigationProps> = ({
               </div>
             </div>
 
-            {/* Center Tabs: Saha Gözlemcisi vs Başhakem Masası */}
+            {/* Center Tabs: Kort Hakemi vs Başhakem Masası */}
             <div className="flex items-center bg-slate-950 p-1 rounded-2xl border border-slate-800 shadow-inner">
               <button
                 type="button"
@@ -129,7 +125,7 @@ export const Navigation: React.FC<NavigationProps> = ({
                 }`}
               >
                 <Smartphone className="w-4 h-4" />
-                <span>Saha Gözlemcisi</span>
+                <span>Kort Hakemi</span>
                 {activeMatchesCount > 0 && (
                   <span className="hidden sm:inline-flex items-center justify-center px-1.5 py-0.2 text-[10px] font-black rounded-full bg-slate-950/20 text-slate-950">
                     {activeMatchesCount} Canlı
@@ -147,7 +143,7 @@ export const Navigation: React.FC<NavigationProps> = ({
                 }`}
               >
                 <Tv className="w-4 h-4" />
-                <span>Turnuva Masası</span>
+                <span>Başhakem Masası</span>
               </button>
             </div>
 
@@ -280,7 +276,7 @@ export const Navigation: React.FC<NavigationProps> = ({
                   <Tv className="w-4 h-4" />
                 </div>
                 <div>
-                  <h4 className="font-black text-white text-sm sm:text-base">Turnuva Masası Girişi</h4>
+                  <h4 className="font-black text-white text-sm sm:text-base">Başhakem Girişi</h4>
                   <p className="text-[11px] text-slate-400">Başhakem Masa Şifresi Gerekli</p>
                 </div>
               </div>
