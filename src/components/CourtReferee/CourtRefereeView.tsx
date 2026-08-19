@@ -3,11 +3,14 @@ import { useTennisData } from '../../context/TennisDataContext';
 import { RefereeLogin } from './RefereeLogin';
 import { MatchSetupTab } from './MatchSetupTab';
 import { LiveScoringTab } from './LiveScoringTab';
-import { UserCheck, LogOut, Sparkles, SlidersHorizontal, Activity } from 'lucide-react';
+import { UserCheck, LogOut, SlidersHorizontal, Activity } from 'lucide-react';
 
 export const CourtRefereeView: React.FC = () => {
-  const { currentReferee, logoutReferee, activeMatch } = useTennisData();
-  const [subMode, setSubMode] = useState<'kurulum' | 'skor'>('skor');
+  const { currentReferee, logoutReferee } = useTennisData();
+  
+  // DÜZELTME: Başlangıç ekranı 'skor' yerine 'kurulum' yapıldı.
+  // Hakem giriş yaptığında direkt kura ve ayar ekranına düşecek.
+  const [subMode, setSubMode] = useState<'kurulum' | 'skor'>('kurulum');
 
   if (!currentReferee) {
     return <RefereeLogin />;
