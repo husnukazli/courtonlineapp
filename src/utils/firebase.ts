@@ -18,30 +18,18 @@ const firebaseConfig = {
 
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
+// Varsayılan (default) Firestore database kullanıyoruz.
+// Özel database ID Blaze planı gerektirdiğinden kaldırıldı.
 let firestoreDb: Firestore;
 try {
-  firestoreDb = initializeFirestore(
-    app,
-    {
-      localCache: persistentLocalCache({
-        tabManager: persistentMultipleTabManager(),
-      }),
-      ignoreUndefinedProperties: true,
-    },
-    "ai-studio-courtonline-a8966e92-b486-4eea-a78a-3de4816736bc"
-  );
+  firestoreDb = initializeFirestore(app, {
+    localCache: persistentLocalCache({
+      tabManager: persistentMultipleTabManager(),
+    }),
+    ignoreUndefinedProperties: true,
+  });
 } catch {
-  try {
-    firestoreDb = getFirestore(app, "ai-studio-courtonline-a8966e92-b486-4eea-a78a-3de4816736bc");
-  } catch {
-    try {
-      firestoreDb = initializeFirestore(app, {
-        ignoreUndefinedProperties: true,
-      });
-    } catch {
-      firestoreDb = getFirestore(app);
-    }
-  }
+  firestoreDb = getFirestore(app);
 }
 
 export const db = firestoreDb;
