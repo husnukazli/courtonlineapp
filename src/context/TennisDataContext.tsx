@@ -757,6 +757,34 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           detState = createInitialMatchState(server, chosenFormat);
         }
 
+        // Başlangıç saati string'ini ("19:30") unix ms'e çevir.
+        // Bu olmazsa timerUtils saat string'inden yanlış süre hesaplar.
+        let setupStartTs = m.startTimeTimestamp;
+        if (data.baslangicSaati && data.baslangicSaati !== 'Secilmedi') {
+          const parts = data.baslangicSaati.split(':');
+          if (parts.length >= 2) {
+            const d = new Date();
+            d.setHours(parseInt(parts[0], 10), parseInt(parts[1], 10), 0, 0);
+            const candidate = d.getTime();
+            // Eğer hesaplanan saat şu andan büyükse (23:00'da 19:30 girilmişse doğru),
+            // küçükse gece yarısı geçmiş demektir — bir gün geri al
+            setupStartTs = candidate <= Date.now() ? candidate : candidate - 86400000;
+          }
+        }
+        if (!setupStartTs) setupStartTs = Date.now();
+
+        // Bitiş saati string'ini de timestamp'a çevir
+        let setupEndTs: number | undefined = undefined;
+        if (data.bitisSaati && data.bitisSaati !== 'Secilmedi') {
+          const parts = data.bitisSaati.split(':');
+          if (parts.length >= 2) {
+            const d = new Date();
+            d.setHours(parseInt(parts[0], 10), parseInt(parts[1], 10), 0, 0);
+            setupEndTs = d.getTime();
+            if (setupEndTs < setupStartTs) setupEndTs += 86400000;
+          }
+        }
+
         const res: MatchItem = {
           ...m,
           Durum: data.durum,
@@ -764,7 +792,12 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           Kura_Tercih: data.kuraTercih,
           Saha_Tarafi: data.sahaTarafi,
           Baslangic_Saati: data.baslangicSaati,
+          startTimeTimestamp: setupStartTs,
           Bitis_Saati: data.bitisSaati,
+          lastPausedTimestamp: setupEndTs,
+          totalDurationSeconds: (data.durum === 'Bitti' || data.durum === 'Retired' || data.durum === 'Walkover') && setupEndTs
+            ? Math.floor(Math.max(0, setupEndTs - setupStartTs) / 1000)
+            : undefined,
           Skor_Formati: chosenFormat,
           Son_Hakem: currentReferee ? currentReferee.name : 'Turnuva Masası',
           detailedState: detState,
