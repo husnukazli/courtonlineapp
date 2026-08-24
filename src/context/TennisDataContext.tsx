@@ -197,7 +197,9 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   });
 
   const [authRole, setAuthRoleState] = useState<'none' | 'supervisor' | 'desk'>(() => {
-    const savedRole = sessionStorage.getItem(STORAGE_KEYS.AUTH_ROLE) || localStorage.getItem(STORAGE_KEYS.AUTH_ROLE);
+    // Oturum bilgisi sadece sessionStorage'da tutulur.
+    // Sekme/pencere kapanınca sıfırlanır; URL paylaşılınca yeni oturumda giriş ekranı gelir.
+    const savedRole = sessionStorage.getItem(STORAGE_KEYS.AUTH_ROLE);
     if (savedRole === 'supervisor' || savedRole === 'desk') {
       return savedRole as 'supervisor' | 'desk';
     }
@@ -225,10 +227,8 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setAuthRoleState(role);
     if (role === 'none') {
       sessionStorage.removeItem(STORAGE_KEYS.AUTH_ROLE);
-      localStorage.removeItem(STORAGE_KEYS.AUTH_ROLE);
     } else {
       sessionStorage.setItem(STORAGE_KEYS.AUTH_ROLE, role);
-      localStorage.setItem(STORAGE_KEYS.AUTH_ROLE, role);
     }
   };
 
@@ -266,7 +266,8 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   });
 
   const [currentReferee, setCurrentReferee] = useState<RefereeUser | null>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.CURRENT_REF);
+    // Hakem oturumu da sadece sessionStorage — sekme kapanınca sıfırlanır
+    const saved = sessionStorage.getItem(STORAGE_KEYS.CURRENT_REF);
     if (saved) {
       try {
         return JSON.parse(saved);
@@ -303,9 +304,9 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   useEffect(() => {
     if (currentReferee) {
-      localStorage.setItem(STORAGE_KEYS.CURRENT_REF, JSON.stringify(currentReferee));
+      sessionStorage.setItem(STORAGE_KEYS.CURRENT_REF, JSON.stringify(currentReferee));
     } else {
-      localStorage.removeItem(STORAGE_KEYS.CURRENT_REF);
+      sessionStorage.removeItem(STORAGE_KEYS.CURRENT_REF);
     }
   }, [currentReferee]);
 
