@@ -1,519 +1,438 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { useTennisData } from '../../context/TennisDataContext';
-import { MatchItem, MatchStatus } from '../../types/tennis';
-import { CourtCard } from './CourtCard';
-import { FinishedMatchRibbon } from './FinishedMatchRibbon';
-import { FinishMatchModal } from './FinishMatchModal';
-import { QuickScoreEditModal } from './QuickScoreEditModal';
-import { MatchSetupModal } from './MatchSetupModal';
+import React, { useState } from 'react';
 import {
-  Smartphone,
-  Search,
+  Tv,
   Filter,
+  Search,
+  ZoomIn,
+  ZoomOut,
+  RefreshCw,
+  Plus,
+  Trash2,
   CheckCircle2,
   Clock,
-  PlayCircle,
-  Copy,
-  Check,
-  Trophy,
-  Activity,
+  Award,
   Layers,
-  Sparkles,
-  RefreshCw,
-  Trash2,
-  Cloud,
+  Users,
+  FileSpreadsheet,
+  Download,
+  Upload,
+  AlertCircle,
+  Eye,
+  Lock,
+  KeyRound,
+  ShieldCheck,
 } from 'lucide-react';
+import { useTennisData } from '../../context/TennisDataContext';
+import { MatchItem, ScoreFormatType } from '../../types/tennis';
+import { MatchDetailModal } from '../Common/MatchDetailModal';
+import { MatchLiveTimer } from '../Common/MatchLiveTimer';
 
-export const CourtSupervisorView: React.FC = () => {
+const SCORE_FORMAT_OPTIONS: ScoreFormatType[] = [
+  '3 Normal Set',
+  '3 Kısa Set',
+  '2 Normal Set, 3. Set 10 Puanlık Maç Tie-Break',
+  '2 Kısa Set, 3. Set 10 Puanlık Maç Tie-Break',
+  '2 Kısa Set, 3. Set 7 Puanlık Maç Tie-Break',
+];
+
+export const DeskSupervisorView: React.FC = () => {
   const {
     matches,
+    referees,
+    categoryFormats,
+    deskPin,
     cloudSyncStatus,
     lastCloudSync,
+    updateDeskPin,
+    addReferee,
+    deleteReferee,
+    bulkApplyCategoryFormats,
+    importMatchesList,
+    resetTournamentToDefault,
+    resetAllScores,
+    forcePushAllToCloud,
     pullFromCloudNow,
-    clearLocalCacheAndResetFromCloud,
   } = useTennisData();
 
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCourt, setSelectedCourt] = useState<string>('KORT 1');
-  const [statusFilter, setStatusFilter] = useState<'ALL' | 'LIVE' | 'UPCOMING' | 'FINISHED'>('ALL');
+  const [activeSubTab, setActiveSubTab] = useState<'grid' | 'stats' | 'formats' | 'referees' | 'manage'>('grid');
+  const [selectedCourtFilter, setSelectedCourtFilter] = useState<string>('ALL');
+  const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>('ALL');
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  
+  // YENİ ZOOM LİMİTİ: %40 ile %150 arası
+  const [zoomLevel, setZoomLevel] = useState<number>(100);
+  const [selectedMatchForModal, setSelectedMatchForModal] = useState<MatchItem | null>(null);
 
-  const [finishModalMatch, setFinishModalMatch] = useState<MatchItem | null>(null);
-  const [editScoreModalMatch, setEditScoreModalMatch] = useState<MatchItem | null>(null);
-  const [setupModalMatch, setSetupModalMatch] = useState<MatchItem | null>(null);
-  const [copiedReport, setCopiedReport] = useState(false);
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [syncStatusMsg, setSyncStatusMsg] = useState('');
+  const [newRefName, setNewRefName] = useState<string>('');
+  const [newRefPin, setNewRefPin] = useState<string>('');
 
-  // Get unique court names sorted naturally
-  const uniqueCourts = useMemo(() => {
-    const set = new Set<string>();
-    matches.forEach((m) => {
-      if (m.Kort) set.add(m.Kort);
-    });
-    return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-  }, [matches]);
+  const [editingDeskPin, setEditingDeskPin] = useState<string>(deskPin);
+  const [deskPinSuccessMsg, setDeskPinSuccessMsg] = useState<string>('');
 
-  // Set default court when matches load if selectedCourt isn't in list
-  useEffect(() => {
-    if (uniqueCourts.length > 0 && selectedCourt !== 'ALL' && !uniqueCourts.includes(selectedCourt)) {
-      setSelectedCourt(uniqueCourts[0]);
+  const [localFormats, setLocalFormats] = useState<Record<string, string>>(() => categoryFormats);
+  const [formatSavedMsg, setFormatSavedMsg] = useState<string>('');
+
+  const [jsonInput, setJsonInput] = useState<string>('');
+  const [importMsg, setImportMsg] = useState<string>('');
+  const [isSyncingAction, setIsSyncingAction] = useState(false);
+
+  const distinctCourts = Array.from(new Set(matches.map((m) => m.Kort))).sort();
+  const distinctCategories = Array.from(new Set(matches.map((m) => m.Kategori).filter(Boolean))).sort();
+
+  const totalMatches = matches.length;
+  const finishedMatches = matches.filter((m) => ['Bitti', 'Retired', 'Walkover'].includes(m.Durum)).length;
+  const liveMatches = matches.filter((m) => m.Durum === 'Oynaniyor').length;
+  const pendingMatches = matches.filter((m) => m.Durum === 'Baslamadi').length;
+  const completionRate = totalMatches > 0 ? Math.round((finishedMatches / totalMatches) * 100) : 0;
+
+  const filteredMatches = matches.filter((m) => {
+    if (selectedCourtFilter !== 'ALL' && m.Kort !== selectedCourtFilter) return false;
+    if (selectedStatusFilter !== 'ALL' && m.Durum !== selectedStatusFilter) return false;
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      const p1 = m['Oyuncu 1'].toLowerCase();
+      const p2 = m['Oyuncu 2'].toLowerCase();
+      const kat = m.Kategori.toLowerCase();
+      const ref = m.Son_Hakem.toLowerCase();
+      return p1.includes(q) || p2.includes(q) || kat.includes(q) || ref.includes(q);
     }
-  }, [uniqueCourts, selectedCourt]);
+    return true;
+  });
 
-  const liveMatchesCount = matches.filter((m) => m.Durum === 'Oynaniyor').length;
-  const finishedMatchesCount = matches.filter((m) =>
-    ['Bitti', 'Retired', 'Walkover'].includes(m.Durum)
-  ).length;
-  const upcomingMatchesCount = matches.filter((m) => m.Durum === 'Baslamadi').length;
+  const handleApplyFormats = () => {
+    bulkApplyCategoryFormats(localFormats);
+    setFormatSavedMsg('✅ Kategori formatları tüm maçlara başarıyla uygulandı!');
+    setTimeout(() => setFormatSavedMsg(''), 3000);
+  };
 
-  // Filter matches
-  const filteredMatches = useMemo(() => {
-    return matches.filter((m) => {
-      // Court filter
-      if (selectedCourt !== 'ALL' && m.Kort !== selectedCourt) {
-        return false;
+  const handleAddRefereeSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newRefName.trim() || !newRefPin.trim()) return;
+    addReferee(newRefName.trim(), newRefPin.trim());
+    setNewRefName('');
+    setNewRefPin('');
+  };
+
+  const handleExportJson = () => {
+    const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(matches, null, 2));
+    const downloadAnchor = document.createElement('a');
+    downloadAnchor.setAttribute('href', dataStr);
+    downloadAnchor.setAttribute('download', `courtonline_mac_programi_${new Date().toISOString().slice(0, 10)}.json`);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+  };
+
+  const handleImportJson = () => {
+    try {
+      const parsed = JSON.parse(jsonInput);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        importMatchesList(parsed);
+        setImportMsg(`✅ ${parsed.length} maç başarıyla içe aktarıldı!`);
+        setJsonInput('');
+        setTimeout(() => setImportMsg(''), 3000);
+      } else {
+        setImportMsg('❌ JSON geçerli bir maç dizisi [ { ... } ] olmalıdır.');
       }
-
-      // Status filter
-      if (statusFilter === 'LIVE' && m.Durum !== 'Oynaniyor') return false;
-      if (statusFilter === 'UPCOMING' && m.Durum !== 'Baslamadi') return false;
-      if (
-        statusFilter === 'FINISHED' &&
-        !['Bitti', 'Retired', 'Walkover'].includes(m.Durum)
-      ) {
-        return false;
-      }
-
-      // Search filter (player 1, player 2, category)
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase().trim();
-        const p1 = (m['Oyuncu 1'] || '').toLowerCase();
-        const p2 = (m['Oyuncu 2'] || '').toLowerCase();
-        const cat = (m.Kategori || '').toLowerCase();
-        const court = (m.Kort || '').toLowerCase();
-        if (!p1.includes(q) && !p2.includes(q) && !cat.includes(q) && !court.includes(q)) {
-          return false;
-        }
-      }
-
-      return true;
-    });
-  }, [matches, selectedCourt, statusFilter, searchQuery]);
-
-  // Segregate filtered matches for clean, structured display
-  const liveMatches = useMemo(
-    () => filteredMatches.filter((m) => m.Durum === 'Oynaniyor'),
-    [filteredMatches]
-  );
-  const upcomingMatches = useMemo(
-    () => filteredMatches.filter((m) => m.Durum === 'Baslamadi'),
-    [filteredMatches]
-  );
-  const finishedMatches = useMemo(
-    () => filteredMatches.filter((m) => ['Bitti', 'Retired', 'Walkover'].includes(m.Durum)),
-    [filteredMatches]
-  );
-
-  // Copy Tournament Report to Clipboard
-  const handleCopyReport = () => {
-    const completedMatches = matches.filter((m) =>
-      ['Bitti', 'Retired', 'Walkover'].includes(m.Durum)
-    );
-
-    let reportText = `🎾 TURNUVA MAÇ SONUÇLARI (CourtOnline)\n`;
-    reportText += `Tarih: ${new Date().toLocaleDateString('tr-TR')} • ${completedMatches.length}/${matches.length} Maç Tamamlandı\n`;
-    reportText += `----------------------------------------\n`;
-
-    completedMatches.forEach((m) => {
-      const winner = m.Kazanan || 'Bilinmiyor';
-      const loser =
-        winner === m['Oyuncu 1'] ? m['Oyuncu 2'] : m['Oyuncu 1'];
-      reportText += `• ${m.Kort} | ${winner} d. ${loser} | ${m.Skor} (${m.Kategori})\n`;
-    });
-
-    if (completedMatches.length === 0) {
-      reportText += `Henüz tamamlanan maç bulunmamaktadır.\n`;
+    } catch (e: any) {
+      setImportMsg('❌ Geçersiz JSON formatı: ' + e.message);
     }
-
-    navigator.clipboard.writeText(reportText);
-    setCopiedReport(true);
-    setTimeout(() => setCopiedReport(false), 2500);
   };
 
   return (
-    <div className="space-y-6 pb-14">
-      {/* Phone / Mobile Cloud Synchronizer & Refresh Bar */}
-      <div className="bg-gradient-to-r from-emerald-950/70 via-slate-900 to-cyan-950/70 border border-emerald-500/30 rounded-3xl p-3.5 sm:p-4 shadow-lg">
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 flex items-center justify-center shrink-0">
-              <Cloud className={`w-5 h-5 ${isSyncing ? 'animate-bounce' : ''}`} />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-extrabold text-xs sm:text-sm text-white">Canlı Bulut Senkronizasyonu</span>
-                <span className="px-2 py-0.5 rounded-md bg-emerald-950 border border-emerald-500/40 text-emerald-300 text-[10px] font-mono font-bold flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-                  {cloudSyncStatus === 'connected' ? 'Bağlı' : cloudSyncStatus === 'syncing' ? 'Eşitleniyor...' : 'Çevrimdışı'}
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-400">
-                {lastCloudSync ? `Son canlı güncelleme: ${lastCloudSync}` : 'Masaüstü ve hakem telefonları canlı bağlı.'}
-              </p>
-            </div>
+    <div className="max-w-7xl mx-auto space-y-6 overflow-hidden">
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-4 sm:p-5 shadow-xl space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-800">
+          <div className="flex flex-wrap items-center gap-1.5 bg-slate-950 p-1 rounded-2xl border border-slate-800">
+            <button type="button" onClick={() => setActiveSubTab('grid')} className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition ${activeSubTab === 'grid' ? 'bg-cyan-400 text-slate-950 shadow-md font-black' : 'text-slate-400 hover:text-slate-200'}`}>
+              <Tv className="w-3.5 h-3.5" /><span>Canlı Kortlar Akışı</span>
+            </button>
+            <button type="button" onClick={() => setActiveSubTab('stats')} className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition ${activeSubTab === 'stats' ? 'bg-cyan-400 text-slate-950 shadow-md font-black' : 'text-slate-400 hover:text-slate-200'}`}>
+              <Award className="w-3.5 h-3.5" /><span>Turnuva İstatistikleri</span>
+            </button>
+            <button type="button" onClick={() => setActiveSubTab('formats')} className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition ${activeSubTab === 'formats' ? 'bg-cyan-400 text-slate-950 shadow-md font-black' : 'text-slate-400 hover:text-slate-200'}`}>
+              <Layers className="w-3.5 h-3.5" /><span>Format Hafızası</span>
+            </button>
+            <button type="button" onClick={() => setActiveSubTab('referees')} className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition ${activeSubTab === 'referees' ? 'bg-cyan-400 text-slate-950 shadow-md font-black' : 'text-slate-400 hover:text-slate-200'}`}>
+              <Users className="w-3.5 h-3.5" /><span>Hakem Yönetimi</span>
+            </button>
+            <button type="button" onClick={() => setActiveSubTab('manage')} className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition ${activeSubTab === 'manage' ? 'bg-cyan-400 text-slate-950 shadow-md font-black' : 'text-slate-400 hover:text-slate-200'}`}>
+              <FileSpreadsheet className="w-3.5 h-3.5" /><span>Program & JSON</span>
+            </button>
           </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              disabled={isSyncing}
-              onClick={async () => {
-                setIsSyncing(true);
-                setSyncStatusMsg('');
-                const success = await pullFromCloudNow();
-                setIsSyncing(false);
-                if (success) {
-                  setSyncStatusMsg('✅ Buluttaki en son turnuva maçları başarıyla telefonunuza yüklendi!');
-                } else {
-                  setSyncStatusMsg('⚠️ Buluttan veri çekilemedi. İnternet bağlantınızı kontrol edin.');
-                }
-                setTimeout(() => setSyncStatusMsg(''), 4000);
-              }}
-              className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 font-bold text-xs shadow transition active:scale-95 disabled:opacity-50"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 text-emerald-400 ${isSyncing ? 'animate-spin' : ''}`} />
-              <span>Buluttan Son Verileri Çek</span>
-            </button>
-
-            <button
-              type="button"
-              disabled={isSyncing}
-              onClick={async () => {
-                if (confirm('Telefondaki eski kayıtlı önbellek tamamen temizlenip buluttaki en son veriler sıfırdan çekilecek. Onaylıyor musunuz?')) {
-                  setIsSyncing(true);
-                  setSyncStatusMsg('');
-                  const success = await clearLocalCacheAndResetFromCloud();
-                  setIsSyncing(false);
-                  if (success) {
-                    setSyncStatusMsg('✨ Telefondaki tüm eski önbellek temizlendi ve buluttan en güncel durum çekildi!');
-                  } else {
-                    setSyncStatusMsg('⚠️ Sıfırlama esnasında hata oluştu.');
-                  }
-                  setTimeout(() => setSyncStatusMsg(''), 4000);
-                }
-              }}
-              className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-rose-950/40 hover:bg-rose-900/50 border border-rose-500/40 text-rose-300 font-bold text-xs shadow transition active:scale-95 disabled:opacity-50"
-              title="Telefonunuzda eski maçlar takılı kaldıysa tıklayın"
-            >
-              <Trash2 className="w-3.5 h-3.5 text-rose-400" />
-              <span className="hidden sm:inline">Önbelleği Temizle & Yenile</span>
-              <span className="sm:hidden">Sıfırla</span>
+          <div className="flex items-center gap-2 text-xs font-mono">
+            <span className="px-2.5 py-1 rounded-lg bg-emerald-950/60 border border-emerald-500/30 text-emerald-300 font-bold">{liveMatches} Canlı</span>
+            <span className="px-2.5 py-1 rounded-lg bg-cyan-950/60 border border-cyan-500/30 text-cyan-300 font-bold">%{completionRate} Bitti</span>
+            <button type="button" onClick={handleExportJson} className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition" title="Yedek JSON İndir">
+              <Download className="w-4 h-4" />
             </button>
           </div>
         </div>
 
-        {syncStatusMsg && (
-          <div className="mt-2.5 p-2.5 bg-emerald-950/90 border border-emerald-500/50 rounded-xl text-emerald-200 text-xs font-bold shadow-lg animate-in fade-in flex items-center justify-between">
-            <span>{syncStatusMsg}</span>
-            <button onClick={() => setSyncStatusMsg('')} className="text-slate-400 hover:text-white text-xs ml-2">✕</button>
+        {activeSubTab === 'grid' && (
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-2 pb-3 px-3 bg-slate-950/60 border border-slate-700/50 rounded-2xl mt-2">
+            {/* Sol: Arama + Kort + Durum filtresi */}
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-slate-500 mr-1">
+                <Filter className="w-3 h-3" /> Filtre
+              </div>
+              <div className="relative">
+                <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Oyuncu veya hakem ara..." className="pl-8 pr-3 py-1.5 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white placeholder:text-slate-500 w-44 sm:w-56 focus:outline-none focus:border-cyan-400" />
+                <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-2.5 pointer-events-none" />
+              </div>
+              <select value={selectedCourtFilter} onChange={(e) => setSelectedCourtFilter(e.target.value)} className="px-3 py-1.5 bg-slate-900 border border-cyan-700/50 rounded-xl text-xs text-cyan-300 font-bold focus:outline-none focus:border-cyan-400">
+                <option value="ALL">Tüm Kortlar ({distinctCourts.length})</option>
+                {distinctCourts.map((c) => (<option key={c} value={c}>{c}</option>))}
+              </select>
+              <select value={selectedStatusFilter} onChange={(e) => setSelectedStatusFilter(e.target.value)} className="px-3 py-1.5 bg-slate-900 border border-emerald-700/50 rounded-xl text-xs text-emerald-300 font-bold focus:outline-none focus:border-emerald-400">
+                <option value="ALL">Tüm Durumlar</option>
+                <option value="Oynaniyor">Devam Edenler (Canlı)</option>
+                <option value="Baslamadi">Başlamayanlar</option>
+                <option value="Bitti">Bitenler</option>
+                <option value="Retired">Retired (Çekildi)</option>
+                <option value="Walkover">Walkover (Hükmen)</option>
+              </select>
+            </div>
+
+            {/* Sağ: Zoom */}
+            <div className="flex items-center gap-2 text-xs text-slate-400 bg-slate-900 p-2 rounded-xl border border-slate-700/60">
+              <ZoomOut className="w-4 h-4 text-cyan-400" />
+              <input type="range" min="40" max="150" step="5" value={zoomLevel} onChange={(e) => setZoomLevel(Number(e.target.value))} className="w-24 sm:w-32 accent-cyan-400 cursor-pointer" />
+              <ZoomIn className="w-4 h-4 text-cyan-400" />
+              <span className="font-mono text-[12px] w-10 text-right font-black text-cyan-400">%{zoomLevel}</span>
+            </div>
           </div>
         )}
       </div>
 
-      {/* Court Selection Bar (Single Court Focused Navigation) */}
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-4 sm:p-5 shadow-xl space-y-4">
-        {/* Header Title & Court Fast Bar */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <h1 className="font-extrabold text-lg sm:text-xl text-white tracking-tight flex items-center gap-2">
-              <span>🎾 Kort & Hakem Masası</span>
-              {selectedCourt !== 'ALL' && (
-                <span className="px-2.5 py-0.5 rounded-full bg-lime-400 text-slate-950 text-xs font-black shadow-sm shadow-lime-400/20">
-                  {selectedCourt}
-                </span>
-              )}
-            </h1>
-            <p className="text-xs text-slate-400 mt-0.5">
-              İstediğiniz kortu seçin. Sadece o kortun maçları açılır. Bitmiş maçlar bant halinde listelenir.
-            </p>
-          </div>
+      {activeSubTab === 'grid' && (
+        /* YENİ: YATAY KAYDIRMA İZNİ (overflow-x-auto) VE SABİT GENİŞLİK MATRİSİ */
+        <div className="w-full overflow-x-auto pb-6">
+          <div style={{ transform: `scale(${zoomLevel / 100})`, transformOrigin: 'top left', minWidth: 'min-content' }} className="transition-transform duration-150 p-2">
+            
+            {/* Kortların Yanyana Dizilimi: Asla alt satıra geçmez (flex-nowrap) */}
+            <div className="flex flex-nowrap gap-4">
+              {(selectedCourtFilter === 'ALL' ? distinctCourts : [selectedCourtFilter]).map((courtName) => {
+                const courtMatches = filteredMatches.filter((m) => m.Kort === courtName);
 
-          {/* Quick Metrics */}
-          <div className="flex items-center gap-2 shrink-0 flex-wrap">
-            <div className="flex items-center gap-1.5 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800 text-xs font-bold">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-              <span className="text-emerald-400">{liveMatchesCount} Oynanıyor</span>
+                return (
+                  <div key={courtName} className="bg-slate-900 border border-slate-800 rounded-3xl p-3 sm:p-4 space-y-3 flex flex-col shadow-xl min-w-[280px] w-[300px]">
+                    <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full bg-cyan-400 animate-pulse"></div>
+                        <h3 className="font-extrabold text-sm text-white tracking-wide">{courtName}</h3>
+                      </div>
+                      <span className="text-[11px] font-mono text-slate-400 font-bold px-2 py-0.5 rounded-full bg-slate-950 border border-slate-800">{courtMatches.length} Maç</span>
+                    </div>
+
+                    <div className="space-y-2.5 flex-1">
+                      {courtMatches.length > 0 ? (
+                        courtMatches.map((m) => {
+                          const isLive = m.Durum === 'Oynaniyor';
+                          const isFinished = ['Bitti', 'Retired', 'Walkover'].includes(m.Durum);
+                          const state = m.detailedState;
+                          const p1Name = m['Oyuncu 1'];
+                          const p2Name = m['Oyuncu 2'];
+
+                          return (
+                            <div key={m.id} onClick={() => setSelectedMatchForModal(m)} className={`p-3 rounded-2xl border transition cursor-pointer relative overflow-hidden group hover:scale-[1.02] ${isLive ? 'bg-slate-950 border-l-4 border-l-emerald-400 border-emerald-500/40 shadow-lg shadow-emerald-500/5 ring-1 ring-emerald-500/20' : m.Durum === 'Duraklatildi' ? 'bg-slate-950 border-l-4 border-l-amber-400 border-amber-500/40 shadow-lg shadow-amber-500/5 ring-1 ring-amber-500/20' : isFinished ? 'bg-slate-950/70 border-l-4 border-l-cyan-500 border-slate-800' : 'bg-slate-950/50 border-l-4 border-l-slate-700 border-slate-800/80 hover:border-slate-700'}`}>
+                              <div className="flex items-center justify-between text-[10px] font-bold mb-1.5 gap-1">
+                                <span className="text-amber-400 font-mono flex items-center gap-1"><Clock className="w-3 h-3" />{m.Saat}</span>
+                                <div className="flex items-center gap-1.5">
+                                  <MatchLiveTimer match={m} size="sm" />
+                                  <span className={`px-2 py-0.5 rounded-full uppercase text-[9px] font-extrabold ${isLive ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 animate-pulse' : m.Durum === 'Duraklatildi' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : m.Durum === 'Retired' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : m.Durum === 'Walkover' ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40' : isFinished ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40' : 'bg-slate-800 text-slate-400'}`}>
+                                    {isLive ? 'DEVAM' : m.Durum === 'Duraklatildi' ? 'MOLA' : m.Durum === 'Baslamadi' ? 'BEKLİYOR' : m.Durum}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div className="text-[10px] text-slate-400 truncate mb-1.5">{m.Kategori}</div>
+
+                              <div className="space-y-1 my-1.5">
+                                <div className="flex items-center justify-between text-xs">
+                                  <div className="flex items-center gap-1.5 truncate pr-2">
+                                    {state?.currentServer === 1 && isLive && <span className="text-lime-400 text-[10px]">🎾</span>}
+                                    <span className={`truncate ${m.Kazanan === p1Name ? 'text-white font-extrabold' : 'text-slate-300 font-medium'}`}>{m.Kazanan === p1Name ? '✓ ' : ''}{p1Name}</span>
+                                  </div>
+                                  <span className="font-mono text-xs font-bold text-white flex-shrink-0">
+                                    {state ? `${state.set1_p1} ${state.set2_p1} ${state.set3_p1}` : m.Skor !== '-' ? m.Skor.split(' ').map((s) => s.split('/')[0]).join(' ') : '-'}
+                                  </span>
+                                </div>
+
+                                <div className="flex items-center justify-between text-xs">
+                                  <div className="flex items-center gap-1.5 truncate pr-2">
+                                    {state?.currentServer === 2 && isLive && <span className="text-cyan-400 text-[10px]">🎾</span>}
+                                    <span className={`truncate ${m.Kazanan === p2Name ? 'text-white font-extrabold' : 'text-slate-300 font-medium'}`}>{m.Kazanan === p2Name ? '✓ ' : ''}{p2Name}</span>
+                                  </div>
+                                  <span className="font-mono text-xs font-bold text-white flex-shrink-0">
+                                    {state ? `${state.set1_p2} ${state.set2_p2} ${state.set3_p2}` : m.Skor !== '-' ? m.Skor.split(' ').map((s) => s.split('/')[1]).join(' ') : '-'}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div className="pt-2 mt-2 border-t border-slate-800/80 flex items-center justify-between text-[10px]">
+                                {isLive && state ? (
+                                  <div className="font-mono font-bold text-lime-400 bg-lime-950/40 px-2 py-0.5 rounded border border-lime-500/30">
+                                    {state.isTiebreak ? `TB: ${state.tiebreak_p1}-${state.tiebreak_p2}` : `${state.gamePoint_p1} - ${state.gamePoint_p2}`}
+                                  </div>
+                                ) : (
+                                  <div className="text-slate-500 font-mono">Skor: <span className="text-slate-300">{m.Skor}</span></div>
+                                )}
+                                <div className="text-slate-400 truncate max-w-[110px] text-right">
+                                  {m.Son_Hakem && m.Son_Hakem !== '-' ? <span className="text-amber-300/90 font-medium">👤 {m.Son_Hakem.split(' ')[0]}</span> : <span className="text-slate-600">Hakem Yok</span>}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <div className="p-6 text-center text-xs text-slate-500 border border-dashed border-slate-800 rounded-2xl">Bu kortta maç bulunamadı.</div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-
-            <div className="flex items-center gap-1.5 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800 text-xs font-bold">
-              <span className="w-2 h-2 rounded-full bg-amber-400"></span>
-              <span className="text-amber-400">{upcomingMatchesCount} Başlamadı</span>
-            </div>
-
-            <div className="flex items-center gap-1.5 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800 text-xs font-bold">
-              <span className="w-2 h-2 rounded-full bg-cyan-400"></span>
-              <span className="text-cyan-400">{finishedMatchesCount} Bitti</span>
-            </div>
-
-            <button
-              onClick={handleCopyReport}
-              className="py-1.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold transition flex items-center gap-1.5"
-              title="Sonuç raporunu kopyala"
-            >
-              {copiedReport ? <Check className="w-3.5 h-3.5 text-lime-400" /> : <Copy className="w-3.5 h-3.5" />}
-              <span>{copiedReport ? 'Kopyalandı' : 'Rapor'}</span>
-            </button>
           </div>
-        </div>
-
-        {/* Primary Court Selector (Large, Clear, High-Contrast) */}
-        <div className="pt-2 border-t border-slate-800/80">
-          <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2 flex items-center gap-1.5">
-            <Filter className="w-3.5 h-3.5 text-lime-400" />
-            <span>Kort Seçiniz (Yalnızca Seçili Kort Gösterilir):</span>
-          </div>
-
-          <div className="flex items-center gap-2 overflow-x-auto pb-1">
-            {uniqueCourts.map((court) => {
-              const courtMatches = matches.filter((m) => m.Kort === court);
-              const hasLive = courtMatches.some((m) => m.Durum === 'Oynaniyor');
-              const isSelected = selectedCourt === court;
-
-              return (
-                <button
-                  key={court}
-                  type="button"
-                  onClick={() => setSelectedCourt(court)}
-                  className={`px-4 sm:px-5 py-3 rounded-2xl font-black text-xs sm:text-sm transition shrink-0 flex items-center gap-2.5 border ${
-                    isSelected
-                      ? 'bg-gradient-to-r from-lime-400 to-emerald-400 text-slate-950 border-lime-400 shadow-lg shadow-lime-400/25 scale-[1.02]'
-                      : hasLive
-                      ? 'bg-slate-950 hover:bg-slate-800 text-emerald-400 border-emerald-500/50 shadow-sm shadow-emerald-500/20'
-                      : 'bg-slate-950 hover:bg-slate-800 text-slate-300 border-slate-800'
-                  }`}
-                >
-                  {hasLive && (
-                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0"></span>
-                  )}
-                  <span>{court}</span>
-                  <span
-                    className={`px-2 py-0.5 rounded-lg text-[10px] font-black ${
-                      isSelected ? 'bg-slate-950 text-lime-400' : 'bg-slate-800 text-slate-400'
-                    }`}
-                  >
-                    {courtMatches.length} Maç
-                  </span>
-                </button>
-              );
-            })}
-
-            {/* Optional All Courts button */}
-            <button
-              type="button"
-              onClick={() => setSelectedCourt('ALL')}
-              className={`px-4 py-3 rounded-2xl font-bold text-xs sm:text-sm transition shrink-0 flex items-center gap-2 border ${
-                selectedCourt === 'ALL'
-                  ? 'bg-slate-800 text-white border-slate-600 shadow'
-                  : 'bg-slate-950 hover:bg-slate-800 text-slate-400 border-slate-800'
-              }`}
-            >
-              <span>Tüm Kortlar</span>
-              <span className="px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-slate-900 text-slate-400">
-                {matches.length}
-              </span>
-            </button>
-          </div>
-        </div>
-
-        {/* Secondary: Status Filters & Search Bar */}
-        <div className="pt-2 border-t border-slate-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          {/* Status Filter Chips */}
-          <div className="flex items-center gap-1.5 bg-slate-950 p-1 rounded-2xl border border-slate-800 overflow-x-auto text-xs">
-            <button
-              onClick={() => setStatusFilter('ALL')}
-              className={`px-3 py-1.5 rounded-xl font-bold transition shrink-0 ${
-                statusFilter === 'ALL'
-                  ? 'bg-slate-800 text-white shadow'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              Tümü ({selectedCourt === 'ALL' ? matches.length : matches.filter(m => m.Kort === selectedCourt).length})
-            </button>
-
-            <button
-              onClick={() => setStatusFilter('LIVE')}
-              className={`px-3 py-1.5 rounded-xl font-black transition shrink-0 flex items-center gap-1.5 ${
-                statusFilter === 'LIVE'
-                  ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
-                  : 'text-emerald-400 hover:bg-slate-900'
-              }`}
-            >
-              <span className={`w-2 h-2 rounded-full ${statusFilter === 'LIVE' ? 'bg-slate-950' : 'bg-emerald-400 animate-pulse'}`}></span>
-              <span>Oynanıyor ({liveMatches.length})</span>
-            </button>
-
-            <button
-              onClick={() => setStatusFilter('UPCOMING')}
-              className={`px-3 py-1.5 rounded-xl font-black transition shrink-0 flex items-center gap-1.5 ${
-                statusFilter === 'UPCOMING'
-                  ? 'bg-amber-400 text-slate-950 shadow-md shadow-amber-400/20'
-                  : 'text-amber-400 hover:bg-slate-900'
-              }`}
-            >
-              <Clock className="w-3.5 h-3.5" />
-              <span>Başlamadı ({upcomingMatches.length})</span>
-            </button>
-
-            <button
-              onClick={() => setStatusFilter('FINISHED')}
-              className={`px-3 py-1.5 rounded-xl font-black transition shrink-0 flex items-center gap-1.5 ${
-                statusFilter === 'FINISHED'
-                  ? 'bg-cyan-400 text-slate-950 shadow-md shadow-cyan-400/20'
-                  : 'text-cyan-400 hover:bg-slate-900'
-              }`}
-            >
-              <CheckCircle2 className="w-3.5 h-3.5" />
-              <span>Bitti ({finishedMatches.length})</span>
-            </button>
-          </div>
-
-          {/* Search Input */}
-          <div className="relative flex-1 max-w-xs">
-            <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              placeholder="Oyuncu veya kategori ara..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-lime-400"
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Main Section Content: Organized by Match State */}
-      {filteredMatches.length === 0 ? (
-        <div className="bg-slate-900/60 border border-slate-800 rounded-3xl p-12 text-center space-y-3">
-          <div className="w-12 h-12 rounded-2xl bg-slate-800 text-slate-500 flex items-center justify-center mx-auto text-xl">
-            🎾
-          </div>
-          <h3 className="font-bold text-white text-base">Bu Kortta Eşleşen Maç Bulunamadı</h3>
-          <p className="text-xs text-slate-400 max-w-sm mx-auto">
-            {selectedCourt !== 'ALL' ? `${selectedCourt} için seçili filtrede maç bulunmuyor.` : 'Filtreleri sıfırlayabilirsiniz.'}
-          </p>
-          <button
-            onClick={() => {
-              setStatusFilter('ALL');
-              setSearchQuery('');
-            }}
-            className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-300 transition"
-          >
-            Filtreleri Temizle
-          </button>
-        </div>
-      ) : (
-        <div className="space-y-6">
-          {/* SECTION 1: LIVE MATCHES (Oynanıyor - Açık & Etkileşimli Kartlar) */}
-          {liveMatches.length > 0 && (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xs sm:text-sm font-black uppercase tracking-wider text-emerald-400 flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                  <span>Canlı Oynanan Maçlar ({liveMatches.length})</span>
-                </h2>
-                <span className="text-[11px] text-slate-400">Skor girmek için doğrudan kartı kullanın</span>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-5">
-                {liveMatches.map((match) => (
-                  <CourtCard
-                    key={match.id}
-                    match={match}
-                    onFinishMatch={(m) => setFinishModalMatch(m)}
-                    onEditScore={(m) => setEditScoreModalMatch(m)}
-                    onOpenSetup={(m) => setSetupModalMatch(m)}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* SECTION 2: UPCOMING MATCHES (Başlamadı - Başlatma & Kura Kartları) */}
-          {upcomingMatches.length > 0 && (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xs sm:text-sm font-black uppercase tracking-wider text-amber-400 flex items-center gap-2">
-                  <Clock className="w-4 h-4 text-amber-400" />
-                  <span>Sıradaki / Başlamamış Maçlar ({upcomingMatches.length})</span>
-                </h2>
-                <span className="text-[11px] text-slate-400">Kura ve saha seçimi yapıp başlatabilirsiniz</span>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-5">
-                {upcomingMatches.map((match) => (
-                  <CourtCard
-                    key={match.id}
-                    match={match}
-                    onFinishMatch={(m) => setFinishModalMatch(m)}
-                    onEditScore={(m) => setEditScoreModalMatch(m)}
-                    onOpenSetup={(m) => setSetupModalMatch(m)}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* SECTION 3: FINISHED MATCHES (Bitti - Kompakt Bant Şeritler) */}
-          {finishedMatches.length > 0 && (
-            <div className="space-y-3 pt-2">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xs sm:text-sm font-black uppercase tracking-wider text-cyan-400 flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-cyan-400" />
-                  <span>Tamamlanan Maçlar ({finishedMatches.length})</span>
-                </h2>
-                <span className="text-[11px] text-slate-400">Skoru düzeltmek için şeride tıklayın</span>
-              </div>
-
-              <div className="space-y-2.5">
-                {finishedMatches.map((match) => (
-                  <FinishedMatchRibbon
-                    key={match.id}
-                    match={match}
-                    onClick={(m) => setEditScoreModalMatch(m)}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       )}
 
-      {/* Match Setup & Coin Toss Modal */}
-      <MatchSetupModal
-        match={setupModalMatch}
-        isOpen={Boolean(setupModalMatch)}
-        onClose={() => setSetupModalMatch(null)}
-        onStartMatch={(matchId) => {
-          const started = matches.find((m) => m.id === matchId);
-          if (started) {
-            setEditScoreModalMatch(started);
-          }
-        }}
-      />
+      {/* SUB-TAB 2, 3, 4, 5 ARE THE SAME AS BEFORE */}
+      {activeSubTab === 'stats' && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+            <div className="p-4 bg-slate-900 border border-slate-800 rounded-2xl shadow">
+              <div className="text-xs font-bold text-slate-400 uppercase">Toplam Maç</div>
+              <div className="text-2xl sm:text-3xl font-black text-white mt-1">{totalMatches}</div>
+            </div>
+            <div className="p-4 bg-slate-900 border border-emerald-500/30 bg-emerald-950/20 rounded-2xl shadow">
+              <div className="text-xs font-bold text-emerald-400 uppercase">Devam Eden</div>
+              <div className="text-2xl sm:text-3xl font-black text-emerald-400 mt-1">{liveMatches}</div>
+            </div>
+            <div className="p-4 bg-slate-900 border border-rose-500/30 bg-rose-950/20 rounded-2xl shadow">
+              <div className="text-xs font-bold text-rose-400 uppercase">Tamamlanan</div>
+              <div className="text-2xl sm:text-3xl font-black text-rose-400 mt-1">{finishedMatches}</div>
+            </div>
+            <div className="p-4 bg-slate-900 border border-slate-800 rounded-2xl shadow">
+              <div className="text-xs font-bold text-slate-400 uppercase">Başlamayan</div>
+              <div className="text-2xl sm:text-3xl font-black text-slate-300 mt-1">{pendingMatches}</div>
+            </div>
+            <div className="p-4 bg-slate-900 border border-cyan-500/30 bg-cyan-950/20 rounded-2xl shadow col-span-2 sm:col-span-1">
+              <div className="text-xs font-bold text-cyan-400 uppercase">Oran</div>
+              <div className="text-2xl sm:text-3xl font-black text-cyan-400 mt-1">%{completionRate}</div>
+            </div>
+          </div>
+          <div className="p-5 bg-slate-900 border border-slate-800 rounded-3xl space-y-2">
+            <div className="flex items-center justify-between text-xs font-bold text-slate-300">
+              <span>Günlük Turnuva İlerlemesi</span>
+              <span className="font-mono text-cyan-400">{finishedMatches} / {totalMatches} Maç Bitti (%{completionRate})</span>
+            </div>
+            <div className="w-full h-3 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
+              <div className="h-full bg-gradient-to-r from-cyan-500 to-emerald-400 transition-all duration-500" style={{ width: `${completionRate}%` }}></div>
+            </div>
+          </div>
+        </div>
+      )}
 
-      {/* Finish Match Modal */}
-      <FinishMatchModal
-        match={finishModalMatch}
-        isOpen={Boolean(finishModalMatch)}
-        onClose={() => setFinishModalMatch(null)}
-      />
+      {activeSubTab === 'formats' && (
+        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-6">
+          <div><h3 className="font-bold text-base text-white">🎾 Kategori ve Maç Formatı Eşleştirme</h3></div>
+          {formatSavedMsg && <div className="p-3 bg-emerald-950/50 border border-emerald-500/40 rounded-xl text-emerald-300 text-xs font-bold">{formatSavedMsg}</div>}
+          <div className="space-y-3 divide-y divide-slate-800">
+            {distinctCategories.map((kat) => (
+              <div key={kat} className="pt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
+                <div className="font-bold text-sm text-slate-200">🎾 {kat}</div>
+                <div>
+                  <select value={localFormats[kat] || '3 Normal Set'} onChange={(e) => setLocalFormats((prev) => ({ ...prev, [kat]: e.target.value }))} className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-lime-300 font-bold focus:border-cyan-400">
+                    {SCORE_FORMAT_OPTIONS.map((fmt) => (<option key={fmt} value={fmt}>{fmt}</option>))}
+                  </select>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="pt-4 border-t border-slate-800 flex justify-end">
+            <button type="button" onClick={handleApplyFormats} className="px-6 py-3 bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-bold rounded-xl shadow-lg transition">Formatları Kaydet ve Tüm Maçlara Uygula</button>
+          </div>
+        </div>
+      )}
 
-      {/* Detailed / Direct Score Edit Modal */}
-      <QuickScoreEditModal
-        match={editScoreModalMatch}
-        isOpen={Boolean(editScoreModalMatch)}
-        onClose={() => setEditScoreModalMatch(null)}
-      />
+      {activeSubTab === 'referees' && (
+        <div className="space-y-6">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-cyan-400/20 text-cyan-400 border border-cyan-400/30 flex items-center justify-center font-bold"><ShieldCheck className="w-5 h-5" /></div>
+                <div><h3 className="font-bold text-base text-white">Turnuva Masası Güvenlik & Ana Şifre</h3></div>
+              </div>
+              <div className="font-mono text-xs text-cyan-400 bg-cyan-950/60 border border-cyan-500/30 px-3 py-1.5 rounded-xl font-bold">Aktif Şifre: {deskPin}</div>
+            </div>
+            {deskPinSuccessMsg && <div className="p-3 bg-emerald-950/50 border border-emerald-500/40 rounded-xl text-emerald-300 text-xs font-bold flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-400" /><span>{deskPinSuccessMsg}</span></div>}
+            <form onSubmit={(e) => { e.preventDefault(); if (!editingDeskPin.trim()) return; updateDeskPin(editingDeskPin.trim()); setDeskPinSuccessMsg('✅ Turnuva Masası şifresi başarıyla güncellendi!'); setTimeout(() => setDeskPinSuccessMsg(''), 3500); }} className="flex flex-col sm:flex-row items-stretch sm:items-end gap-3 pt-2">
+              <div className="flex-1 space-y-1"><label className="block text-xs font-bold text-slate-400 uppercase tracking-wider">Yeni Turnuva Masası Şifresi / PIN</label><input type="text" maxLength={10} value={editingDeskPin} onChange={(e) => setEditingDeskPin(e.target.value)} className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white font-mono font-bold focus:outline-none focus:border-cyan-400" /></div>
+              <button type="submit" className="px-6 py-2.5 bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-bold text-sm rounded-xl shadow transition flex items-center justify-center gap-2"><KeyRound className="w-4 h-4" /><span>Şifreyi Güncelle</span></button>
+            </form>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4">
+              <h3 className="font-bold text-base text-white">Yeni Saha Hakemi Ekle</h3>
+              <form onSubmit={handleAddRefereeSubmit} className="space-y-4">
+                <div><label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Hakem Adı & Soyadı</label><input type="text" value={newRefName} onChange={(e) => setNewRefName(e.target.value)} className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white focus:outline-none focus:border-cyan-400" /></div>
+                <div><label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Giriş PIN / Şifre</label><input type="text" maxLength={6} value={newRefPin} onChange={(e) => setNewRefPin(e.target.value)} className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white font-mono focus:outline-none focus:border-cyan-400" /></div>
+                <button type="submit" className="w-full py-3 bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-bold rounded-xl shadow transition">Hakemi Kaydet</button>
+              </form>
+            </div>
+            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4">
+              <h3 className="font-bold text-base text-white">Kayıtlı Saha Hakemleri ({referees.length})</h3>
+              <div className="space-y-2 max-h-80 overflow-y-auto">
+                {referees.map((ref) => (
+                  <div key={ref.name} className="p-3 bg-slate-950 rounded-xl border border-slate-800 flex items-center justify-between">
+                    <div><div className="font-bold text-sm text-slate-200">{ref.name}</div><div className="text-xs text-slate-400 font-mono">PIN: {ref.pin}</div></div>
+                    <button type="button" onClick={() => deleteReferee(ref.name)} className="p-2 text-slate-500 hover:text-rose-400 hover:bg-rose-950/30 rounded-lg transition"><Trash2 className="w-4 h-4" /></button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeSubTab === 'manage' && (
+        <div className="space-y-6">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-950/60 border border-emerald-500/30 text-emerald-400 flex items-center justify-center"><RefreshCw className={`w-5 h-5 ${isSyncingAction ? 'animate-spin' : ''}`} /></div>
+                <div><h3 className="font-bold text-base text-white">Canlı Bulut Senkronizasyonu</h3></div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="px-3 py-1 rounded-xl bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 text-xs font-mono font-bold flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" /><span>{cloudSyncStatus === 'connected' ? 'Buluta Bağlı' : cloudSyncStatus === 'syncing' ? 'Eşitleniyor...' : 'Çevrimdışı'}</span></span>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+              <button type="button" disabled={isSyncingAction} onClick={async () => { setIsSyncingAction(true); try { await forcePushAllToCloud(); setImportMsg('✅ Buluta zorla yazıldı!'); setTimeout(() => setImportMsg(''), 4000); } catch { setImportMsg('❌ Başarısız.'); } finally { setIsSyncingAction(false); } }} className="flex items-center justify-center gap-2 px-4 py-3 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 rounded-2xl text-xs font-bold transition shadow"><Upload className="w-4 h-4 text-emerald-400" /><span>Zorla Yayınla</span></button>
+              <button type="button" disabled={isSyncingAction} onClick={async () => { setIsSyncingAction(true); try { await pullFromCloudNow(); setImportMsg('✅ Veri çekildi!'); setTimeout(() => setImportMsg(''), 4000); } catch { setImportMsg('❌ Başarısız.'); } finally { setIsSyncingAction(false); } }} className="flex items-center justify-center gap-2 px-4 py-3 bg-cyan-600/20 hover:bg-cyan-600/30 border border-cyan-500/40 text-cyan-300 rounded-2xl text-xs font-bold transition shadow"><Download className="w-4 h-4 text-cyan-400" /><span>Buluttan Çek</span></button>
+              <button type="button" disabled={isSyncingAction} onClick={() => { if (confirm('Sıfırlansın mı?')) { resetAllScores(); } }} className="flex items-center justify-center gap-2 px-4 py-3 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 rounded-2xl text-xs font-bold transition shadow"><RefreshCw className="w-4 h-4 text-amber-400" /><span>Skorları Sıfırla</span></button>
+            </div>
+          </div>
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-6">
+            <div className="flex items-center justify-between">
+              <div><h3 className="font-bold text-base text-white">Maç Programı (JSON)</h3></div>
+              <button type="button" onClick={handleExportJson} className="flex items-center gap-1.5 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl transition shadow"><Download className="w-4 h-4" /><span>İndir</span></button>
+            </div>
+            {importMsg && <div className="p-3.5 bg-cyan-950/70 border border-cyan-500/40 rounded-2xl text-cyan-300 text-xs font-bold shadow-lg animate-in fade-in">{importMsg}</div>}
+            <div className="space-y-3">
+              <textarea rows={8} value={jsonInput} onChange={(e) => setJsonInput(e.target.value)} className="w-full p-3.5 bg-slate-950 border border-slate-800 rounded-2xl text-xs font-mono text-cyan-300 focus:outline-none focus:border-cyan-400" />
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <button type="button" onClick={() => { if (confirm('Varsayılana dön?')) resetTournamentToDefault(); }} className="text-xs text-rose-400 hover:text-rose-300 underline font-medium">Varsayılana Sıfırla</button>
+                <button type="button" onClick={handleImportJson} disabled={!jsonInput.trim()} className="px-6 py-2.5 bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-bold text-xs rounded-xl shadow transition disabled:opacity-50 flex items-center gap-2"><Upload className="w-4 h-4" /><span>JSON Yükle</span></button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <MatchDetailModal match={selectedMatchForModal} onClose={() => setSelectedMatchForModal(null)} />
     </div>
   );
 };
