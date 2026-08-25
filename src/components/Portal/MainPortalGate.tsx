@@ -1,585 +1,296 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTennisData } from '../../context/TennisDataContext';
 import { ShareRefereeLinkModal } from '../Common/ShareRefereeLinkModal';
 import {
-  Shield,
-  Smartphone,
-  Tv,
-  Lock,
-  KeyRound,
-  CheckCircle2,
-  AlertCircle,
-  X,
-  User,
-  Eye,
-  EyeOff,
-  ChevronRight,
-  ShieldCheck,
-  RefreshCw,
-  Trash2,
-  Cloud,
-  QrCode,
+  Shield, Smartphone, Tv, Lock, KeyRound, CheckCircle2,
+  AlertCircle, X, User, Eye, EyeOff, ChevronRight,
+  RefreshCw, Trash2, Cloud, QrCode, Activity, Clock,
+  Trophy, Circle,
 } from 'lucide-react';
 
 export const MainPortalGate: React.FC = () => {
   const {
-    referees,
-    loginSupervisorByPin,
-    loginDesk,
-    deskPin,
-    cloudSyncStatus,
-    lastCloudSync,
-    pullFromCloudNow,
-    clearLocalCacheAndResetFromCloud,
+    referees, matches, loginSupervisorByPin, loginDesk, deskPin,
+    cloudSyncStatus, lastCloudSync, pullFromCloudNow, clearLocalCacheAndResetFromCloud,
   } = useTennisData();
 
   const [activeModal, setActiveModal] = useState<'supervisor' | 'desk' | null>(null);
-  const [isShareModalOpen, setIsShareModalOpen] = useState<boolean>(false);
-  const [pin, setPin] = useState<string>('');
-  const [selectedRefName, setSelectedRefName] = useState<string>('');
-  const [showPin, setShowPin] = useState<boolean>(false);
-  const [errorMsg, setErrorMsg] = useState<string>('');
-  const [successMsg, setSuccessMsg] = useState<string>('');
-  const [portalSyncMsg, setPortalSyncMsg] = useState<string>('');
-  const [isSyncing, setIsSyncing] = useState<boolean>(false);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [pin, setPin] = useState('');
+  const [selectedRefName, setSelectedRefName] = useState('');
+  const [showPin, setShowPin] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
+  const [portalSyncMsg, setPortalSyncMsg] = useState('');
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [now, setNow] = useState(Date.now());
 
-  const openSupervisorModal = () => {
-    setActiveModal('supervisor');
-    setPin('');
-    setSelectedRefName('');
-    setErrorMsg('');
-    setSuccessMsg('');
-    setShowPin(false);
+  // Canlı saat — her 30 saniyede güncelle
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 30000);
+    return () => clearInterval(t);
+  }, []);
+
+  const openSupervisorModal = () => { setActiveModal('supervisor'); setPin(''); setSelectedRefName(''); setErrorMsg(''); setSuccessMsg(''); setShowPin(false); };
+  const openDeskModal = () => { setActiveModal('desk'); setPin(''); setSelectedRefName(''); setErrorMsg(''); setSuccessMsg(''); setShowPin(false); };
+  const closeModal = () => { setActiveModal(null); setPin(''); setErrorMsg(''); setSuccessMsg(''); };
+  const handleKeypadPress = (d: string) => { if (pin.length < 8) { setPin(p => p + d); setErrorMsg(''); } };
+  const handleKeypadBackspace = () => setPin(p => p.slice(0, -1));
+  const handleKeypadClear = () => setPin('');
+
+  const handleSupervisorSubmit = () => {
+    if (!selectedRefName) { setErrorMsg('Lütfen hakem adınızı seçin.'); return; }
+    if (!pin) { setErrorMsg('PIN şifresi boş olamaz.'); return; }
+    const ok = loginSupervisorByPin(selectedRefName, pin);
+    if (ok) { setSuccessMsg('✅ Giriş başarılı! Yönlendiriliyorsunuz...'); setTimeout(closeModal, 800); }
+    else setErrorMsg('❌ PIN hatalı. Lütfen tekrar deneyin.');
   };
 
-  const openDeskModal = () => {
-    setActiveModal('desk');
-    setPin('');
-    setSelectedRefName('');
-    setErrorMsg('');
-    setSuccessMsg('');
-    setShowPin(false);
+  const handleDeskSubmit = () => {
+    if (!pin) { setErrorMsg('Şifre boş olamaz.'); return; }
+    const ok = loginDesk(pin);
+    if (ok) { setSuccessMsg('✅ Başhakem masasına giriş yapıldı!'); setTimeout(closeModal, 800); }
+    else setErrorMsg('❌ Şifre hatalı.');
   };
 
-  const closeModal = () => {
-    setActiveModal(null);
-    setPin('');
-    setErrorMsg('');
-    setSuccessMsg('');
+  // Maç grupları
+  const live    = matches.filter(m => m.Durum === 'Oynaniyor');
+  const waiting = matches.filter(m => m.Durum === 'Baslamadi');
+  const done    = matches.filter(m => m.Durum === 'Bitti' || m.Durum === 'Retired' || m.Durum === 'Walkover');
+
+  const statusColor = (d: string) => {
+    if (d === 'Oynaniyor') return 'text-emerald-400';
+    if (d === 'Baslamadi') return 'text-amber-400';
+    return 'text-slate-500';
   };
-
-  const handleKeypadPress = (digit: string) => {
-    if (pin.length < 8) {
-      setPin((prev) => prev + digit);
-      setErrorMsg('');
-    }
-  };
-
-  const handleKeypadBackspace = () => {
-    setPin((prev) => prev.slice(0, -1));
-    setErrorMsg('');
-  };
-
-  const handleKeypadClear = () => {
-    setPin('');
-    setErrorMsg('');
-  };
-
-  const handleSupervisorSubmit = (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    setErrorMsg('');
-    setSuccessMsg('');
-
-    if (!selectedRefName) {
-      setErrorMsg('Lütfen listeden isminizi seçiniz.');
-      return;
-    }
-
-    if (!pin.trim()) {
-      setErrorMsg('Lütfen PIN şifrenizi giriniz.');
-      return;
-    }
-
-    const success = loginSupervisorByPin(pin, selectedRefName);
-    if (success) {
-      setSuccessMsg('Giriş başarılı! Kort Hakemi paneli açılıyor...');
-      setTimeout(() => {
-        closeModal();
-      }, 500);
-    } else {
-      setErrorMsg('Hatalı PIN! Lütfen kayıtlı şifrenizi girin.');
-    }
-  };
-
-  const handleDeskSubmit = (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    setErrorMsg('');
-    setSuccessMsg('');
-
-    if (!pin.trim()) {
-      setErrorMsg('Lütfen Başhakem şifresini giriniz.');
-      return;
-    }
-
-    const success = loginDesk(pin);
-    if (success) {
-      setSuccessMsg('Yetkilendirme başarılı! Başhakem Masası açılıyor...');
-      setTimeout(() => {
-        closeModal();
-      }, 500);
-    } else {
-      setErrorMsg(`Hatalı Şifre! Lütfen doğru şifreyi giriniz. (Varsayılan: ${deskPin})`);
-    }
+  const statusLabel = (d: string) => {
+    if (d === 'Oynaniyor') return 'CANLI';
+    if (d === 'Baslamadi') return 'BEKL.';
+    if (d === 'Bitti') return 'BİTTİ';
+    if (d === 'Retired') return 'RET.';
+    if (d === 'Walkover') return 'W/O';
+    return d;
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between selection:bg-lime-400 selection:text-slate-950 relative overflow-hidden">
-      {/* Dynamic Ambient Background Glows */}
-      <div className="absolute -top-40 -left-40 w-96 h-96 bg-lime-500/10 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-slate-900/30 rounded-full blur-3xl pointer-events-none" />
+    <div className="min-h-screen bg-slate-950 text-slate-100 selection:bg-lime-400 selection:text-slate-950">
 
-      {/* Decorative Tennis Court Line Grid */}
-      <div
-        className="absolute inset-0 opacity-[0.03] pointer-events-none bg-[radial-gradient(#ffffff_1px,transparent_1px)] [background-size:24px_24px]"
-      />
+      {/* ── ÜST HEADER: ince, sade ── */}
+      <header className="sticky top-0 z-30 bg-slate-950/90 backdrop-blur border-b border-slate-800/60">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 h-14 flex items-center justify-between gap-3">
 
-      {/* Top Security Banner */}
-      <header className="relative z-10 pt-6 sm:pt-8 px-4 max-w-5xl mx-auto w-full">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="h-11 w-11 rounded-2xl bg-gradient-to-tr from-lime-400 to-emerald-400 text-slate-950 flex items-center justify-center font-black text-2xl shadow-lg shadow-lime-400/25">
+          {/* Logo */}
+          <div className="flex items-center gap-2.5 shrink-0">
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-lime-400 to-emerald-400 text-slate-950 flex items-center justify-center font-black text-base shadow shadow-lime-400/20">
               🎾
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-extrabold text-xl tracking-tight text-white">CourtOnline</span>
-                <span className="text-[10px] uppercase font-black tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                  Güvenli Giriş
-                </span>
-              </div>
-              <p className="text-xs text-slate-400">Tenis Turnuvası & Canlı Skor Sistemi</p>
-            </div>
+            <span className="font-extrabold text-base tracking-tight text-white hidden sm:block">CourtOnline</span>
+            <span className="flex items-center gap-1 text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+              <Activity className="w-2.5 h-2.5" /> Canlı
+            </span>
           </div>
 
+          {/* Sağ: giriş butonları + QR */}
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setIsShareModalOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-lime-400/20 hover:bg-lime-400/30 text-lime-300 border border-lime-400/40 text-xs font-black transition active:scale-95 shadow-sm"
-              title="Hakemler için telefon bağlantısı ve QR karekod üret"
-            >
-              <QrCode className="w-3.5 h-3.5" />
-              <span>📲 Hakem Linki & QR</span>
+            <button onClick={openSupervisorModal}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-lime-400/15 hover:bg-lime-400/25 border border-lime-400/30 text-lime-300 text-xs font-black transition active:scale-95">
+              <Smartphone className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Kort Hakemi</span>
+              <span className="sm:hidden">Hakem</span>
             </button>
-            <div className="hidden sm:flex items-center gap-1.5 text-xs text-slate-400 bg-slate-900/80 px-3.5 py-1.5 rounded-full border border-slate-800 backdrop-blur">
-              <Shield className="w-3.5 h-3.5 text-lime-400" />
-              <span>Şifre Korumalı Erişim</span>
-            </div>
+            <button onClick={openDeskModal}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-cyan-400/15 hover:bg-cyan-400/25 border border-cyan-400/30 text-cyan-300 text-xs font-black transition active:scale-95">
+              <Tv className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Başhakem</span>
+              <span className="sm:hidden">Masa</span>
+            </button>
+            <button onClick={() => setIsShareModalOpen(true)}
+              className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-400 hover:text-white transition"
+              title="Hakem Linki & QR">
+              <QrCode className="w-4 h-4" />
+            </button>
           </div>
         </div>
       </header>
 
-      {/* Main Hero & Two Selection Cards */}
-      <main className="relative z-10 my-auto py-8 sm:py-12 px-4 max-w-5xl mx-auto w-full space-y-8 sm:space-y-10">
-        {/* Title & Introduction */}
-        <div className="text-center space-y-3 max-w-2xl mx-auto">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-slate-900 border border-slate-800 text-xs font-semibold text-slate-300 shadow-sm">
-            <Lock className="w-3.5 h-3.5 text-lime-400" />
-            <span>Yetkisiz Erişime Karşı Korumalı Portal</span>
+      {/* ── ANA İÇERİK: Canlı ızgara ── */}
+      <main className="max-w-7xl mx-auto px-3 sm:px-6 py-4 space-y-5">
+
+        {/* Özet sayaçlar */}
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-black">
+            <Circle className="w-2 h-2 fill-emerald-400 animate-pulse" />
+            {live.length} Canlı
           </div>
-
-          <h1 className="text-2xl sm:text-4xl font-black text-white tracking-tight">
-            Turnuva Paneline Giriş Yapın
-          </h1>
-
-          <p className="text-sm sm:text-base text-slate-400 leading-relaxed">
-            Turnuva skorları ve yönetim paneli şifreyle korunmaktadır. Lütfen yetki alanınıza göre uygun paneli seçip giriş yapın.
-          </p>
-        </div>
-
-        {/* 2 Big Primary Role Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 sm:gap-6">
-          {/* Card 1: Kort Hakemi */}
-          <div
-            onClick={openSupervisorModal}
-            className="group relative bg-slate-900/90 hover:bg-slate-850 border-2 border-slate-800 hover:border-lime-400/80 rounded-3xl p-6 sm:p-8 transition-all duration-200 cursor-pointer shadow-xl hover:shadow-lime-400/15 flex flex-col justify-between overflow-hidden active:scale-[0.99]"
-          >
-            <div className="absolute top-0 right-0 w-36 h-36 bg-lime-400/10 rounded-full blur-2xl group-hover:bg-lime-400/20 transition-all pointer-events-none" />
-
-            <div className="space-y-4 relative z-10">
-              <div className="flex items-center justify-between">
-                <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-lime-400 to-emerald-400 text-slate-950 flex items-center justify-center font-black shadow-lg shadow-lime-400/25 group-hover:scale-105 transition">
-                  <Smartphone className="w-7 h-7" />
-                </div>
-                <span className="text-[11px] font-black uppercase px-3 py-1 rounded-full bg-lime-400/15 text-lime-300 border border-lime-400/30">
-                  KORT HAKEMİ
-                </span>
-              </div>
-
-              <div>
-                <h2 className="text-xl sm:text-2xl font-black text-white group-hover:text-lime-300 transition">
-                  Kort Hakemi
-                </h2>
-                <p className="text-xs sm:text-sm text-slate-400 mt-1 leading-relaxed">
-                  Sadece korttaki maçı yönetme, kura atışı ve canlı skor girişi yapar. Diğer kortları salt okunur (misafir) izleyebilir.
-                </p>
-              </div>
-
-              <div className="pt-2 flex flex-wrap gap-2 text-[11px] text-slate-300 font-medium">
-                <span className="px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800">🎾 Canlı Skor Girişi</span>
-                <span className="px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800">🪙 Kura Atışı</span>
-                <span className="px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800">👁️ Salt Okunur İzleme</span>
-              </div>
-            </div>
-
-            <div className="pt-6 mt-6 border-t border-slate-800/80 flex items-center justify-between relative z-10">
-              <span className="text-xs text-slate-400 font-bold">
-                Bireysel PIN <strong className="text-lime-300 font-mono">Gerekli</strong>
-              </span>
-              <button
-                type="button"
-                className="px-4 py-2.5 rounded-xl bg-lime-400 group-hover:bg-lime-300 text-slate-950 font-black text-xs sm:text-sm flex items-center gap-1.5 shadow-md shadow-lime-400/20 transition"
-              >
-                <span>Giriş Yap</span>
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-400 text-xs font-black">
+            <Clock className="w-3 h-3" />
+            {waiting.length} Bekliyor
           </div>
-
-          {/* Card 2: Başhakem Masası */}
-          <div
-            onClick={openDeskModal}
-            className="group relative bg-slate-900/90 hover:bg-slate-850 border-2 border-slate-800 hover:border-cyan-400/80 rounded-3xl p-6 sm:p-8 transition-all duration-200 cursor-pointer shadow-xl hover:shadow-cyan-400/15 flex flex-col justify-between overflow-hidden active:scale-[0.99]"
-          >
-            <div className="absolute top-0 right-0 w-36 h-36 bg-cyan-400/10 rounded-full blur-2xl group-hover:bg-cyan-400/20 transition-all pointer-events-none" />
-
-            <div className="space-y-4 relative z-10">
-              <div className="flex items-center justify-between">
-                <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-cyan-400 to-teal-400 text-slate-950 flex items-center justify-center font-black shadow-lg shadow-cyan-400/25 group-hover:scale-105 transition">
-                  <Tv className="w-7 h-7" />
-                </div>
-                <span className="text-[11px] font-black uppercase px-3 py-1 rounded-full bg-cyan-400/15 text-cyan-300 border border-cyan-400/30">
-                  BAŞHAKEM & YÖNETİM
-                </span>
-              </div>
-
-              <div>
-                <h2 className="text-xl sm:text-2xl font-black text-white group-hover:text-cyan-300 transition">
-                  Başhakem Masası
-                </h2>
-                <p className="text-xs sm:text-sm text-slate-400 mt-1 leading-relaxed">
-                  Tüm kortları yönetir. Hakem atamaları, maç programı (fikstür) oluşturma, skor düzenleme ve genel turnuva kontrolü.
-                </p>
-              </div>
-
-              <div className="pt-2 flex flex-wrap gap-2 text-[11px] text-slate-300 font-medium">
-                <span className="px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800">📋 Hakem Atama</span>
-                <span className="px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800">📂 Fikstür Yükleme</span>
-                <span className="px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800">📊 Izgara (Grid) Tablosu</span>
-              </div>
-            </div>
-
-            <div className="pt-6 mt-6 border-t border-slate-800/80 flex items-center justify-between relative z-10">
-              <span className="text-xs text-slate-400 font-bold">
-                Masa Şifresi <strong className="text-cyan-300 font-mono">Gerekli</strong>
-              </span>
-              <button
-                type="button"
-                className="px-4 py-2.5 rounded-xl bg-cyan-400 group-hover:bg-cyan-300 text-slate-950 font-black text-xs sm:text-sm flex items-center gap-1.5 shadow-md shadow-cyan-400/20 transition"
-              >
-                <span>Başhakem Girişi</span>
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-700/60 border border-slate-700 text-slate-400 text-xs font-black">
+            <Trophy className="w-3 h-3" />
+            {done.length} Bitti
           </div>
-        </div>
-
-        {/* Phone Quick Cloud Sync & Local Cache Clear Bar */}
-        <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex items-center justify-center shrink-0">
-              <Cloud className="w-4 h-4" />
-            </div>
-            <div>
-              <span className="font-bold text-white block">Bulut Durumu: {cloudSyncStatus === 'connected' ? '🟢 Bağlı' : cloudSyncStatus === 'syncing' ? '🟡 Eşitleniyor...' : '🔴 Çevrimdışı'}</span>
-              <span className="text-[11px] text-slate-400">{lastCloudSync ? `Son eşitleme: ${lastCloudSync}` : 'Masaüstündeki son verileri çekmek için yenileyin.'}</span>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            <button
-              type="button"
+          <div className="ml-auto flex items-center gap-1.5">
+            <div className={`w-2 h-2 rounded-full ${cloudSyncStatus === 'connected' ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+            <span className="text-[11px] text-slate-400">{lastCloudSync ? `Güncellendi: ${lastCloudSync}` : 'Bağlanıyor...'}</span>
+            <button onClick={async () => { setIsSyncing(true); await pullFromCloudNow(); setIsSyncing(false); }}
               disabled={isSyncing}
-              onClick={async () => {
-                setIsSyncing(true);
-                setPortalSyncMsg('');
-                const success = await pullFromCloudNow();
-                setIsSyncing(false);
-                if (success) {
-                  setPortalSyncMsg('✅ En son veriler başarıyla buluttan çekildi!');
-                } else {
-                  setPortalSyncMsg('⚠️ Buluttan çekilemedi.');
-                }
-                setTimeout(() => setPortalSyncMsg(''), 4000);
-              }}
-              className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 font-bold text-xs transition active:scale-95 disabled:opacity-50"
-            >
+              className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition disabled:opacity-40">
               <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
-              <span>Buluttan Son Verileri Çek</span>
-            </button>
-
-            <button
-              type="button"
-              disabled={isSyncing}
-              onClick={async () => {
-                if (confirm('Telefonda takılı kalan eski maç verileri temizlenip buluttaki en son durum çekilecek. Onaylıyor musunuz?')) {
-                  setIsSyncing(true);
-                  setPortalSyncMsg('');
-                  const success = await clearLocalCacheAndResetFromCloud();
-                  setIsSyncing(false);
-                  if (success) {
-                    setPortalSyncMsg('✨ Önbellek temizlendi ve buluttaki en güncel fikstür indirildi!');
-                  } else {
-                    setPortalSyncMsg('⚠️ Sıfırlanamadı.');
-                  }
-                  setTimeout(() => setPortalSyncMsg(''), 4000);
-                }
-              }}
-              className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-rose-950/40 hover:bg-rose-900/50 border border-rose-500/40 text-rose-300 font-bold text-xs transition active:scale-95 disabled:opacity-50"
-              title="Eski verileri sıfırla"
-            >
-              <Trash2 className="w-3.5 h-3.5 text-rose-400" />
-              <span>Önbelleği Sıfırla</span>
             </button>
           </div>
         </div>
 
-        {portalSyncMsg && (
-          <div className="p-3 bg-emerald-950/90 border border-emerald-500/50 rounded-xl text-emerald-200 text-xs font-bold text-center animate-in fade-in shadow-lg">
-            {portalSyncMsg}
+        {/* Maç Listesi */}
+        {matches.length === 0 ? (
+          <div className="text-center py-20 text-slate-500">
+            <Activity className="w-10 h-10 mx-auto mb-3 opacity-30" />
+            <p className="font-bold">Henüz maç yüklenmedi</p>
+            <p className="text-xs mt-1">Başhakem fikstürü yükledikten sonra maçlar burada görünecek.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+            {[...live, ...waiting, ...done].map((m) => {
+              const isLive = m.Durum === 'Oynaniyor';
+              const isDone = m.Durum === 'Bitti' || m.Durum === 'Retired' || m.Durum === 'Walkover';
+              return (
+                <div key={m.id}
+                  className={`rounded-2xl border p-3.5 space-y-2.5 transition
+                    ${isLive ? 'bg-emerald-950/30 border-emerald-700/50 shadow-lg shadow-emerald-900/20'
+                    : isDone ? 'bg-slate-900/40 border-slate-800/60 opacity-70'
+                    : 'bg-slate-900/70 border-slate-700/60'}`}>
+
+                  {/* Üst satır: Kort + Durum */}
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-black text-slate-400 bg-slate-800 px-2 py-0.5 rounded-lg">
+                      {m.Kort || '—'}
+                    </span>
+                    <span className={`text-[10px] font-black uppercase tracking-wider flex items-center gap-1 ${statusColor(m.Durum || '')}`}>
+                      {isLive && <Circle className="w-1.5 h-1.5 fill-emerald-400 animate-pulse" />}
+                      {statusLabel(m.Durum || '')}
+                    </span>
+                  </div>
+
+                  {/* Oyuncular + Skor */}
+                  <div className="space-y-1">
+                    {[
+                      { name: m['Oyuncu 1'] || m['Takım 1'] || '—', kazandi: m.Kazanan === m['Oyuncu 1'] || m.Kazanan === m['Takım 1'] },
+                      { name: m['Oyuncu 2'] || m['Takım 2'] || '—', kazandi: m.Kazanan === m['Oyuncu 2'] || m.Kazanan === m['Takım 2'] },
+                    ].map((p, i) => (
+                      <div key={i} className="flex items-center justify-between gap-2">
+                        <span className={`text-xs font-bold truncate flex-1 ${p.kazandi ? 'text-lime-300' : 'text-slate-200'}`}>
+                          {p.kazandi && '✓ '}{p.name}
+                        </span>
+                        {m.Skor && (
+                          <span className="font-mono text-xs text-slate-300 shrink-0">
+                            {m.Skor.split(' ').map((s: string, si: number) => {
+                              const parts = s.split('/');
+                              return parts[i] ?? '0';
+                            }).join('  ')}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Alt: Kategori + Saat */}
+                  <div className="flex items-center justify-between text-[10px] text-slate-500">
+                    <span className="truncate">{m.Kategori || m.Skor_Formati || ''}</span>
+                    {m.Baslangic_Saati && <span className="font-mono shrink-0 ml-1">{m.Baslangic_Saati}</span>}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
 
-        {/* Security Notice / Privacy Assurance */}
-        <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-400">
-          <div className="flex items-center gap-3 text-center sm:text-left">
-            <ShieldCheck className="w-6 h-6 text-emerald-400 shrink-0" />
-            <div>
-              <strong className="text-slate-200 block font-bold">Veri Gizliliği & Güvenli Oturum</strong>
-              <span>Giriş yapılmadığı sürece dışarıdan hiçbir maç skoru veya turnuva verisi değiştirilemez.</span>
-            </div>
+        {/* Alt: Bulut senkronizasyon */}
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-800/60 text-xs text-slate-500">
+          <div className="flex items-center gap-2">
+            <Cloud className="w-3.5 h-3.5" />
+            <span>Bulut: {cloudSyncStatus === 'connected' ? '🟢 Bağlı' : cloudSyncStatus === 'syncing' ? '🟡 Eşitleniyor' : '🔴 Çevrimdışı'}</span>
           </div>
-          <div className="font-mono text-[11px] bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800 shrink-0 text-slate-300">
-            PIN Şifreleme Aktif
-          </div>
+          {portalSyncMsg && <span className="text-emerald-400 font-bold">{portalSyncMsg}</span>}
+          <button onClick={async () => {
+            if (confirm('Önbellek temizlenip buluttaki en son durum çekilecek. Onaylıyor musunuz?')) {
+              setIsSyncing(true);
+              const ok = await clearLocalCacheAndResetFromCloud();
+              setIsSyncing(false);
+              setPortalSyncMsg(ok ? '✨ Sıfırlandı!' : '⚠️ Başarısız.');
+              setTimeout(() => setPortalSyncMsg(''), 4000);
+            }
+          }}
+            className="flex items-center gap-1 text-rose-400/60 hover:text-rose-300 transition">
+            <Trash2 className="w-3 h-3" /> Önbelleği Sıfırla
+          </button>
         </div>
       </main>
 
-      {/* Footer */}
-      <footer className="relative z-10 py-5 border-t border-slate-900 text-center text-xs text-slate-500">
-        CourtOnline Tenis Skor Sistemi • Güvenli Giriş Portalı
-      </footer>
-
-      {/* PIN Entry Modal */}
+      {/* ── PIN MODAL ── */}
       {activeModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md animate-in fade-in duration-150 overflow-y-auto">
           <div className="bg-slate-900 border-2 border-slate-700/80 rounded-3xl p-5 sm:p-7 w-full max-w-md shadow-2xl space-y-4 my-auto">
-            {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <div className="flex items-center gap-3">
-                <div
-                  className={`w-10 h-10 rounded-2xl flex items-center justify-center font-black ${
-                    activeModal === 'supervisor'
-                      ? 'bg-lime-400/20 text-lime-400 border border-lime-400/30'
-                      : 'bg-cyan-400/20 text-cyan-400 border border-cyan-400/30'
-                  }`}
-                >
-                  {activeModal === 'supervisor' ? (
-                    <Smartphone className="w-5 h-5" />
-                  ) : (
-                    <Tv className="w-5 h-5" />
-                  )}
+                <div className={`w-10 h-10 rounded-2xl flex items-center justify-center font-black ${activeModal === 'supervisor' ? 'bg-lime-400/20 text-lime-400 border border-lime-400/30' : 'bg-cyan-400/20 text-cyan-400 border border-cyan-400/30'}`}>
+                  {activeModal === 'supervisor' ? <Smartphone className="w-5 h-5" /> : <Tv className="w-5 h-5" />}
                 </div>
                 <div>
-                  <h3 className="font-black text-white text-base sm:text-lg">
-                    {activeModal === 'supervisor'
-                      ? 'Kort Hakemi Girişi'
-                      : 'Başhakem Girişi'}
-                  </h3>
-                  <p className="text-xs text-slate-400">
-                    {activeModal === 'supervisor'
-                      ? 'Lütfen isminizi seçip PIN şifrenizi girin.'
-                      : 'Lütfen Başhakem Masa Şifresini girin.'}
-                  </p>
+                  <h3 className="font-black text-white text-base">{activeModal === 'supervisor' ? 'Kort Hakemi Girişi' : 'Başhakem Girişi'}</h3>
+                  <p className="text-xs text-slate-400">{activeModal === 'supervisor' ? 'İsminizi seçip PIN girin.' : 'Başhakem şifresini girin.'}</p>
                 </div>
               </div>
-              <button
-                onClick={closeModal}
-                className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              <button onClick={closeModal} className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition"><X className="w-5 h-5" /></button>
             </div>
 
-            {/* If Supervisor (Referee): Mandatory Referee Selection */}
             {activeModal === 'supervisor' && (
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-                  <User className="w-3.5 h-3.5 text-lime-400" />
-                  <span>Hakem Adı</span>
-                </label>
-                <select
-                  value={selectedRefName}
-                  onChange={(e) => {
-                    setSelectedRefName(e.target.value);
-                    setErrorMsg('');
-                  }}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs sm:text-sm text-white font-bold focus:outline-none focus:border-lime-400"
-                >
+                <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5"><User className="w-3.5 h-3.5 text-lime-400" /> Hakem Adı</label>
+                <select value={selectedRefName} onChange={(e) => { setSelectedRefName(e.target.value); setErrorMsg(''); }}
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs sm:text-sm text-white font-bold focus:outline-none focus:border-lime-400">
                   <option value="">-- Hakem Seçiniz --</option>
-                  {referees.map((ref) => (
-                    <option key={ref.name} value={ref.name}>
-                      {ref.name} (PIN: {ref.pin})
-                    </option>
-                  ))}
+                  {referees.map((ref) => <option key={ref.name} value={ref.name}>{ref.name}</option>)}
                 </select>
               </div>
             )}
 
-            {/* PIN Input Display */}
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-slate-300 flex items-center justify-between">
-                <span className="flex items-center gap-1.5">
-                  <KeyRound
-                    className={`w-3.5 h-3.5 ${
-                      activeModal === 'supervisor' ? 'text-lime-400' : 'text-cyan-400'
-                    }`}
-                  />
-                  <span>PIN Şifresi</span>
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setShowPin(!showPin)}
-                  className="text-[11px] text-slate-400 hover:text-white flex items-center gap-1 font-medium"
-                >
-                  {showPin ? (
-                    <>
-                      <EyeOff className="w-3 h-3" />
-                      <span>Gizle</span>
-                    </>
-                  ) : (
-                    <>
-                      <Eye className="w-3 h-3" />
-                      <span>Göster</span>
-                    </>
-                  )}
+                <span className="flex items-center gap-1.5"><KeyRound className={`w-3.5 h-3.5 ${activeModal === 'supervisor' ? 'text-lime-400' : 'text-cyan-400'}`} /> PIN Şifresi</span>
+                <button type="button" onClick={() => setShowPin(!showPin)} className="text-[11px] text-slate-400 hover:text-white flex items-center gap-1">
+                  {showPin ? <><EyeOff className="w-3 h-3" /> Gizle</> : <><Eye className="w-3 h-3" /> Göster</>}
                 </button>
               </label>
-
-              <div className="relative">
-                <input
-                  type={showPin ? 'text' : 'password'}
-                  maxLength={10}
-                  value={pin}
-                  onChange={(e) => {
-                    setPin(e.target.value);
-                    setErrorMsg('');
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      if (activeModal === 'supervisor') handleSupervisorSubmit();
-                      else handleDeskSubmit();
-                    }
-                  }}
-                  placeholder="••••"
-                  autoFocus
-                  className={`w-full bg-slate-950 border rounded-2xl px-4 py-3 text-center text-2xl tracking-widest text-white font-mono font-black focus:outline-none ${
-                    activeModal === 'supervisor'
-                      ? 'border-slate-700 focus:border-lime-400'
-                      : 'border-slate-700 focus:border-cyan-400'
-                  }`}
-                />
-              </div>
+              <input type={showPin ? 'text' : 'password'} maxLength={10} value={pin}
+                onChange={(e) => { setPin(e.target.value); setErrorMsg(''); }}
+                onKeyDown={(e) => { if (e.key === 'Enter') { activeModal === 'supervisor' ? handleSupervisorSubmit() : handleDeskSubmit(); } }}
+                placeholder="••••" autoFocus
+                className={`w-full bg-slate-950 border rounded-2xl px-4 py-3 text-center text-2xl tracking-widest text-white font-mono font-black focus:outline-none ${activeModal === 'supervisor' ? 'border-slate-700 focus:border-lime-400' : 'border-slate-700 focus:border-cyan-400'}`} />
             </div>
 
-            {/* Touch Keypad for Fast Tablet / Mobile Entry */}
             <div className="grid grid-cols-3 gap-2 pt-1">
-              {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((digit) => (
-                <button
-                  key={digit}
-                  type="button"
-                  onClick={() => handleKeypadPress(digit)}
-                  className="py-2.5 rounded-xl bg-slate-950 hover:bg-slate-800 border border-slate-800 text-white font-mono font-black text-lg active:scale-95 transition"
-                >
-                  {digit}
-                </button>
+              {['1','2','3','4','5','6','7','8','9'].map((d) => (
+                <button key={d} type="button" onClick={() => handleKeypadPress(d)}
+                  className="py-2.5 rounded-xl bg-slate-950 hover:bg-slate-800 border border-slate-800 text-white font-mono font-black text-lg active:scale-95 transition">{d}</button>
               ))}
-              <button
-                type="button"
-                onClick={handleKeypadClear}
-                className="py-2.5 rounded-xl bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-400 font-bold text-xs active:scale-95 transition"
-              >
-                Temizle
-              </button>
-              <button
-                type="button"
-                onClick={() => handleKeypadPress('0')}
-                className="py-2.5 rounded-xl bg-slate-950 hover:bg-slate-800 border border-slate-800 text-white font-mono font-black text-lg active:scale-95 transition"
-              >
-                0
-              </button>
-              <button
-                type="button"
-                onClick={handleKeypadBackspace}
-                className="py-2.5 rounded-xl bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-400 font-bold text-xs active:scale-95 transition"
-              >
-                ⌫ Sil
-              </button>
+              <button type="button" onClick={handleKeypadClear} className="py-2.5 rounded-xl bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-400 font-bold text-xs active:scale-95 transition">Temizle</button>
+              <button type="button" onClick={() => handleKeypadPress('0')} className="py-2.5 rounded-xl bg-slate-950 hover:bg-slate-800 border border-slate-800 text-white font-mono font-black text-lg active:scale-95 transition">0</button>
+              <button type="button" onClick={handleKeypadBackspace} className="py-2.5 rounded-xl bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-400 font-bold text-xs active:scale-95 transition">⌫ Sil</button>
             </div>
 
-            {/* Status Messages */}
-            {errorMsg && (
-              <div className="p-3 bg-rose-500/15 border border-rose-500/30 rounded-xl text-rose-300 text-xs flex items-center gap-2 animate-in fade-in">
-                <AlertCircle className="w-4 h-4 shrink-0" />
-                <span>{errorMsg}</span>
-              </div>
-            )}
+            {errorMsg && <div className="p-3 bg-rose-500/15 border border-rose-500/30 rounded-xl text-rose-300 text-xs flex items-center gap-2"><AlertCircle className="w-4 h-4 shrink-0" />{errorMsg}</div>}
+            {successMsg && <div className="p-3 bg-emerald-500/15 border border-emerald-500/30 rounded-xl text-emerald-300 text-xs flex items-center gap-2"><CheckCircle2 className="w-4 h-4 shrink-0" />{successMsg}</div>}
 
-            {successMsg && (
-              <div className="p-3 bg-emerald-500/15 border border-emerald-500/30 rounded-xl text-emerald-300 text-xs flex items-center gap-2 animate-in fade-in">
-                <CheckCircle2 className="w-4 h-4 shrink-0" />
-                <span>{successMsg}</span>
-              </div>
-            )}
-
-            {/* Submit Action */}
-            <div className="pt-2">
-              <button
-                type="button"
-                onClick={() => {
-                  if (activeModal === 'supervisor') handleSupervisorSubmit();
-                  else handleDeskSubmit();
-                }}
-                className={`w-full py-3.5 px-4 rounded-2xl font-black text-sm text-slate-950 flex items-center justify-center gap-2 shadow-xl active:scale-95 transition ${
-                  activeModal === 'supervisor'
-                    ? 'bg-gradient-to-r from-lime-400 to-emerald-400 hover:from-lime-300 hover:to-emerald-300 shadow-lime-400/20'
-                    : 'bg-gradient-to-r from-cyan-400 to-teal-400 hover:from-cyan-300 hover:to-teal-300 shadow-cyan-400/20'
-                }`}
-              >
-                <KeyRound className="w-4 h-4" />
-                <span>Yetkilendir ve Giriş Yap</span>
-              </button>
-            </div>
+            <button type="button"
+              onClick={() => activeModal === 'supervisor' ? handleSupervisorSubmit() : handleDeskSubmit()}
+              className={`w-full py-3.5 px-4 rounded-2xl font-black text-sm text-slate-950 flex items-center justify-center gap-2 shadow-xl active:scale-95 transition ${activeModal === 'supervisor' ? 'bg-gradient-to-r from-lime-400 to-emerald-400' : 'bg-gradient-to-r from-cyan-400 to-teal-400'}`}>
+              <KeyRound className="w-4 h-4" /> Giriş Yap
+            </button>
           </div>
         </div>
       )}
 
-      {/* Public Share Referee Link & QR Modal */}
-      <ShareRefereeLinkModal
-        isOpen={isShareModalOpen}
-        onClose={() => setIsShareModalOpen(false)}
-      />
+      <ShareRefereeLinkModal isOpen={isShareModalOpen} onClose={() => setIsShareModalOpen(false)} />
     </div>
   );
 };
