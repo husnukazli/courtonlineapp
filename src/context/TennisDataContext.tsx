@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import {
   ChallengeRecord,
@@ -552,7 +551,11 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       localStorage.removeItem(STORAGE_KEYS.CATEGORY_FORMATS);
       // Firestore'daki maçları da sil — yoksa sayfa yenilenince geri gelir
       await deleteAllMatchesFromCloud();
+      // Hakemler de temizlensin
+      await pushRefereesToCloud([]);
       setMatches([]);
+      setReferees([]);
+      localStorage.removeItem(STORAGE_KEYS.DESK_PIN);
 
       const remote = await fetchTournamentFromCloud();
       if (remote && Array.isArray(remote.matches) && remote.matches.length > 0) {
