@@ -157,16 +157,25 @@ export const MainPortalGate: React.FC = () => {
                 <div key={m.id}
                   className={`rounded-2xl border p-3.5 space-y-2.5 transition
                     ${isLive ? 'bg-emerald-950/30 border-emerald-700/50 shadow-lg shadow-emerald-900/20'
-                    : isDone ? 'bg-slate-900/40 border-slate-800/60 opacity-70'
+                    : isDone ? 'bg-rose-950/20 border-rose-800/40'
                     : 'bg-slate-900/70 border-slate-700/60'}`}>
 
-                  {/* Üst satır: Kort + Durum */}
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-black text-slate-400 bg-slate-800 px-2 py-0.5 rounded-lg">
-                      {m.Kort || '—'}
-                    </span>
-                    <span className={`text-[10px] font-black uppercase tracking-wider flex items-center gap-1 ${statusColor(m.Durum || '')}`}>
+                  {/* Üst satır: Kort + Planlanan saat + Durum */}
+                  <div className="flex items-center justify-between gap-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[11px] font-black text-slate-400 bg-slate-800 px-2 py-0.5 rounded-lg">
+                        {m.Kort || '—'}
+                      </span>
+                      {m.Saat && (
+                        <span className="text-[10px] font-mono text-slate-500">{m.Saat}</span>
+                      )}
+                    </div>
+                    <span className={`text-[10px] font-black uppercase tracking-wider flex items-center gap-1 px-1.5 py-0.5 rounded-md
+                      ${isLive ? 'bg-emerald-500/20 text-emerald-400'
+                      : isDone ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                      : 'text-amber-400'}`}>
                       {isLive && <Circle className="w-1.5 h-1.5 fill-emerald-400 animate-pulse" />}
+                      {isDone && '✕ '}
                       {statusLabel(m.Durum || '')}
                     </span>
                   </div>
@@ -174,8 +183,8 @@ export const MainPortalGate: React.FC = () => {
                   {/* Oyuncular + Skor */}
                   <div className="space-y-1">
                     {[
-                      { name: m['Oyuncu 1'] || m['Takım 1'] || '—', kazandi: m.Kazanan === m['Oyuncu 1'] || m.Kazanan === m['Takım 1'] },
-                      { name: m['Oyuncu 2'] || m['Takım 2'] || '—', kazandi: m.Kazanan === m['Oyuncu 2'] || m.Kazanan === m['Takım 2'] },
+                      { name: m['Oyuncu 1'] || m['Takım 1'] || '—', kazandi: isDone && (m.Kazanan === m['Oyuncu 1'] || m.Kazanan === m['Takım 1']) },
+                      { name: m['Oyuncu 2'] || m['Takım 2'] || '—', kazandi: isDone && (m.Kazanan === m['Oyuncu 2'] || m.Kazanan === m['Takım 2']) },
                     ].map((p, i) => (
                       <div key={i} className="flex items-center justify-between gap-2">
                         <span className={`text-xs font-bold truncate flex-1 ${p.kazandi ? 'text-lime-300' : 'text-slate-200'}`}>
