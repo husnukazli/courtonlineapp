@@ -97,7 +97,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
           ? 'bg-slate-900/95 border-2 border-emerald-400 shadow-[0_0_25px_rgba(52,211,153,0.18)] ring-1 ring-emerald-400/30 hover:border-emerald-300'
           : isUpcoming
           ? 'bg-gradient-to-b from-slate-900 via-slate-900 to-amber-950/20 border-2 border-amber-500/50 hover:border-amber-400/90 shadow-md shadow-amber-950/20'
-          : 'bg-slate-900/80 border border-slate-700/80 hover:border-slate-600'
+          : 'bg-rose-950/20 border border-rose-800/50 hover:border-rose-700/70'
       }`}
     >
       {/* Top Status Accent Bar */}
@@ -107,7 +107,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
             ? 'bg-gradient-to-r from-emerald-400 via-lime-400 to-emerald-500 animate-pulse'
             : isUpcoming
             ? 'bg-gradient-to-r from-amber-400 to-yellow-500'
-            : 'bg-gradient-to-r from-cyan-400 to-blue-500'
+            : 'bg-gradient-to-r from-rose-500 to-rose-700'
         }`}
       />
 
@@ -120,7 +120,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                 ? 'bg-emerald-400 text-slate-950 shadow-md shadow-emerald-400/30'
                 : isUpcoming
                 ? 'bg-amber-400/20 text-amber-300 border border-amber-400/30'
-                : 'bg-cyan-400/20 text-cyan-300 border border-cyan-400/30'
+                : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
             }`}
           >
             {match.Kort.replace('KORT', 'K').trim()}
@@ -148,10 +148,10 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                 ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
                 : isUpcoming
                 ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                : 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
+                : 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
             }`}
           >
-            {match.Durum}
+            {match.Durum === 'Retired' ? '✕ RET' : match.Durum === 'Walkover' ? '✕ W/O' : match.Durum === 'Bitti' ? '✕ BİTTİ' : match.Durum}
           </span>
         </div>
       </div>
@@ -161,7 +161,10 @@ export const CourtCard: React.FC<CourtCardProps> = ({
         <div className="flex items-center gap-3">
           <span className="text-slate-400 flex items-center gap-1">
             <Clock className="w-3.5 h-3.5 text-lime-400" />
-            <span>Başlangıç:</span>
+            {match.Saat && (
+              <span className="text-slate-500 font-mono text-[10px]">{match.Saat}</span>
+            )}
+            {match.Saat && <span className="text-slate-600">→</span>}
             <strong className="text-white font-bold">
               {match.Baslangic_Saati && match.Baslangic_Saati !== 'Secilmedi' ? match.Baslangic_Saati : '--:--'}
             </strong>
