@@ -238,20 +238,8 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     localStorage.setItem(STORAGE_KEYS.DESK_PIN, newPin.trim());
   };
 
-  const [matches, setMatches] = useState<MatchItem[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.MATCHES);
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return sanitizeMatchList(parsed);
-        }
-      } catch (e) {
-        console.error('Failed to parse matches from localStorage', e);
-      }
-    }
-    return sanitizeMatchList(INITIAL_MATCHES);
-  });
+  // Maçlar SADECE Firestore'dan yüklenir — localStorage'dan okumak üst üste binmeye yol açıyor
+  const [matches, setMatches] = useState<MatchItem[]>([]);
 
   const [referees, setReferees] = useState<RefereeUser[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.REFEREES);
