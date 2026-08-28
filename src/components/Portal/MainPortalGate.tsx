@@ -79,13 +79,13 @@ export const MainPortalGate: React.FC = () => {
  </div>
 
  <div className="flex items-center gap-1.5">
- <button onClick={openSupervisorModal} className="flex items-center gap-1 px-2 py-1.5 rounded-xl bg-lime-400/15 text-lime-300 text-xs font-black border border-lime-400/20">
+ <button onClick={openSupervisorModal} className="flex items-center gap-1 px-2 py-1.5 rounded-xl bg-lime-400/15 hover:bg-lime-400/25 text-lime-300 text-xs font-black border border-lime-400/20 transition active:scale-95">
  <Smartphone className="w-3.5 h-3.5" /> <span>Hakem</span>
  </button>
- <button onClick={openDeskModal} className="flex items-center gap-1 px-2 py-1.5 rounded-xl bg-cyan-400/15 text-cyan-300 text-xs font-black border border-cyan-400/20">
+ <button onClick={openDeskModal} className="flex items-center gap-1 px-2 py-1.5 rounded-xl bg-cyan-400/15 hover:bg-cyan-400/25 text-cyan-300 text-xs font-black border border-cyan-400/20 transition active:scale-95">
  <Tv className="w-3.5 h-3.5" /> <span>Masa</span>
  </button>
- <button onClick={() => setIsShareModalOpen(true)} className="p-2 rounded-xl bg-slate-800 text-slate-400 border border-slate-700"><QrCode className="w-4 h-4" /></button>
+ <button onClick={() => setIsShareModalOpen(true)} className="p-2 rounded-xl bg-slate-800 text-slate-400 border border-slate-700 hover:text-white transition"><QrCode className="w-4 h-4" /></button>
  </div>
  </div>
  </header>
@@ -210,6 +210,61 @@ export const MainPortalGate: React.FC = () => {
  </main>
 
  <ShareRefereeLinkModal isOpen={isShareModalOpen} onClose={() => setIsShareModalOpen(false)} />
+
+ {/* ŞİFRELİ GİRİŞ MODALLARI */}
+ {activeModal && (
+ <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md overflow-y-auto">
+ <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 w-full max-w-sm shadow-2xl space-y-4 my-auto">
+ <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+ <h3 className="font-black text-white text-sm">{activeModal === 'supervisor' ? 'Kort Hakemi Girişi' : 'Başhakem Girişi'}</h3>
+ <button onClick={closeModal} className="text-slate-400 hover:text-white"><X className="w-4 h-4" /></button>
+ </div>
+
+ {activeModal === 'supervisor' && (
+ <div className="space-y-1">
+ <label className="text-xs font-bold text-slate-400">Hakem Seçin</label>
+ <select value={selectedRefName} onChange={(e) => { setSelectedRefName(e.target.value); setErrorMsg(''); }}
+ className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white font-bold focus:outline-none">
+ <option value="">-- Seçiniz --</option>
+ {referees.map((ref) => <option key={ref.name} value={ref.name}>{ref.name}</option>)}
+ </select>
+ </div>
+ )}
+
+ <div className="space-y-1">
+ <div className="flex items-center justify-between">
+ <label className="text-xs font-bold text-slate-400">PIN Şifresi</label>
+ <button type="button" onClick={() => setShowPin(!showPin)} className="text-[10px] text-slate-500">
+ {showPin ? 'Gizle' : 'Göster'}
+ </button>
+ </div>
+ <input type={showPin ? 'text' : 'password'} maxLength={10} value={pin}
+ onChange={(e) => { setPin(e.target.value); setErrorMsg(''); }}
+ onKeyDown={(e) => { if (e.key === 'Enter') { activeModal === 'supervisor' ? handleSupervisorSubmit() : handleDeskSubmit(); } }}
+ placeholder="••••" autoFocus
+ className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 text-center text-xl text-white font-mono focus:outline-none" />
+ </div>
+
+ <div className="grid grid-cols-3 gap-1.5 pt-1">
+ {['1','2','3','4','5','6','7','8','9'].map((d) => (
+ <button key={d} type="button" onClick={() => handleKeypadPress(d)}
+ className="py-2 rounded-xl bg-slate-950 hover:bg-slate-800 text-white font-mono font-bold text-base transition">{d}</button>
+ ))}
+ <button type="button" onClick={handleKeypadClear} className="py-2 rounded-xl bg-slate-950 text-slate-500 text-xs font-bold">C</button>
+ <button type="button" onClick={() => handleKeypadPress('0')} className="py-2 rounded-xl bg-slate-950 text-white font-mono font-bold text-base">0</button>
+ <button type="button" onClick={handleKeypadBackspace} className="py-2 rounded-xl bg-slate-950 text-slate-500 text-xs font-bold">⌫</button>
+ </div>
+
+ {errorMsg && <div className="p-2 bg-rose-500/10 border border-rose-500/20 rounded-xl text-rose-400 text-xs">{errorMsg}</div>}
+ {successMsg && <div className="p-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-emerald-400 text-xs">{successMsg}</div>}
+
+ <button type="button" onClick={() => activeModal === 'supervisor' ? handleSupervisorSubmit() : handleDeskSubmit()}
+ className={`w-full py-3 rounded-xl font-black text-xs text-slate-950 text-center transition ${activeModal === 'supervisor' ? 'bg-lime-400' : 'bg-cyan-400'}`}>
+ Sorumlu Girişi Yap
+ </button>
+ </div>
+ </div>
+ )}
  </div>
  );
 };
