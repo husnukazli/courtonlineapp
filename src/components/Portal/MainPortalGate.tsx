@@ -85,7 +85,7 @@ export const MainPortalGate: React.FC = () => {
  <button onClick={openDeskModal} className="flex items-center gap-1 px-2 py-1.5 rounded-xl bg-cyan-400/15 hover:bg-cyan-400/25 text-cyan-300 text-xs font-black border border-cyan-400/20 transition active:scale-95">
  <Tv className="w-3.5 h-3.5" /> <span>Masa</span>
  </button>
- <button onClick={() => setIsShareModalOpen(true)} className="p-2 rounded-xl bg-slate-800 text-slate-400 border border-slate-700 hover:text-white transition"><QrCode className="w-4 h-4" /></button>
+ <button onClick={() => setIsShareModalOpen(true)} className="p-2 rounded-xl bg-slate-800 text-slate-400 border border-slate-700><QrCode className="w-4 h-4" /></button>
  </div>
  </div>
  </header>
@@ -169,9 +169,12 @@ export const MainPortalGate: React.FC = () => {
  <div key={m.id} className={`rounded-xl border p-2.5 space-y-2 transition relative overflow-hidden ${isLive ? 'bg-emerald-950/20 border-emerald-600/50 shadow-md' : isDone ? 'bg-slate-950/30 border-slate-800/60 opacity-55' : 'bg-slate-900/70 border-slate-800/70'}`}>
  <div className="flex items-center justify-between gap-1">
  <div className="flex items-center gap-1.5">
- {m.Saat && <span className="text-cyan-400 font-mono text-[11px] font-black bg-cyan-950/80 px-2 py-0.5 rounded-md ring-1 ring-cyan-500/40 shadow-sm">{m.Saat}</span>}
+ {m.Saat && <span className="text-cyan-400 font-mono text-[11px] font-black bg-cyan-950/80 px-2.5 py-0.5 rounded-md ring-1 ring-cyan-500/40 shadow-sm">{m.Saat}</span>}
  </div>
- <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded ${isLive ? 'bg-emerald-500/20 text-emerald-400' : isDone ? 'bg-slate-800 text-slate-400' : 'text-amber-400 bg-amber-500/10'}`}>
+ <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded border transition-colors
+ ${isLive ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' 
+ : isDone ? 'bg-rose-500/20 text-rose-400 border-rose-500/30 shadow-sm' 
+ : 'text-amber-400 bg-amber-500/10 border-amber-500/20'}`}>
  {isLive && <Circle className="w-1 h-1 fill-emerald-400 animate-pulse" />} {statusLabel(m.Durum || '')}
  </span>
  </div>
@@ -183,7 +186,7 @@ export const MainPortalGate: React.FC = () => {
   { name: m['Oyuncu 2'] || m['Takım 2'] || '—', won: isDone && m.Kazanan === (m['Oyuncu 2'] || m['Takım 2']), isServer: state?.currentServer === 2 },
  ].map((p, i) => (
  <div key={i} className="flex items-center justify-between gap-2 text-xs">
- <span className={`truncate font-bold ${p.won ? 'text-lime-300' : isLive && p.isServer ? 'text-white' : 'text-slate-300'}`}>{p.won && '✓ '}{p.name}</span>
+ <span className={`truncate font-bold ${p.won ? 'text-lime-300 font-extrabold' : isLive && p.isServer ? 'text-white' : 'text-slate-400'}`}>{p.won && '✓ '}{p.name}</span>
  <span className="font-mono text-xs font-black text-white tracking-wide shrink-0">
   {state ? (i === 0 ? `${state.set1_p1} ${state.set2_p1} ${state.set3_p1}` : `${state.set1_p2} ${state.set2_p2} ${state.set3_p2}`) : m.Skor && m.Skor !== '-' ? m.Skor.split(' ').map((s: string) => s.split('/')[i] ?? '0').join(' ') : '-'}
  </span>
@@ -211,7 +214,6 @@ export const MainPortalGate: React.FC = () => {
 
  <ShareRefereeLinkModal isOpen={isShareModalOpen} onClose={() => setIsShareModalOpen(false)} />
 
- {/* ŞİFRELİ GİRİŞ MODALLARI */}
  {activeModal && (
  <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md overflow-y-auto">
  <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 w-full max-w-sm shadow-2xl space-y-4 my-auto">
