@@ -218,22 +218,24 @@ export const DeskSupervisorView: React.FC = () => {
 
  {activeSubTab === 'grid' && (
  <div className="w-full overflow-x-auto pb-6">
- <div style={{ transform: `scale(${zoomLevel / 100})`, transformOrigin: 'top left', minWidth: 'min-content' }} className="transition-transform duration-150 p-2">
- <div className="flex flex-nowrap gap-4">
+ <div style={{ transform: `scale(${zoomLevel / 100})`, transformOrigin: 'top left', minWidth: '100%' }} className="transition-transform duration-150 p-2">
+ <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
  {(selectedCourtFilter === 'ALL' ? distinctCourts : [selectedCourtFilter]).map((courtName) => {
- const courtMatches = filteredMatches.filter((m) => m.Kort === courtName);
+ const courtMatches = filteredMatches
+ .filter((m) => m.Kort === courtName)
+ .sort((a, b) => a.Saat.localeCompare(b.Saat));
 
  return (
- <div key={courtName} className="bg-slate-900 border border-slate-800 rounded-3xl p-3 sm:p-4 space-y-3 flex flex-col shadow-xl min-w-[280px] w-[300px]">
+ <div key={courtName} className="bg-slate-900 border border-slate-800 rounded-3xl p-4 space-y-4 flex flex-col shadow-xl w-full min-w-[280px]">
  <div className="flex items-center justify-between pb-2 border-b border-slate-800">
  <div className="flex items-center gap-2">
  <div className="w-3 h-3 rounded-full bg-cyan-400 animate-pulse"></div>
- <h3 className="font-extrabold text-sm text-white tracking-wide">{courtName}</h3>
+ <h3 className="font-black text-sm text-white tracking-wide uppercase">{courtName}</h3>
  </div>
- <span className="text-[11px] font-mono text-slate-400 font-bold px-2 py-0.5 rounded-full bg-slate-950 border border-slate-800">{courtMatches.length} Maç</span>
+ <span className="text-[11px] font-mono text-slate-400 font-bold px-2.5 py-0.5 rounded-full bg-slate-950 border border-slate-800">{courtMatches.length} Maç</span>
  </div>
 
- <div className="space-y-2.5 flex-1">
+ <div className="space-y-3.5 flex-1">
  {courtMatches.length > 0 ? (
  courtMatches.map((m) => {
  const isLive = m.Durum === 'Oynaniyor';
@@ -243,9 +245,9 @@ export const DeskSupervisorView: React.FC = () => {
  const p2Name = m['Oyuncu 2'];
 
  return (
- <div key={m.id} onClick={() => setSelectedMatchForModal(m)} className={`p-3 rounded-2xl border transition cursor-pointer relative overflow-hidden group hover:scale-[1.02] ${isLive ? 'bg-slate-950 border-l-4 border-l-emerald-400 border-emerald-500/40 shadow-lg shadow-emerald-500/5 ring-1 ring-emerald-500/20' : m.Durum === 'Duraklatildi' ? 'bg-slate-950 border-l-4 border-l-amber-400 border-amber-500/40 shadow-lg shadow-amber-500/5 ring-1 ring-amber-500/20' : isFinished ? 'bg-slate-950/70 border-l-4 border-l-cyan-500 border-slate-800' : 'bg-slate-950/50 border-l-4 border-l-slate-700 border-slate-800/80 hover:border-slate-700'}`}>
- <div className="flex items-center justify-between text-[10px] font-bold mb-1.5 gap-1">
- <span className="text-amber-400 font-mono flex items-center gap-1"><Clock className="w-3 h-3" />{m.Saat}</span>
+ <div key={m.id} onClick={() => setSelectedMatchForModal(m)} className={`p-3.5 rounded-2xl border transition cursor-pointer relative overflow-hidden group hover:scale-[1.01] ${isLive ? 'bg-slate-950 border-l-4 border-l-emerald-400 border-emerald-500/40 shadow-lg shadow-emerald-500/5 ring-1 ring-emerald-500/20' : m.Durum === 'Duraklatildi' ? 'bg-slate-950 border-l-4 border-l-amber-400 border-amber-500/40 shadow-lg shadow-amber-500/5 ring-1 ring-amber-500/20' : isFinished ? 'bg-slate-950/40 border-l-4 border-l-cyan-600 border-slate-800/60 opacity-75' : 'bg-slate-950/50 border-l-4 border-l-slate-700 border-slate-800/80 hover:border-slate-700'}`}>
+ <div className="flex items-center justify-between text-[11px] font-bold mb-2 gap-2">
+ <span className="text-amber-400 font-mono text-xs font-black bg-amber-950/80 px-2.5 py-1 rounded-xl ring-1 ring-amber-500/30 flex items-center gap-1 shadow-sm"><Clock className="w-3.5 h-3.5" />{m.Saat}</span>
  <div className="flex items-center gap-1.5">
  <MatchLiveTimer match={m} size="sm" />
  <span className={`px-2 py-0.5 rounded-full uppercase text-[9px] font-extrabold ${isLive ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 animate-pulse' : m.Durum === 'Duraklatildi' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : m.Durum === 'Retired' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : m.Durum === 'Walkover' ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40' : isFinished ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40' : 'bg-slate-800 text-slate-400'}`}>
@@ -254,47 +256,47 @@ export const DeskSupervisorView: React.FC = () => {
  </div>
  </div>
 
- <div className="text-[10px] text-slate-400 truncate mb-1.5">{m.Kategori}</div>
+ <div className="text-[10px] text-slate-400 font-medium truncate mb-2 px-0.5">{m.Kategori}</div>
 
- <div className="space-y-1 my-1.5">
+ <div className="space-y-1.5 my-2 bg-slate-900/40 p-2 rounded-xl border border-slate-800/50">
  <div className="flex items-center justify-between text-xs">
  <div className="flex items-center gap-1.5 truncate pr-2">
- {state?.currentServer === 1 && isLive && <span className="text-lime-400 text-[10px]">🎾</span>}
+ {state?.currentServer === 1 && isLive && <span className="text-lime-400 text-[10px] animate-bounce">🎾</span>}
  <span className={`truncate ${m.Kazanan === p1Name ? 'text-white font-extrabold' : 'text-slate-300 font-medium'}`}>{m.Kazanan === p1Name ? '✓ ' : ''}{p1Name}</span>
  </div>
- <span className="font-mono text-xs font-bold text-white flex-shrink-0">
+ <span className="font-mono text-xs font-black text-white flex-shrink-0 tracking-wider">
  {state ? `${state.set1_p1} ${state.set2_p1} ${state.set3_p1}` : m.Skor !== '-' ? m.Skor.split(' ').map((s) => s.split('/')[0]).join(' ') : '-'}
  </span>
  </div>
 
  <div className="flex items-center justify-between text-xs">
  <div className="flex items-center gap-1.5 truncate pr-2">
- {state?.currentServer === 2 && isLive && <span className="text-cyan-400 text-[10px]">🎾</span>}
+ {state?.currentServer === 2 && isLive && <span className="text-cyan-400 text-[10px] animate-bounce">🎾</span>}
  <span className={`truncate ${m.Kazanan === p2Name ? 'text-white font-extrabold' : 'text-slate-300 font-medium'}`}>{m.Kazanan === p2Name ? '✓ ' : ''}{p2Name}</span>
  </div>
- <span className="font-mono text-xs font-bold text-white flex-shrink-0">
+ <span className="font-mono text-xs font-black text-white flex-shrink-0 tracking-wider">
  {state ? `${state.set1_p2} ${state.set2_p2} ${state.set3_p2}` : m.Skor !== '-' ? m.Skor.split(' ').map((s) => s.split('/')[1]).join(' ') : '-'}
  </span>
  </div>
  </div>
 
- <div className="pt-2 mt-2 border-t border-slate-800/80 flex items-center justify-between text-[10px]">
+ <div className="pt-2 mt-2 border-t border-slate-800/80 flex items-center justify-between text-[11px]">
  {isLive && state ? (
  <div className="font-mono font-bold text-lime-400 bg-lime-950/40 px-2 py-0.5 rounded border border-lime-500/30">
  {state.isTiebreak ? `TB: ${state.tiebreak_p1}-${state.tiebreak_p2}` : `${state.gamePoint_p1} - ${state.gamePoint_p2}`}
  </div>
  ) : (
- <div className="text-slate-500 font-mono">Skor: <span className="text-slate-300">{m.Skor}</span></div>
+ <div className="text-slate-500 font-mono">Skor: <span className="text-slate-300 font-bold">{m.Skor}</span></div>
  )}
- <div className="text-slate-400 truncate max-w-[110px] text-right">
- {m.Son_Hakem && m.Son_Hakem !== '-' ? <span className="text-amber-300/90 font-medium">👤 {m.Son_Hakem.split(' ')[0]}</span> : <span className="text-slate-600">Hakem Yok</span>}
+ <div className="text-slate-400 truncate max-w-[120px] text-right font-medium">
+ {m.Son_Hakem && m.Son_Hakem !== '-' ? <span className="text-amber-300/90">👤 {m.Son_Hakem.split(' ')[0]}</span> : <span className="text-slate-600">Hakem Yok</span>}
  </div>
  </div>
  </div>
  );
  })
  ) : (
- <div className="p-6 text-center text-xs text-slate-500 border border-dashed border-slate-800 rounded-2xl">Bu kortta maç bulunamadı.</div>
+ <div className="p-8 text-center text-xs text-slate-500 border border-dashed border-slate-800 rounded-2xl flex-1 flex flex-col justify-center items-center">Bu kortta maç bulunamadı.</div>
  )}
  </div>
  </div>
