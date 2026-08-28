@@ -85,7 +85,9 @@ export const MainPortalGate: React.FC = () => {
  <button onClick={openDeskModal} className="flex items-center gap-1 px-2 py-1.5 rounded-xl bg-cyan-400/15 hover:bg-cyan-400/25 text-cyan-300 text-xs font-black border border-cyan-400/20 transition active:scale-95">
  <Tv className="w-3.5 h-3.5" /> <span>Masa</span>
  </button>
- <button onClick={() => setIsShareModalOpen(true)} className="p-2 rounded-xl bg-slate-800 text-slate-400 border border-slate-700><QrCode className="w-4 h-4" /></button>
+ <button onClick={() => setIsShareModalOpen(true)} className="p-2 rounded-xl bg-slate-800 text-slate-400 border border-slate-700 hover:text-white transition">
+ <QrCode className="w-4 h-4" />
+ </button>
  </div>
  </div>
  </header>
@@ -214,6 +216,7 @@ export const MainPortalGate: React.FC = () => {
 
  <ShareRefereeLinkModal isOpen={isShareModalOpen} onClose={() => setIsShareModalOpen(false)} />
 
+ {/* ŞİFRELİ GİRİŞ MODALLARI */}
  {activeModal && (
  <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md overflow-y-auto">
  <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 w-full max-w-sm shadow-2xl space-y-4 my-auto">
