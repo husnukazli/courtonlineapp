@@ -2,9 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useTennisData } from '../../context/TennisDataContext';
 import { ShareRefereeLinkModal } from '../Common/ShareRefereeLinkModal';
 import {
- Shield, Smartphone, Tv, Lock, KeyRound, CheckCircle2,
- AlertCircle, X, User, Eye, EyeOff, ChevronRight,
- RefreshCw, Trash2, Cloud, QrCode, Activity, Clock,
+ Smartphone, Tv, X, User, KeyRound, Eye, EyeOff,
+ AlertCircle, CheckCircle2, RefreshCw, Trash2, Cloud, QrCode, Activity, Clock,
  Trophy, Circle,
 } from 'lucide-react';
 
@@ -27,6 +26,7 @@ export const MainPortalGate: React.FC = () => {
  const [isSyncing, setIsSyncing] = useState(false);
  const [now, setNow] = useState(Date.now());
 
+ // Canlı saat güncelleme (30s)
  useEffect(() => {
  const t = setInterval(() => setNow(Date.now()), 30000);
  return () => clearInterval(t);
@@ -54,8 +54,10 @@ export const MainPortalGate: React.FC = () => {
  else setErrorMsg('❌ Şifre hatalı.');
  };
 
+ // Tüm kort listesi
  const distinctKortlar = Array.from(new Set(matches.map(m => m.Kort).filter(Boolean))).sort();
 
+ // Sayaçlar (Filtresiz genel durum)
  const live = matches.filter(m => m.Durum === 'Oynaniyor');
  const waiting = matches.filter(m => m.Durum === 'Baslamadi');
  const done = matches.filter(m => m.Durum === 'Bitti' || m.Durum === 'Retired' || m.Durum === 'Walkover');
@@ -71,6 +73,8 @@ export const MainPortalGate: React.FC = () => {
 
  return (
  <div className="min-h-screen bg-slate-950 text-slate-100 selection:bg-lime-400 selection:text-slate-950">
+
+ {/* ── HEADER ── */}
  <header className="sticky top-0 z-30 bg-slate-950/90 backdrop-blur border-b border-slate-800/60">
  <div className="max-w-7xl mx-auto px-3 sm:px-6 h-14 flex items-center justify-between gap-3">
  <div className="flex items-center gap-2.5 shrink-0">
@@ -79,20 +83,22 @@ export const MainPortalGate: React.FC = () => {
  </div>
  <span className="font-extrabold text-base tracking-tight text-white hidden sm:block">CourtOnline</span>
  <span className="flex items-center gap-1 text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
- <Activity className="w-2.5 h-2.5" /> Canlı İzleme Panosu
+ <Activity className="w-2.5 h-2.5" /> Canlı
  </span>
  </div>
 
  <div className="flex items-center gap-2">
  <button onClick={openSupervisorModal}
- className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-lime-400/15 hover:bg-lime-400/25 border border-lime-400/30 text-lime-300 text-xs font-black transition active:scale-95">
+ className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-lime-400/15 hover:bg-lime-400/25 border border-lime-400/30 text-lime-300 text-xs font-black transition active:scale-95">
  <Smartphone className="w-3.5 h-3.5" />
- <span>Kort Hakemi</span>
+ <span className="hidden sm:inline">Kort Hakemi</span>
+ <span className="sm:hidden">Hakem</span>
  </button>
  <button onClick={openDeskModal}
- className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-cyan-400/15 hover:bg-cyan-400/25 border border-cyan-400/30 text-cyan-300 text-xs font-black transition active:scale-95">
+ className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-cyan-400/15 hover:bg-cyan-400/25 border border-cyan-400/30 text-cyan-300 text-xs font-black transition active:scale-95">
  <Tv className="w-3.5 h-3.5" />
- <span>Başhakem Masası</span>
+ <span className="hidden sm:inline">Başhakem</span>
+ <span className="sm:hidden">Masa</span>
  </button>
  <button onClick={() => setIsShareModalOpen(true)}
  className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-400 hover:text-white transition"
@@ -103,39 +109,77 @@ export const MainPortalGate: React.FC = () => {
  </div>
  </header>
 
- <main className="max-w-7xl mx-auto px-3 sm:px-6 py-4 space-y-5">
- <div className="flex items-center gap-3 flex-wrap">
- <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-black">
+ {/* ── ANA İÇERİK ── */}
+ <main className="max-w-7xl mx-auto px-3 sm:px-6 py-4 space-y-4">
+
+ {/* Sayaç Üst Barı */}
+ <div className="flex items-center gap-2 flex-wrap">
+ <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-black">
  <Circle className="w-2 h-2 fill-emerald-400 animate-pulse" />
- {live.length} Canlı Maç
+ {live.length} Canlı
  </div>
- <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-400 text-xs font-black">
+ <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-400 text-xs font-black">
  <Clock className="w-3 h-3" />
  {waiting.length} Bekliyor
  </div>
- <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-700/60 border border-slate-700 text-slate-400 text-xs font-black">
+ <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-700/60 border border-slate-700 text-slate-400 text-xs font-black">
  <Trophy className="w-3 h-3" />
- {done.length} Tamamlandı
+ {done.length} Bitti
  </div>
  <div className="ml-auto flex items-center gap-1.5">
  <div className={`w-2 h-2 rounded-full ${cloudSyncStatus === 'connected' ? 'bg-emerald-400' : 'bg-amber-400'}`} />
- <span className="text-[11px] text-slate-400">{lastCloudSync ? `Güncellendi: ${lastCloudSync}` : 'Bağlanıyor...'}</span>
+ <span className="text-[10px] text-slate-400">{lastCloudSync ? `Güncellendi: ${lastCloudSync}` : 'Bağlanıyor...'}</span>
  <button onClick={async () => { setIsSyncing(true); await pullFromCloudNow(); setIsSyncing(false); }}
  disabled={isSyncing}
  className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition disabled:opacity-40">
- <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+ <RefreshCw className={`w-3 h-3 ${isSyncing ? 'animate-spin' : ''}`} />
  </button>
  </div>
  </div>
 
+ {/* Orijinal Filtre Çubuğu (Geri Getirildi) */}
+ {matches.length > 0 && (
+ <div className="flex flex-col gap-2 pb-1 sm:flex-row sm:items-center bg-slate-900/40 p-2 rounded-2xl border border-slate-800/60">
+ <div className="flex items-center gap-1.5 flex-wrap">
+ <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider">Kort:</span>
+ <button onClick={() => setFilterKort('TUMU')}
+ className={`px-2.5 py-1 rounded-lg text-[11px] font-black transition ${filterKort === 'TUMU' ? 'bg-slate-700 text-white' : 'bg-slate-800/60 text-slate-400 hover:text-white'}`}>
+ Tümü
+ </button>
+ {distinctKortlar.map(k => (
+ <button key={k} onClick={() => setFilterKort(k)}
+ className={`px-2.5 py-1 rounded-lg text-[11px] font-black transition ${filterKort === k ? 'bg-cyan-500/30 text-cyan-300 border border-cyan-500/40' : 'bg-slate-800/60 text-slate-400 hover:text-white'}`}>
+ {k}
+ </button>
+ ))}
+ </div>
+ <div className="w-px h-4 bg-slate-700 hidden sm:block" />
+ <div className="flex items-center gap-1.5 flex-wrap">
+ <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider">Durum:</span>
+ {[
+ { key: 'TUMU', label: 'Tümü', cls: 'bg-slate-700 text-white', inact: 'bg-slate-800/60 text-slate-400' },
+ { key: 'Oynaniyor', label: '● Canlı', cls: 'bg-emerald-500/30 text-emerald-300 border border-emerald-500/40', inact: 'bg-slate-800/60 text-slate-400' },
+ { key: 'Baslamadi', label: '◐ Bekliyor', cls: 'bg-amber-500/30 text-amber-300 border border-amber-500/40', inact: 'bg-slate-800/60 text-slate-400' },
+ { key: 'Bitti', label: '✕ Bitti', cls: 'bg-rose-500/30 text-rose-300 border border-rose-500/40', inact: 'bg-slate-800/60 text-slate-400' },
+ ].map(({ key, label, cls, inact }) => (
+ <button key={key} onClick={() => setFilterDurum(key)}
+ className={`px-2.5 py-1 rounded-lg text-[11px] font-black transition ${filterDurum === key ? cls : inact + ' hover:text-white'}`}>
+ {label}
+ </button>
+ ))}
+ </div>
+ </div>
+ )}
+
+ {/* ── KORT KOLON MATRİSİ (Yatay Kaydırılabilir ve Kompakt Düzen) ── */}
  {matches.length === 0 ? (
- <div className="text-center py-20 text-slate-500">
- <Activity className="w-10 h-10 mx-auto mb-3 opacity-30" />
- <p className="font-bold">Yayında olan aktif maç bulunmamaktadır</p>
- <p className="text-xs mt-1">Başhakem programı yükledikten sonra canlı skor akışı burada başlayacaktır.</p>
+ <div className="text-center py-16 text-slate-500">
+ <Activity className="w-9 h-9 mx-auto mb-2 opacity-30" />
+ <p className="font-bold">Henüz maç yüklenmedi</p>
  </div>
  ) : (
- <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+ <div className="w-full overflow-x-auto pb-4 scrollbar-thin scrollbar-thumb-slate-800">
+ <div className="flex flex-nowrap gap-4 min-w-full">
  {(filterKort === 'TUMU' ? distinctKortlar : [filterKort]).map((courtName) => {
  const courtMatches = matches
  .filter(m => m.Kort === courtName)
@@ -146,101 +190,172 @@ export const MainPortalGate: React.FC = () => {
  if (filterDurum === 'Bitti') return ['Bitti', 'Retired', 'Walkover'].includes(m.Durum || '');
  return true;
  })
- .sort((a, b) => (a.Saat || '99:99').localeCompare(b.Saat || '99:99'));
+ .sort((a, b) => (a.Saat || '99:99').localeCompare(b.Saat || '99:99')); // Kronolojik Saat Sıralaması
+
+ if (courtMatches.length === 0 && filterKort !== 'TUMU') return null;
 
  return (
- <div key={courtName} className="bg-slate-900 border border-slate-800/80 rounded-3xl p-4 space-y-4 flex flex-col shadow-xl w-full">
- <div className="flex items-center justify-between pb-2 border-b border-slate-800/60">
- <div className="flex items-center gap-2">
- <div className="w-2.5 h-2.5 rounded-full bg-lime-400 animate-pulse"></div>
- <h3 className="font-black text-sm text-white tracking-wider uppercase">{courtName}</h3>
+ <div key={courtName} className="bg-slate-900/60 border border-slate-800/70 rounded-2xl p-3 flex flex-col shadow-xl min-w-[290px] w-[310px] shrink-0">
+ {/* Sütun Başlığı */}
+ <div className="flex items-center justify-between pb-2 border-b border-slate-800/50 mb-2">
+ <div className="flex items-center gap-1.5">
+ <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+ <h3 className="font-extrabold text-xs text-white tracking-wide">{courtName}</h3>
  </div>
- <span className="text-[10px] font-mono text-slate-400 font-extrabold px-2 py-0.5 rounded-md bg-slate-950 border border-slate-800">{courtMatches.length} Program</span>
+ <span className="text-[10px] font-mono text-slate-400 font-bold px-1.5 py-0.5 rounded-md bg-slate-950">{courtMatches.length} Maç</span>
  </div>
 
- <div className="space-y-4 flex-1">
- {courtMatches.length > 0 ? (
- courtMatches.map((m) => {
+ {/* Sütun İçi Maç Kartları */}
+ <div className="space-y-2 flex-1 overflow-y-auto max-h-[70vh]">
+ {courtMatches.map((m) => {
  const isLive = m.Durum === 'Oynaniyor';
  const isDone = ['Bitti', 'Retired', 'Walkover'].includes(m.Durum || '');
  const state = m.detailedState;
 
  return (
  <div key={m.id}
- className={`rounded-2xl border p-4 space-y-3 transition relative overflow-hidden
- ${isLive ? 'bg-slate-950 border-l-4 border-l-emerald-400 border-emerald-700/50 shadow-lg shadow-emerald-950/50 ring-1 ring-emerald-500/10'
- : isDone ? 'bg-slate-950/40 border-l-4 border-l-slate-700 border-slate-800/60 opacity-60'
- : 'bg-slate-950/60 border-l-4 border-l-amber-500/60 border-slate-800/80'}`}>
- 
- <div className="flex items-center justify-between gap-2">
- <span className="text-amber-400 font-mono text-xs font-black bg-amber-950/90 px-3 py-1 rounded-xl ring-2 ring-amber-500/40 flex items-center gap-1.5 shadow-md">
- <Clock className="w-3.5 h-3.5" />
- {m.Saat || '—'}
+ className={`rounded-xl border p-2.5 space-y-2 transition relative overflow-hidden
+ ${isLive ? 'bg-emerald-950/20 border-emerald-600/50 shadow-md shadow-emerald-950/30'
+ : isDone ? 'bg-slate-950/30 border-slate-800/60 opacity-55'
+ : 'bg-slate-900/70 border-slate-800/70'}`}>
+
+ {/* Üst Bilgi Satırı - Belirgin ve Parlak Saat Kapsülü */}
+ <div className="flex items-center justify-between gap-1">
+ <div className="flex items-center gap-1.5">
+ {m.Saat && (
+ <span className="text-amber-400 font-mono text-[11px] font-black bg-amber-950/80 px-2 py-0.5 rounded-md ring-1 ring-amber-500/30 shadow-sm">
+ {m.Saat}
  </span>
- <span className={`text-[10px] font-black uppercase tracking-wider flex items-center gap-1 px-2 py-0.5 rounded-md
- ${isLive ? 'bg-emerald-500/20 text-emerald-400 animate-pulse'
- : isDone ? 'bg-slate-800 text-slate-400 border border-slate-700/50'
- : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'}`}>
- {isLive && <Circle className="w-1.5 h-1.5 fill-emerald-400 animate-pulse" />}
+ )}
+ <span className="text-[10px] font-bold text-slate-400 bg-slate-800/60 px-1.5 py-0.5 rounded">
+ {m.Kort.replace('KORT', 'K').trim()}
+ </span>
+ </div>
+ <span className={`text-[9px] font-black uppercase tracking-wider flex items-center gap-0.5 px-1.5 py-0.5 rounded
+ ${isLive ? 'bg-emerald-500/20 text-emerald-400'
+ : isDone ? 'bg-slate-800 text-slate-400'
+ : 'text-amber-400 bg-amber-500/10'}`}>
+ {isLive && <Circle className="w-1 h-1 fill-emerald-400 animate-pulse" />}
  {statusLabel(m.Durum || '')}
  </span>
  </div>
 
- <div className="text-[10px] text-slate-400 font-semibold truncate px-0.5">{m.Kategori || m.Skor_Formati || ''}</div>
-
- <div className="space-y-2 bg-slate-900/60 p-2.5 rounded-xl border border-slate-800/40">
+ {/* Oyuncular & Kompakt Skor Hücresi */}
+ <div className="space-y-1 bg-slate-950/40 p-1.5 rounded-lg border border-slate-900/60">
  {[
- { name: m['Oyuncu 1'] || m['Takım 1'] || '—', idx: 0, isServer: state?.currentServer === 1 },
- { name: m['Oyuncu 2'] || m['Takım 2'] || '—', idx: 1, isServer: state?.currentServer === 2 },
- ].map((p, i) => {
- const isWinner = isDone && m.Kazanan === p.name;
- return (
- <div key={i} className="flex items-center justify-between gap-2">
- <div className="flex items-center gap-1.5 truncate">
- {p.isServer && isLive && <span className="text-lime-400 text-[10px] animate-bounce">🎾</span>}
- <span className={`text-xs font-black truncate ${isWinner ? 'text-lime-300' : p.isServer ? 'text-white' : 'text-slate-300'}`}>
- {isWinner && '✓ '}{p.name}
+
+ { name: m['Oyuncu 1'] || m['Takım 1'] || '—', won: isDone && m.Kazanan === (m['Oyuncu 1'] || m['Takım 1']), isServer: state?.currentServer === 1 },
+ { name: m['Oyuncu 2'] || m['Takım 2'] || '—', won: isDone && m.Kazanan === (m['Oyuncu 2'] || m['Takım 2']), isServer: state?.currentServer === 2 },
+ ].map((p, i) => (
+ <div key={i} className="flex items-center justify-between gap-2 text-xs">
+ <span className={`truncate font-bold flexitems-center gap-1 ${p.won ? 'text-lime-300' : isLive && p.isServer ? 'text-white' : 'text-slate-300'}`}>
+ {p.won && '✓ '}{p.name}
+ </span>
+ <span className="font-mono text-xs font-black text-white tracking-wide shrink-0">
+ {state ? (i === 0 ? `${state.set1_p1} ${state.set2_p1} ${state.set3_p1}` : `${state.set1_p2} ${state.set2_p2} ${state.set3_p2}`) : m.Skor && m.Skor !== '-' ? m.Skor.split(' ').map((s: string) => s.split('/')[i] ?? '0').join(' ') : '-'}
  </span>
  </div>
- <span className="font-mono text-xs font-black text-white tracking-wider">
- {state ? (i === 0 ? `${state.set1_p1} ${state.set2_p1} ${state.set3_p1}` : `${state.set1_p2} ${state.set2_p2} ${state.set3_p2}`) : m.Skor && m.Skor !== '-' ? m.Skor.split(' ').map((s: string) => s.split('/')[i] ?? '0').join(' ') : '0'}
- </span>
- </div>
- );
- })}
+ ))}
  </div>
 
- <div className="flex items-center justify-between text-[11px] pt-1.5 border-t border-slate-800/50">
+ {/* Alt Bilgi Bandı */}
+ <div className="flex items-center justify-between text-[9px] text-slate-500 px-0.5">
+ <span className="truncate max-w-[120px]">{m.Kategori || ''}</span>
  {isLive && state ? (
- <div className="font-mono font-black text-lime-400 bg-lime-950/50 px-2 py-0.5 rounded-md border border-lime-500/30">
- {state.isTiebreak ? `TB: ${state.tiebreak_p1}-${state.tiebreak_p2}` : `${state.gamePoint_p1} - ${state.gamePoint_p2}`}
- </div>
+ <span className="font-mono font-bold text-lime-400 bg-lime-950/40 px-1 rounded border border-lime-500/20">
+ {state.isTiebreak ? `TB: ${state.tiebreak_p1}-${state.tiebreak_p2}` : `${state.gamePoint_p1}-${state.gamePoint_p2}`}
+ </span>
  ) : (
- <div className="text-slate-500 font-mono text-[10px]">Skor: <span className="text-slate-300 font-bold">{m.Skor || '-'}</span></div>
- )}
- {m.Baslangic_Saati && <span className="font-mono text-slate-500 text-[10px]">Başlangıç: {m.Baslangic_Saati}</span>}
- </div>
- </div>
- );
- })
- ) : (
- <div className="p-8 text-center text-xs text-slate-600 border border-dashed border-slate-800/60 rounded-2xl flex-1 flex flex-col justify-center items-center">Bu kortta planlanmış maç yok.</div>
+ <span className="truncate font-mono max-w-[100px]">{m.Son_Hakem && m.Son_Hakem !== '-' ? `👤 ${m.Son_Hakem.split(' ')[0]}` : ''}</span>
  )}
  </div>
  </div>
  );
  })}
  </div>
+ </div>
+ );
+ })}
+ </div>
+ </div>
  )}
 
+ {/* ── BULUT DURUM BANDI ── */}
  <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-800/60 text-xs text-slate-500">
  <div className="flex items-center gap-2">
  <Cloud className="w-3.5 h-3.5" />
- <span>Pano Durumu: {cloudSyncStatus === 'connected' ? '🟢 Canlı Bağlı' : '🔴 Bağlantı Kesildi'}</span>
+ <span>Bulut Akışı: {cloudSyncStatus === 'connected' ? '🟢 Canlı Bağlı' : '🔴 Çevrimdışı'}</span>
  </div>
  {portalSyncMsg && <span className="text-emerald-400 font-bold">{portalSyncMsg}</span>}
+ <button onClick={async () => {
+ if (confirm('Önbellek temizlenip buluttaki en son durum çekilecek. Onaylıyor musunuz?')) {
+ setIsSyncing(true);
+ const ok = await clearLocalCacheAndResetFromCloud();
+ setIsSyncing(false);
+ setPortalSyncMsg(ok ? '✨ Sıfırlandı!' : '⚠️ Başarısız.');
+ setTimeout(() => setPortalSyncMsg(''), 4000);
+ }
+ }}
+ className="flex items-center gap-1 text-rose-500/40 hover:text-rose-400 transition text-[11px]">
+ <Trash2 className="w-3 h-3" /> Önbelleği Sıfırla
+ </button>
  </div>
  </main>
+
+ {/* ŞİFRELİ GİRİŞ MODALLARI */}
+ {activeModal && (
+ <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md overflow-y-auto">
+ <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 w-full max-w-sm shadow-2xl space-y-4 my-auto">
+ <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+ <h3 className="font-black text-white text-sm">{activeModal === 'supervisor' ? 'Kort Hakemi Girişi' : 'Başhakem Girişi'}</h3>
+ <button onClick={closeModal} className="text-slate-400 hover:text-white"><X className="w-4 h-4" /></button>
+ </div>
+
+ {activeModal === 'supervisor' && (
+ <div className="space-y-1">
+ <label className="text-xs font-bold text-slate-400">Hakem Seçin</label>
+ <select value={selectedRefName} onChange={(e) => { setSelectedRefName(e.target.value); setErrorMsg(''); }}
+ className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white font-bold focus:outline-none">
+ <option value="">-- Seçiniz --</option>
+ {referees.map((ref) => <option key={ref.name} value={ref.name}>{ref.name}</option>)}
+ </select>
+ </div>
+ )}
+
+ <div className="space-y-1">
+ <div className="flex items-center justify-between">
+ <label className="text-xs font-bold text-slate-400">PIN Şifresi</label>
+ <button type="button" onClick={() => setShowPin(!showPin)} className="text-[10px] text-slate-500">
+ {showPin ? 'Gizle' : 'Göster'}
+ </button>
+ </div>
+ <input type={showPin ? 'text' : 'password'} maxLength={10} value={pin}
+ onChange={(e) => { setPin(e.target.value); setErrorMsg(''); }}
+ onKeyDown={(e) => { if (e.key === 'Enter') { activeModal === 'supervisor' ? handleSupervisorSubmit() : handleDeskSubmit(); } }}
+ placeholder="••••" autoFocus
+ className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 text-center text-xl text-white font-mono focus:outline-none" />
+ </div>
+
+ <div className="grid grid-cols-3 gap-1.5 pt-1">
+ {['1','2','3','4','5','6','7','8','9'].map((d) => (
+ <button key={d} type="button" onClick={() => handleKeypadPress(d)}
+ className="py-2 rounded-xl bg-slate-950 hover:bg-slate-800 text-white font-mono font-bold text-base transition">{d}</button>
+ ))}
+ <button type="button" onClick={handleKeypadClear} className="py-2 rounded-xl bg-slate-950 text-slate-500 text-xs font-bold">C</button>
+ <button type="button" onClick={() => handleKeypadPress('0')} className="py-2 rounded-xl bg-slate-950 text-white font-mono font-bold text-base">0</button>
+ <button type="button" onClick={handleKeypadBackspace} className="py-2 rounded-xl bg-slate-950 text-slate-500 text-xs font-bold">⌫</button>
+ </div>
+
+ {errorMsg && <div className="p-2 bg-rose-500/10 border border-rose-500/20 rounded-xl text-rose-400 text-xs">{errorMsg}</div>}
+ {successMsg && <div className="p-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-emerald-400 text-xs">{successMsg}</div>}
+
+ <button type="button" onClick={() => activeModal === 'supervisor' ? handleSupervisorSubmit() : handleDeskSubmit()}
+ className={`w-full py-3 rounded-xl font-black text-xs text-slate-950 text-center transition ${activeModal === 'supervisor' ? 'bg-lime-400' : 'bg-cyan-400'}`}>
+ Sorumlu Girişi Yap
+ </button>
+ </div>
+ </div>
+ )}
 
  <ShareRefereeLinkModal isOpen={isShareModalOpen} onClose={() => setIsShareModalOpen(false)} />
  </div>
