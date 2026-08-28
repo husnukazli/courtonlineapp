@@ -693,4 +693,4 @@ export const MainPortalGate: React.FC = () => {
  <ShareRefereeLinkModal isOpen={isShareModalOpen} onClose={() => setIsShareModalOpen(false)} />
  </div>
  );
-};
+}
