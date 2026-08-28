@@ -156,7 +156,7 @@ export const MainPortalGate: React.FC = () => {
  <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
  <h3 className="font-extrabold text-xs text-white uppercase">{courtName}</h3>
  </div>
- <span className="text-[10px] font-mono text-slate-400 font-bold px-1.5 py-0.5 rounded bg-slate-950">{courtMatches.length} Maç</h3>
+ <span className="text-[10px] font-mono text-slate-400 font-bold px-1.5 py-0.5 rounded bg-slate-950">{courtMatches.length} Maç</span>
  </div>
 
  <div className="space-y-2">
@@ -179,13 +179,13 @@ export const MainPortalGate: React.FC = () => {
  <div className="space-y-1 bg-slate-950/40 p-1.5 rounded-lg border border-slate-900/60">
  {[
 
- { name: m['Oyuncu 1'] || m['Takım 1'] || '—', won: isDone && m.Kazanan === (m['Oyuncu 1'] || m['Takım 1']), isServer: state?.currentServer === 1 },
- { name: m['Oyuncu 2'] || m['Takım 2'] || '—', won: isDone && m.Kazanan === (m['Oyuncu 2'] || m['Takım 2']), isServer: state?.currentServer === 2 },
+  { name: m['Oyuncu 1'] || m['Takım 1'] || '—', won: isDone && m.Kazanan === (m['Oyuncu 1'] || m['Takım 1']), isServer: state?.currentServer === 1 },
+  { name: m['Oyuncu 2'] || m['Takım 2'] || '—', won: isDone && m.Kazanan === (m['Oyuncu 2'] || m['Takım 2']), isServer: state?.currentServer === 2 },
  ].map((p, i) => (
  <div key={i} className="flex items-center justify-between gap-2 text-xs">
  <span className={`truncate font-bold ${p.won ? 'text-lime-300' : isLive && p.isServer ? 'text-white' : 'text-slate-300'}`}>{p.won && '✓ '}{p.name}</span>
  <span className="font-mono text-xs font-black text-white tracking-wide shrink-0">
- {state ? (i === 0 ? `${state.set1_p1} ${state.set2_p1} ${state.set3_p1}` : `${state.set1_p2} ${state.set2_p2} ${state.set3_p2}`) : m.Skor && m.Skor !== '-' ? m.Skor.split(' ').map((s: string) => s.split('/')[i] ?? '0').join(' ') : '-'}
+  {state ? (i === 0 ? `${state.set1_p1} ${state.set2_p1} ${state.set3_p1}` : `${state.set1_p2} ${state.set2_p2} ${state.set3_p2}`) : m.Skor && m.Skor !== '-' ? m.Skor.split(' ').map((s: string) => s.split('/')[i] ?? '0').join(' ') : '-'}
  </span>
  </div>
  ))}
@@ -208,6 +208,7 @@ export const MainPortalGate: React.FC = () => {
  })}
  </div>
  </main>
+
  <ShareRefereeLinkModal isOpen={isShareModalOpen} onClose={() => setIsShareModalOpen(false)} />
  </div>
  );
