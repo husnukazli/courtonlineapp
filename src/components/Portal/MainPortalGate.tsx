@@ -22,6 +22,8 @@ export const MainPortalGate: React.FC = () => {
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [portalSyncMsg, setPortalSyncMsg] = useState('');
+  const [filterKort, setFilterKort] = useState('TUMU');
+  const [filterDurum, setFilterDurum] = useState('TUMU');
   const [isSyncing, setIsSyncing] = useState(false);
   const [now, setNow] = useState(Date.now());
 
@@ -53,7 +55,29 @@ export const MainPortalGate: React.FC = () => {
     else setErrorMsg('❌ Şifre hatalı.');
   };
 
-  // Maç grupları
+  // Tüm kortlar
+  const distinctKortlar = Array.from(new Set(matches.map(m => m.Kort).filter(Boolean))).sort();
+
+  // Sıralama: planlanan saate göre (Saat alanı), saati olmayanlar sona
+  const saatSirala = (a: any, b: any) => {
+    const sa = a.Saat || '99:99';
+    const sb = b.Saat || '99:99';
+    return sa.localeCompare(sb);
+  };
+
+  // Filtrele + sırala — biten maçlar yerinde kalır (sort stabil)
+  const filteredMatches = matches
+    .filter(m => filterKort === 'TUMU' || m.Kort === filterKort)
+    .filter(m => {
+      if (filterDurum === 'TUMU') return true;
+      if (filterDurum === 'Oynaniyor') return m.Durum === 'Oynaniyor';
+      if (filterDurum === 'Baslamadi') return m.Durum === 'Baslamadi';
+      if (filterDurum === 'Bitti') return m.Durum === 'Bitti' || m.Durum === 'Retired' || m.Durum === 'Walkover';
+      return true;
+    })
+    .sort(saatSirala);
+
+  // Sayaçlar (filtresiz)
   const live    = matches.filter(m => m.Durum === 'Oynaniyor');
   const waiting = matches.filter(m => m.Durum === 'Baslamadi');
   const done    = matches.filter(m => m.Durum === 'Bitti' || m.Durum === 'Retired' || m.Durum === 'Walkover');
@@ -141,6 +165,42 @@ export const MainPortalGate: React.FC = () => {
           </div>
         </div>
 
+        {/* Filtre çubuğu */}
+        {matches.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 pb-1">
+            {/* Kort filtresi */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider">Kort:</span>
+              <button onClick={() => setFilterKort('TUMU')}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-black transition ${filterKort === 'TUMU' ? 'bg-slate-600 text-white' : 'bg-slate-800/60 text-slate-400 hover:text-white'}`}>
+                Tümü
+              </button>
+              {distinctKortlar.map(k => (
+                <button key={k} onClick={() => setFilterKort(k)}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-black transition ${filterKort === k ? 'bg-cyan-500/30 text-cyan-300 border border-cyan-500/40' : 'bg-slate-800/60 text-slate-400 hover:text-white'}`}>
+                  {k}
+                </button>
+              ))}
+            </div>
+            <div className="w-px h-4 bg-slate-700 hidden sm:block" />
+            {/* Durum filtresi */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider">Durum:</span>
+              {[
+                { key: 'TUMU', label: 'Tümü', cls: 'bg-slate-600 text-white', inact: 'bg-slate-800/60 text-slate-400' },
+                { key: 'Oynaniyor', label: '● Canlı', cls: 'bg-emerald-500/30 text-emerald-300 border border-emerald-500/40', inact: 'bg-slate-800/60 text-slate-400' },
+                { key: 'Baslamadi', label: '◐ Bekliyor', cls: 'bg-amber-500/30 text-amber-300 border border-amber-500/40', inact: 'bg-slate-800/60 text-slate-400' },
+                { key: 'Bitti', label: '✕ Bitti', cls: 'bg-rose-500/30 text-rose-300 border border-rose-500/40', inact: 'bg-slate-800/60 text-slate-400' },
+              ].map(({ key, label, cls, inact }) => (
+                <button key={key} onClick={() => setFilterDurum(key)}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-black transition ${filterDurum === key ? cls : inact + ' hover:text-white'}`}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Maç Listesi */}
         {matches.length === 0 ? (
           <div className="text-center py-20 text-slate-500">
@@ -150,7 +210,7 @@ export const MainPortalGate: React.FC = () => {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-            {[...live, ...waiting, ...done].map((m) => {
+            {filteredMatches.map((m) => {
               const isLive = m.Durum === 'Oynaniyor';
               const isDone = m.Durum === 'Bitti' || m.Durum === 'Retired' || m.Durum === 'Walkover';
               return (
