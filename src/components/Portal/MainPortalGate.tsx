@@ -154,77 +154,94 @@ export const MainPortalGate: React.FC = () => {
           </div>
         </div>
 
-        {/* Maç Listesi */}
+        {/* Maç Listesi — Her sütun bir kort */}
         {matches.length === 0 ? (
           <div className="text-center py-20 text-slate-500">
             <Activity className="w-10 h-10 mx-auto mb-3 opacity-30" />
             <p className="font-bold">Henüz maç yüklenmedi</p>
             <p className="text-xs mt-1">Başhakem fikstürü yükledikten sonra maçlar burada görünecek.</p>
           </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-            {[...live, ...waiting, ...done].map((m) => {
-              const isLive = m.Durum === 'Oynaniyor';
-              const isDone = m.Durum === 'Bitti' || m.Durum === 'Retired' || m.Durum === 'Walkover';
-              return (
-                <div key={m.id}
-                  className={`rounded-2xl border p-3.5 space-y-2.5 transition
-                    ${isLive ? 'bg-emerald-950/30 border-emerald-700/50 shadow-lg shadow-emerald-900/20'
-                    : isDone ? 'bg-rose-950/20 border-rose-800/40'
-                    : 'bg-slate-900/70 border-slate-700/60'}`}>
+        ) : (() => {
+          // Tüm kortları sırala
+          const kortlar = Array.from(new Set(matches.map((m: any) => m.Kort).filter(Boolean))).sort() as string[];
 
-                  {/* Üst satır: Kort + Planlanan saat + Durum */}
-                  <div className="flex items-center justify-between gap-1">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[11px] font-black text-slate-400 bg-slate-800 px-2 py-0.5 rounded-lg">
-                        {m.Kort || '—'}
+          // Maç kartı bileşeni (inline)
+          const MacKarti = ({ m }: { m: any }) => {
+            const isLive = m.Durum === 'Oynaniyor';
+            const isDone = m.Durum === 'Bitti' || m.Durum === 'Retired' || m.Durum === 'Walkover';
+            return (
+              <div className={`rounded-2xl border p-3 space-y-2 transition
+                ${isLive ? 'bg-emerald-950/30 border-emerald-700/50 shadow-lg shadow-emerald-900/20'
+                : isDone ? 'bg-rose-950/20 border-rose-800/50'
+                : 'bg-slate-900/70 border-slate-700/50'}`}>
+
+                {/* Saat (büyük, turkuaz) + Durum */}
+                <div className="flex items-center justify-between gap-1">
+                  <span className={`font-mono font-black text-sm tracking-wide
+                    ${isLive ? 'text-emerald-400' : isDone ? 'text-rose-400/70' : 'text-cyan-400'}`}>
+                    {m.Saat || '--:--'}
+                  </span>
+                  <span className={`text-[10px] font-black uppercase tracking-wider flex items-center gap-1 px-1.5 py-0.5 rounded-md
+                    ${isLive ? 'bg-emerald-500/20 text-emerald-400'
+                    : isDone ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                    : 'text-amber-400/70'}`}>
+                    {isLive && <Circle className="w-1.5 h-1.5 fill-emerald-400 animate-pulse" />}
+                    {isDone && '✕ '}
+                    {statusLabel(m.Durum || '')}
+                  </span>
+                </div>
+
+                {/* Oyuncular + Skor */}
+                <div className="space-y-1">
+                  {[
+                    { name: m['Oyuncu 1'] || m['Takım 1'] || '—', kazandi: isDone && (m.Kazanan === m['Oyuncu 1'] || m.Kazanan === m['Takım 1']) },
+                    { name: m['Oyuncu 2'] || m['Takım 2'] || '—', kazandi: isDone && (m.Kazanan === m['Oyuncu 2'] || m.Kazanan === m['Takım 2']) },
+                  ].map((p, i) => (
+                    <div key={i} className="flex items-center justify-between gap-1">
+                      <span className={`text-xs font-bold truncate flex-1 leading-tight
+                        ${p.kazandi ? 'text-lime-300' : isDone ? 'text-slate-400' : 'text-slate-200'}`}>
+                        {p.kazandi && <span className="text-lime-400 mr-0.5">✓</span>}{p.name}
                       </span>
-                      {m.Saat && (
-                        <span className="text-[10px] font-mono text-slate-500">{m.Saat}</span>
+                      {m.Skor && (
+                        <span className="font-mono text-xs text-slate-300 shrink-0 ml-1">
+                          {m.Skor.split(' ').map((s: string) => s.split('/')[i] ?? '0').join(' ')}
+                        </span>
                       )}
                     </div>
-                    <span className={`text-[10px] font-black uppercase tracking-wider flex items-center gap-1 px-1.5 py-0.5 rounded-md
-                      ${isLive ? 'bg-emerald-500/20 text-emerald-400'
-                      : isDone ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
-                      : 'text-amber-400'}`}>
-                      {isLive && <Circle className="w-1.5 h-1.5 fill-emerald-400 animate-pulse" />}
-                      {isDone && '✕ '}
-                      {statusLabel(m.Durum || '')}
-                    </span>
-                  </div>
-
-                  {/* Oyuncular + Skor */}
-                  <div className="space-y-1">
-                    {[
-                      { name: m['Oyuncu 1'] || m['Takım 1'] || '—', kazandi: isDone && (m.Kazanan === m['Oyuncu 1'] || m.Kazanan === m['Takım 1']) },
-                      { name: m['Oyuncu 2'] || m['Takım 2'] || '—', kazandi: isDone && (m.Kazanan === m['Oyuncu 2'] || m.Kazanan === m['Takım 2']) },
-                    ].map((p, i) => (
-                      <div key={i} className="flex items-center justify-between gap-2">
-                        <span className={`text-xs font-bold truncate flex-1 ${p.kazandi ? 'text-lime-300' : 'text-slate-200'}`}>
-                          {p.kazandi && '✓ '}{p.name}
-                        </span>
-                        {m.Skor && (
-                          <span className="font-mono text-xs text-slate-300 shrink-0">
-                            {m.Skor.split(' ').map((s: string, si: number) => {
-                              const parts = s.split('/');
-                              return parts[i] ?? '0';
-                            }).join('  ')}
-                          </span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Alt: Kategori + Saat */}
-                  <div className="flex items-center justify-between text-[10px] text-slate-500">
-                    <span className="truncate">{m.Kategori || m.Skor_Formati || ''}</span>
-                    {m.Baslangic_Saati && <span className="font-mono shrink-0 ml-1">{m.Baslangic_Saati}</span>}
-                  </div>
+                  ))}
                 </div>
-              );
-            })}
-          </div>
-        )}
+
+                {/* Alt: Kategori */}
+                <div className="text-[10px] text-slate-500 truncate">
+                  {m.Kategori || m.Skor_Formati || ''}
+                </div>
+              </div>
+            );
+          };
+
+          return (
+            <div className="overflow-x-auto -mx-3 sm:mx-0">
+              <div className="flex gap-3 min-w-max px-3 sm:px-0 pb-2">
+                {kortlar.map((kort: string) => {
+                  const kortMaclari = matches
+                    .filter((m: any) => m.Kort === kort)
+                    .sort((a: any, b: any) => (a.Saat || '99:99').localeCompare(b.Saat || '99:99'));
+                  return (
+                    <div key={kort} className="w-52 sm:w-60 flex-shrink-0 space-y-2">
+                      {/* Kort başlığı */}
+                      <div className="bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 flex items-center justify-between">
+                        <span className="font-black text-sm text-white">{kort}</span>
+                        <span className="text-[10px] text-slate-400 font-mono">{kortMaclari.length} maç</span>
+                      </div>
+                      {/* Maçlar — saat sırasıyla, biten yerinde kalır */}
+                      {kortMaclari.map((m: any) => <MacKarti key={m.id} m={m} />)}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Alt: Bulut senkronizasyon */}
         <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-800/60 text-xs text-slate-500">
