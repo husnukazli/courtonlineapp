@@ -1,8 +1,26 @@
 import React, { useState } from 'react';
 import {
-  Tv, Filter, Search, ZoomIn, ZoomOut, RefreshCw, Plus, Trash2, CheckCircle2,
-  Clock, Award, Layers, Users, FileSpreadsheet, Download, Upload, AlertCircle,
-  Eye, Lock, KeyRound, ShieldCheck, FileText, Calendar, MapPin, Trophy
+  Tv,
+  Filter,
+  Search,
+  ZoomIn,
+  ZoomOut,
+  RefreshCw,
+  Plus,
+  Trash2,
+  CheckCircle2,
+  Clock,
+  Award,
+  Layers,
+  Users,
+  FileSpreadsheet,
+  Download,
+  Upload,
+  AlertCircle,
+  Eye,
+  Lock,
+  KeyRound,
+  ShieldCheck,
 } from 'lucide-react';
 import { useTennisData } from '../../context/TennisDataContext';
 import { MatchItem, ScoreFormatType } from '../../types/tennis';
@@ -19,18 +37,33 @@ const SCORE_FORMAT_OPTIONS: ScoreFormatType[] = [
 
 export const DeskSupervisorView: React.FC = () => {
   const {
-    matches, referees, categoryFormats, deskPin, cloudSyncStatus, lastCloudSync,
-    tournamentNotice, updateTournamentNotice, updateDeskPin, addReferee, deleteReferee,
-    bulkApplyCategoryFormats, importMatchesList, resetTournamentToDefault, resetAllScores,
-    forcePushAllToCloud, pullFromCloudNow, clearLocalCacheAndResetFromCloud,
-    tournamentName, tournamentDate, tournamentLocation, updateTournamentDetails
+    matches,
+    referees,
+    categoryFormats,
+    deskPin,
+    cloudSyncStatus,
+    lastCloudSync,
+    updateDeskPin,
+    addReferee,
+    deleteReferee,
+    bulkApplyCategoryFormats,
+    tournamentInfo,
+    saveTournamentInfo,
+    importMatchesList,
+    resetTournamentToDefault,
+    resetAllScores,
+    forcePushAllToCloud,
+    pullFromCloudNow,
   } = useTennisData();
 
-  const [activeSubTab, setActiveSubTab] = useState<'grid' | 'stats' | 'formats' | 'referees' | 'manage'>('grid');
+  const [activeSubTab, setActiveSubTab] = useState<'grid' | 'stats' | 'formats' | 'referees' | 'manage' | 'info'>('grid');
+  const [localInfo, setLocalInfo] = React.useState(() => tournamentInfo);
+  const [infoSavedMsg, setInfoSavedMsg] = React.useState('');
   const [selectedCourtFilter, setSelectedCourtFilter] = useState<string>('ALL');
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
   
+  // YENİ ZOOM LİMİTİ: %40 ile %150 arası
   const [zoomLevel, setZoomLevel] = useState<number>(100);
   const [selectedMatchForModal, setSelectedMatchForModal] = useState<MatchItem | null>(null);
 
@@ -42,14 +75,6 @@ export const DeskSupervisorView: React.FC = () => {
 
   const [localFormats, setLocalFormats] = useState<Record<string, string>>(() => categoryFormats);
   const [formatSavedMsg, setFormatSavedMsg] = useState<string>('');
-
-  const [noticeInput, setNoticeInput] = useState<string>(tournamentNotice);
-  const [noticeSuccessMsg, setNoticeSuccessMsg] = useState<string>('');
-
-  const [tNameInput, setTNameInput] = useState<string>(tournamentName || '');
-  const [tDateInput, setTDateInput] = useState<string>(tournamentDate || '');
-  const [tLocInput, setTLocationInput] = useState<string>(tournamentLocation || '');
-  const [tDetailsSuccessMsg, setTDetailsSuccessMsg] = useState<string>('');
 
   const [jsonInput, setJsonInput] = useState<string>('');
   const [importMsg, setImportMsg] = useState<string>('');
@@ -73,7 +98,6 @@ export const DeskSupervisorView: React.FC = () => {
       const p2 = m['Oyuncu 2'].toLowerCase();
       const kat = m.Kategori.toLowerCase();
       const ref = m.Son_Hakem.toLowerCase();
-
       return p1.includes(q) || p2.includes(q) || kat.includes(q) || ref.includes(q);
     }
     return true;
@@ -91,20 +115,6 @@ export const DeskSupervisorView: React.FC = () => {
     addReferee(newRefName.trim(), newRefPin.trim());
     setNewRefName('');
     setNewRefPin('');
-  };
-
-  const handleSaveNoticeSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    updateTournamentNotice(noticeInput.trim());
-    setNoticeSuccessMsg('✅ Canlı izleyici dipnotu başarıyla güncellendi!');
-    setTimeout(() => setNoticeSuccessMsg(''), 3500);
-  };
-
-  const handleSaveTournamentDetailsSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    updateTournamentDetails(tNameInput.trim(), tDateInput.trim(), tLocInput.trim());
-    setTDetailsSuccessMsg('✅ Turnuva künye bilgileri güncellendi ve panoya gönderildi!');
-    setTimeout(() => setTDetailsSuccessMsg(''), 3500);
   };
 
   const handleExportJson = () => {
@@ -133,16 +143,6 @@ export const DeskSupervisorView: React.FC = () => {
     }
   };
 
-  const handleAbsoluteReset = async () => {
-    if (confirm('KRİTİK UYARI: Tüm önbellek ve buluttaki maç geçmişi kökten silinecektir! Emin misiniz?')) {
-      setIsSyncingAction(true);
-      await clearLocalCacheAndResetFromCloud();
-      setIsSyncingAction(false);
-      setImportMsg('✨ Tüm turnuva geçmişi ve bulut başarıyla temizlendi!');
-      setTimeout(() => setImportMsg(''), 4000);
-    }
-  };
-
   return (
     <div className="max-w-7xl mx-auto space-y-6 overflow-hidden">
       <div className="bg-slate-900 border border-slate-800 rounded-3xl p-4 sm:p-5 shadow-xl space-y-4">
@@ -158,10 +158,13 @@ export const DeskSupervisorView: React.FC = () => {
               <Layers className="w-3.5 h-3.5" /><span>Format Hafızası</span>
             </button>
             <button type="button" onClick={() => setActiveSubTab('referees')} className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition ${activeSubTab === 'referees' ? 'bg-cyan-400 text-slate-950 shadow-md font-black' : 'text-slate-400 hover:text-slate-200'}`}>
-              <Users className="w-3.5 h-3.5" /><span>Hakem, Format & Turnuva Yönetimi</span>
+              <Users className="w-3.5 h-3.5" /><span>Hakem Yönetimi</span>
             </button>
             <button type="button" onClick={() => setActiveSubTab('manage')} className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition ${activeSubTab === 'manage' ? 'bg-cyan-400 text-slate-950 shadow-md font-black' : 'text-slate-400 hover:text-slate-200'}`}>
               <FileSpreadsheet className="w-3.5 h-3.5" /><span>Program & JSON</span>
+            </button>
+            <button type="button" onClick={() => { setLocalInfo(tournamentInfo); setActiveSubTab('info'); }} className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition ${activeSubTab === 'info' ? 'bg-cyan-400 text-slate-950 shadow-md font-black' : 'text-slate-400 hover:text-slate-200'}`}>
+              <span>🏆</span><span>Turnuva Bilgileri</span>
             </button>
           </div>
 
@@ -195,6 +198,7 @@ export const DeskSupervisorView: React.FC = () => {
               </select>
             </div>
 
+            {/* YENİ: GENİŞLETİLMİŞ ZOOM ÇUBUĞU */}
             <div className="flex items-center gap-2 text-xs text-slate-400 bg-slate-950 p-2 rounded-xl border border-slate-800">
               <ZoomOut className="w-4 h-4 text-cyan-400" />
               <input type="range" min="40" max="150" step="5" value={zoomLevel} onChange={(e) => setZoomLevel(Number(e.target.value))} className="w-24 sm:w-32 accent-cyan-400 cursor-pointer" />
@@ -206,8 +210,11 @@ export const DeskSupervisorView: React.FC = () => {
       </div>
 
       {activeSubTab === 'grid' && (
+        /* YENİ: YATAY KAYDIRMA İZNİ (overflow-x-auto) VE SABİT GENİŞLİK MATRİSİ */
         <div className="w-full overflow-x-auto pb-6">
           <div style={{ transform: `scale(${zoomLevel / 100})`, transformOrigin: 'top left', minWidth: 'min-content' }} className="transition-transform duration-150 p-2">
+            
+            {/* Kortların Yanyana Dizilimi: Asla alt satıra geçmez (flex-nowrap) */}
             <div className="flex flex-nowrap gap-4">
               {(selectedCourtFilter === 'ALL' ? distinctCourts : [selectedCourtFilter]).map((courtName) => {
                 const courtMatches = filteredMatches.filter((m) => m.Kort === courtName);
@@ -294,6 +301,7 @@ export const DeskSupervisorView: React.FC = () => {
         </div>
       )}
 
+      {/* SUB-TAB 2, 3, 4, 5 ARE THE SAME AS BEFORE */}
       {activeSubTab === 'stats' && (
         <div className="space-y-6">
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
@@ -368,7 +376,6 @@ export const DeskSupervisorView: React.FC = () => {
               <button type="submit" className="px-6 py-2.5 bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-bold text-sm rounded-xl shadow transition flex items-center justify-center gap-2"><KeyRound className="w-4 h-4" /><span>Şifreyi Güncelle</span></button>
             </form>
           </div>
-
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4">
               <h3 className="font-bold text-base text-white">Yeni Saha Hakemi Ekle</h3>
@@ -380,7 +387,7 @@ export const DeskSupervisorView: React.FC = () => {
             </div>
             <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4">
               <h3 className="font-bold text-base text-white">Kayıtlı Saha Hakemleri ({referees.length})</h3>
-              <div className="space-y-2 max-h-52 overflow-y-auto">
+              <div className="space-y-2 max-h-80 overflow-y-auto">
                 {referees.map((ref) => (
                   <div key={ref.name} className="p-3 bg-slate-950 rounded-xl border border-slate-800 flex items-center justify-between">
                     <div><div className="font-bold text-sm text-slate-200">{ref.name}</div><div className="text-xs text-slate-400 font-mono">PIN: {ref.pin}</div></div>
@@ -389,49 +396,6 @@ export const DeskSupervisorView: React.FC = () => {
                 ))}
               </div>
             </div>
-          </div>
-
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-xl">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-cyan-400/12 text-cyan-400 border border-cyan-400/20 flex items-center justify-center"><FileText className="w-5 h-5" /></div>
-              <div>
-                <h3 className="font-black text-base text-white">Canlı İzleyici Panosu Dipnot Mesajı</h3>
-                <p className="text-xs text-slate-400 mt-0.5">Ekranın en altında dipnot şeklinde listelenecek açıklama notunu canlı olarak yayınlayın.</p>
-              </div>
-            </div>
-            {noticeSuccessMsg && <div className="p-3 bg-emerald-950/40 border border-emerald-500/40 rounded-xl text-emerald-300 text-xs font-bold">{noticeSuccessMsg}</div>}
-            <form onSubmit={handleSaveNoticeSubmit} className="space-y-3 pt-1">
-              <textarea value={noticeInput} onChange={(e) => setNoticeInput(e.target.value)} rows={3} placeholder="Duyuru giriniz..." className="w-full p-3.5 bg-slate-950 border border-slate-800 rounded-2xl text-xs font-medium text-slate-200 focus:outline-none focus:border-cyan-400" />
-              <div className="flex justify-end"><button type="submit" className="px-6 py-2.5 bg-cyan-400 text-slate-950 font-black text-xs rounded-xl shadow transition uppercase">Canlı Yayınla</button></div>
-            </form>
-          </div>
-
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-xl">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-amber-400/10 text-amber-400 border border-amber-400/20 flex items-center justify-center">🏆</div>
-              <div>
-                <h3 className="font-black text-base text-white">Turnuva Künye Bilgileri Girişi</h3>
-                <p className="text-xs text-slate-400 mt-0.5">İzleyici ana portalında listelenen turnuva adını, tarihini ve kompleks bilgisini buradan özelleştirin.</p>
-              </div>
-            </div>
-            {tDetailsSuccessMsg && <div className="p-3 bg-emerald-950/40 border border-emerald-500/40 rounded-xl text-emerald-300 text-xs font-bold">{tDetailsSuccessMsg}</div>}
-            <form onSubmit={handleSaveTournamentDetailsSubmit} className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-1">
-              <div>
-                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Turnuva Adı</label>
-                <input type="text" value={tNameInput} onChange={(e) => setTNameInput(e.target.value)} placeholder="Örn: Kulüpler Arası Yaz Kupası" className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none" />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Turnuva Tarihi</label>
-                <input type="text" value={tDateInput} onChange={(e) => setTDateInput(e.target.value)} placeholder="Örn: 29 Ağustos 2026" className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none" />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Müsabaka Lokasyonu Kompleksi</label>
-                <input type="text" value={tLocInput} onChange={(e) => setTLocationInput(e.target.value)} placeholder="Örn: Merkez Kortlar Kompleksi" className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none" />
-              </div>
-              <div className="md:col-span-3 flex justify-end pt-2">
-                <button type="submit" className="px-6 py-2.5 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs rounded-xl shadow transition uppercase">Künye Bilgilerini Kaydet ve Yayınla</button>
-              </div>
-            </form>
           </div>
         </div>
       )}
@@ -454,7 +418,6 @@ export const DeskSupervisorView: React.FC = () => {
               <button type="button" disabled={isSyncingAction} onClick={() => { if (confirm('Sıfırlansın mı?')) { resetAllScores(); } }} className="flex items-center justify-center gap-2 px-4 py-3 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 rounded-2xl text-xs font-bold transition shadow"><RefreshCw className="w-4 h-4 text-amber-400" /><span>Skorları Sıfırla</span></button>
             </div>
           </div>
-
           <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-6">
             <div className="flex items-center justify-between">
               <div><h3 className="font-bold text-base text-white">Maç Programı (JSON)</h3></div>
@@ -463,11 +426,48 @@ export const DeskSupervisorView: React.FC = () => {
             {importMsg && <div className="p-3.5 bg-cyan-950/70 border border-cyan-500/40 rounded-2xl text-cyan-300 text-xs font-bold shadow-lg animate-in fade-in">{importMsg}</div>}
             <div className="space-y-3">
               <textarea rows={8} value={jsonInput} onChange={(e) => setJsonInput(e.target.value)} className="w-full p-3.5 bg-slate-950 border border-slate-800 rounded-2xl text-xs font-mono text-cyan-300 focus:outline-none focus:border-cyan-400" />
-              <div className="flex justify-between items-center">
-                <button type="button" disabled={isSyncingAction} onClick={handleAbsoluteReset} className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-extrabold text-xs">Tüm Turnuvayı Sıfırla</button>
-                <button type="button" onClick={handleImportJson} disabled={!jsonInput.trim() || isSyncingAction} className="px-6 py-2.5 bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-bold text-xs rounded-xl shadow transition disabled:opacity-50 flex items-center gap-2"><Upload className="w-4 h-4" /><span>JSON Yükle</span></button>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <button type="button" onClick={() => { if (confirm('Varsayılana dön?')) resetTournamentToDefault(); }} className="text-xs text-rose-400 hover:text-rose-300 underline font-medium">Varsayılana Sıfırla</button>
+                <button type="button" onClick={handleImportJson} disabled={!jsonInput.trim()} className="px-6 py-2.5 bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-bold text-xs rounded-xl shadow transition disabled:opacity-50 flex items-center gap-2"><Upload className="w-4 h-4" /><span>JSON Yükle</span></button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {activeSubTab === 'info' && (
+        <div className="space-y-5 max-w-lg">
+          <div>
+            <h3 className="font-bold text-base text-white mb-4">🏆 Turnuva Bilgileri</h3>
+            <div className="space-y-3">
+              {[
+                { key: 'ad', label: 'Turnuva Adı', placeholder: 'örn. 2025 Türkiye Tenis Şampiyonası' },
+                { key: 'yer', label: 'Lokasyon / Tesis', placeholder: 'örn. Ankara Tenis Kulübü' },
+                { key: 'tarih', label: 'Tarih / Dönem', placeholder: 'örn. 15-20 Ağustos 2025' },
+              ].map(({ key, label, placeholder }) => (
+                <div key={key}>
+                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">{label}</label>
+                  <input type="text" value={(localInfo as any)[key]} placeholder={placeholder}
+                    onChange={e => setLocalInfo(prev => ({ ...prev, [key]: e.target.value }))}
+                    className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white focus:outline-none focus:border-cyan-400" />
+                </div>
+              ))}
+              <div>
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Turnuva Notu (İzleyici Ekranı Alt Bölümü)</label>
+                <textarea value={localInfo.not} placeholder="örn. Tüm oyunculara başarılar dileriz!"
+                  onChange={e => setLocalInfo(prev => ({ ...prev, not: e.target.value }))}
+                  rows={3}
+                  className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white focus:outline-none focus:border-cyan-400 resize-none" />
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <button type="button"
+              onClick={() => { saveTournamentInfo(localInfo); setInfoSavedMsg('✅ Kaydedildi!'); setTimeout(() => setInfoSavedMsg(''), 3000); }}
+              className="px-6 py-3 bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-bold rounded-xl shadow-lg transition">
+              Turnuva Bilgilerini Kaydet
+            </button>
+            {infoSavedMsg && <span className="text-emerald-400 text-sm font-bold">{infoSavedMsg}</span>}
           </div>
         </div>
       )}
