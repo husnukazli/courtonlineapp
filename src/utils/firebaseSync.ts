@@ -312,18 +312,6 @@ export const deleteAllMatchesFromCloud = async (tournamentId = 'main'): Promise<
   } catch (e) { console.error('deleteAllMatchesFromCloud hata:', e); return false; }
 };
 
-/**
- * purgeOrphanMatchesFromCloud
- *
- * Firestore'da olup yerel maç listesinde OLMAYAN "hayalet" dökümanları siler.
- * Ne zaman oluşur:
- *   - Eski JSON yüklenip üstüne yeni JSON yüklenince ID'ler değişir, eskiler Firestore'da kalır
- *   - Render restart sonrası yeni maçlar yazılırken eski ID'ler temizlenmemiş olabilir
- *   - "Varsayılana Sıfırla" tam çalışmamışsa artık maçlar kalır
- *
- * @param activeMatchIds  Şu an geçerli olan maç ID'leri (string[])
- * @param tournamentId    Hangi turnuva (varsayılan: 'main')
- * @returns               Silinen döküman sayısı
  */
 export const purgeOrphanMatchesFromCloud = async (
   activeMatchIds: string[],
@@ -343,7 +331,7 @@ export const purgeOrphanMatchesFromCloud = async (
       await batch.commit();
     }
 
-    console.log(\`purgeOrphanMatchesFromCloud: \${orphans.length} hayalet döküman silindi (\${tournamentId})\`);
+    console.log("purgeOrphanMatchesFromCloud: " + orphans.length + " hayalet döküman silindi (" + tournamentId + ")");
     return orphans.length;
   } catch (e) {
     console.error('purgeOrphanMatchesFromCloud hata:', e);
