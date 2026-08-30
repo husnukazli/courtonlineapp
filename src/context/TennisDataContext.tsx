@@ -38,6 +38,7 @@ import {
   subscribeToCloudTournament,
   fetchTournamentFromCloud,
   deleteAllMatchesFromCloud,
+  purgeOrphanMatchesFromCloud,
 } from '../utils/firebaseSync';
 
 export type CloudSyncStatus = 'connected' | 'syncing' | 'offline';
@@ -90,6 +91,9 @@ interface TennisDataContextType {
   pullFromCloudNow: () => Promise<boolean>;
   forcePushAllToCloud: () => Promise<void>;
   clearLocalCacheAndResetFromCloud: () => Promise<boolean>;
+  tournamentId: string;
+  setTournamentId: (id: string) => void;
+  purgeOrphanMatches: () => Promise<number>;
   resetAllScores: () => void;
   loginReferee: (name: string, pin: string) => boolean;
   loginRefereeDirect: (name?: string) => void;
@@ -242,6 +246,8 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   };
 
   // Maçlar SADECE Firestore'dan yüklenir — localStorage'dan okumak üst üste binmeye yol açıyor
+  const [tournamentId, setTournamentId] = useState<string>('main');
+
   const [matches, setMatches] = useState<MatchItem[]>([]);
 
   const [referees, setReferees] = useState<RefereeUser[]>(() => {
@@ -374,6 +380,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }).catch((e) => console.warn('Initial cloud fetch error:', e));
 
     const unsubscribe = subscribeToCloudTournament(
+      tournamentId,
       (remoteMatches) => {
         setCloudSyncStatus('connected');
         setLastCloudSync(
@@ -431,7 +438,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     return () => {
       unsubscribe();
     };
-  }, [deskPin]);
+  }, [deskPin, tournamentId]);
 
   const broadcastAndSyncSingleMatch = (updatedMatch: MatchItem, allMatchesList?: MatchItem[]) => {
     const fullList = allMatchesList || matches.map((m) => (m.id === updatedMatch.id ? updatedMatch : m));
@@ -445,7 +452,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
 
     setCloudSyncStatus('syncing');
-    pushSingleMatchToCloud(updatedMatch, currentReferee?.name || 'Turnuva Masası', fullList)
+    pushSingleMatchToCloud(updatedMatch, currentReferee?.name || 'Turnuva Masası', fullList, tournamentId)
       .then(() => {
         setCloudSyncStatus('connected');
         setLastCloudSync(
@@ -480,7 +487,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
 
     setCloudSyncStatus('syncing');
-    pushAllMatchesToCloud(newMatches, currentReferee?.name || 'Turnuva Masası')
+    pushAllMatchesToCloud(newMatches, currentReferee?.name || 'Turnuva Masası', tournamentId)
       .then(() => {
         setCloudSyncStatus('connected');
         setLastCloudSync(
@@ -506,7 +513,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const pullFromCloudNow = async (): Promise<boolean> => {
     setCloudSyncStatus('syncing');
     try {
-      const remote = await fetchTournamentFromCloud();
+      const remote = await fetchTournamentFromCloud(tournamentId);
       if (remote && Array.isArray(remote.matches) && remote.matches.length > 0) {
         const sanitized = sanitizeMatchList(remote.matches);
         setMatches(sanitized);
@@ -552,9 +559,9 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       localStorage.removeItem(STORAGE_KEYS.REFEREES);
       localStorage.removeItem(STORAGE_KEYS.CATEGORY_FORMATS);
       // Firestore'daki maçları da sil — yoksa sayfa yenilenince geri gelir
-      await deleteAllMatchesFromCloud();
+      await deleteAllMatchesFromCloud(tournamentId);
       // Hakemler de temizlensin
-      await pushRefereesToCloud([]);
+      await pushRefereesToCloud([], tournamentId);
       setMatches([]);
       setReferees([]);
       localStorage.removeItem(STORAGE_KEYS.DESK_PIN);
@@ -602,8 +609,8 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const forcePushAllToCloud = async () => {
     setCloudSyncStatus('syncing');
     try {
-      await replaceAllMatchesInCloud(matches, currentReferee?.name || 'Turnuva Masası');
-      await pushRefereesToCloud(referees);
+      await replaceAllMatchesInCloud(matches, currentReferee?.name || 'Turnuva Masası', tournamentId);
+      await pushRefereesToCloud(referees, tournamentId);
       await pushCategoryFormatsToCloud(categoryFormats);
       await pushDeskPinToCloud(deskPin);
       setCloudSyncStatus('connected');
@@ -649,7 +656,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     if (broadcastChannelRef.current) {
       broadcastChannelRef.current.postMessage({ type: 'MATCHES_UPDATED', matches: cleanMatches });
     }
-    replaceAllMatchesInCloud(cleanMatches, currentReferee?.name || 'Turnuva Masası');
+    replaceAllMatchesInCloud(cleanMatches, currentReferee?.name || 'Turnuva Masası', tournamentId);
   };
 
   const syncWithCloudNow = () => {
@@ -1218,6 +1225,11 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     return { ad: '', yer: '', tarih: '', not: '' };
   });
 
+  const purgeOrphanMatches = async (): Promise<number> => {
+    const activeIds = matches.map(m => m.id).filter(Boolean) as string[];
+    return purgeOrphanMatchesFromCloud(activeIds, tournamentId);
+  };
+
   const saveTournamentInfo = (info: { ad: string; yer: string; tarih: string; not: string }) => {
     setTournamentInfo(info);
     localStorage.setItem('co_tournament_info', JSON.stringify(info));
@@ -1225,7 +1237,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   const bulkApplyCategoryFormats = (formatMap: Record<string, string>) => {
     setCategoryFormats(formatMap);
-    pushCategoryFormatsToCloud(formatMap);
+    pushCategoryFormatsToCloud(formatMap, tournamentId);
     setMatches((prev) => {
       const next = prev.map((m) => {
         if (m.Kategori && formatMap[m.Kategori]) {
@@ -1597,13 +1609,20 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   };
 
   const importMatchesList = (newMatches: MatchItem[]) => {
+    // Yeni maçlar yüklendikten sonra Firestore'daki hayalet dökümanları temizle
+    setTimeout(() => {
+      const newIds = newMatches.map(m => m.id).filter(Boolean) as string[];
+      purgeOrphanMatchesFromCloud(newIds, tournamentId)
+        .then(n => { if (n > 0) console.log('importMatchesList: ' + n + ' hayalet silindi'); })
+        .catch(() => {});
+    }, 2000); // 2sn bekle, Firestore yazımı tamamlansın
     const sanitized = sanitizeMatchList(newMatches);
     setMatches(sanitized);
     localStorage.setItem(STORAGE_KEYS.MATCHES, JSON.stringify(sanitized));
     if (broadcastChannelRef.current) {
       broadcastChannelRef.current.postMessage({ type: 'MATCHES_UPDATED', matches: sanitized });
     }
-    replaceAllMatchesInCloud(sanitized, currentReferee?.name || 'Turnuva Masası');
+    replaceAllMatchesInCloud(sanitized, currentReferee?.name || 'Turnuva Masası', tournamentId);
   };
 
   const resetTournamentToDefault = () => {
@@ -1617,7 +1636,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     if (broadcastChannelRef.current) {
       broadcastChannelRef.current.postMessage({ type: 'MATCHES_UPDATED', matches: sanitized });
     }
-    pushFullTournamentToCloud(sanitized, INITIAL_REFEREES, INITIAL_CATEGORY_FORMAT_MEMORY, deskPin);
+    pushFullTournamentToCloud(sanitized, INITIAL_REFEREES, INITIAL_CATEGORY_FORMAT_MEMORY, deskPin, tournamentId);
   };
 
   const activeMatch = matches.find((m) => m.id === activeMatchId) || matches[0] || null;
@@ -1668,6 +1687,9 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         bulkApplyCategoryFormats,
         tournamentInfo,
         saveTournamentInfo,
+        tournamentId,
+        setTournamentId,
+        purgeOrphanMatches,
         importMatchesList,
         resetTournamentToDefault,
       }}
