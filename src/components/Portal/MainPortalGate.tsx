@@ -8,7 +8,11 @@ import {
   Trophy, Circle,
 } from 'lucide-react';
 
-export const MainPortalGate: React.FC = () => {
+interface MainPortalGateProps {
+  onBackToList?: () => void;
+}
+
+export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) => {
   const {
     referees, matches, loginSupervisorByPin, loginDesk, deskPin,
     cloudSyncStatus, lastCloudSync, pullFromCloudNow, clearLocalCacheAndResetFromCloud, tournamentInfo,
@@ -85,6 +89,9 @@ export const MainPortalGate: React.FC = () => {
               🎾
             </div>
             <span className="font-extrabold text-base tracking-tight text-white hidden sm:block">CourtOnline</span>
+            {onBackToList && (
+              <button onClick={onBackToList} className="text-[10px] text-slate-500 hover:text-slate-300 px-2 py-1 rounded-lg hover:bg-slate-800 transition">← Turnuvalar</button>
+            )}
             <span className="flex items-center gap-1 text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
               <Activity className="w-2.5 h-2.5" /> Canlı
             </span>
