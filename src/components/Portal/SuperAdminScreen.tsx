@@ -103,6 +103,7 @@ export const SuperAdminScreen: React.FC<Props> = ({ onLogout }) => {
  }
  const yeniCfg: SuperAdminConfig = {
  ...config!,
+ deskPin: baskahakemForm.pin, // DOĞRUDAN MASANIN ANA GİRİŞ PIN KODUNA YAZILIYOR
  bashakem_listesi: [
  ...(config?.bashakem_listesi || []),
  { id: `bh_${Date.now()}`, ad: baskahakemForm.ad, pin: baskahakemForm.pin, tournamentId: baskahakemForm.tournamentId }
@@ -151,6 +152,7 @@ export const SuperAdminScreen: React.FC<Props> = ({ onLogout }) => {
 
  const yeniCfg: SuperAdminConfig = {
  ...config!,
+ deskPin: duzenleBaskahakemForm.pin, // GÜNCELLEMEDE DE ANA MASA PIN KODUNA YAZILIYOR
  bashakem_listesi: guncelListe
  };
 
@@ -186,8 +188,8 @@ export const SuperAdminScreen: React.FC<Props> = ({ onLogout }) => {
  </div>
  <div className="flex items-center gap-2">
  {msg && <span className="text-xs font-bold text-emerald-400">{msg}</span>}
- <button onClick={yukle} className="p-2 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800 transition"><RefreshCw className="w-4 h-4" /></button>
- <button onClick={onLogout} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800 text-xs transition">
+ <button onClick={yukle} className="p-2 rounded-lg text-slate-400 hover:text-white dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800 transition"><RefreshCw className="w-4 h-4" /></button>
+ <button onClick={onLogout} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-slate-400 hover:text-white dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800 text-xs transition">
  <LogOut className="w-3.5 h-3.5" />Çıkış
  </button>
  </div>
