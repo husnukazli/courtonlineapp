@@ -212,7 +212,9 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
  : key === 'Baslamadi' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
  : key === 'Bitti' ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
  : 'bg-slate-600 text-white'
- : 'text-slate-500 hover:text-slate-300'}`}>
+ : 'text-slate-500 hover:text-slate-300'
+ }`}
+ >
  {label}
  </button>
  ))}
@@ -385,7 +387,7 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
  </div>
 
  {errorMsg && <div className="p-3 bg-rose-500/15 border border-rose-500/30 rounded-xl text-rose-300 text-xs flex items-center gap-2"><AlertCircle className="w-4 h-4 shrink-0" />{errorMsg}</div>}
- {snapshotMsg => successMsg && <div className="p-3 bg-emerald-500/15 border border-emerald-500/30 rounded-xl text-emerald-300 text-xs flex items-center gap-2"><CheckCircle2 className="w-4 h-4 shrink-0" />{successMsg}</div>}
+ {successMsg && <div className="p-3 bg-emerald-500/15 border border-emerald-500/30 rounded-xl text-emerald-300 text-xs flex items-center gap-2"><CheckCircle2 className="w-4 h-4 shrink-0" />{successMsg}</div>}
 
  <button type="button"
  onClick={() => activeModal === 'supervisor' ? handleSupervisorSubmit() : handleDeskSubmit()}
