@@ -359,7 +359,9 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   }, []);
 
   useEffect(() => {
-    fetchTournamentFromCloud().then((remote) => {
+    if (!tournamentId) return; // turnuva seçilmemişse hiçbir şey yapma
+
+    fetchTournamentFromCloud(tournamentId).then((remote) => {
       if (remote && Array.isArray(remote.matches) && remote.matches.length > 0) {
         const sanitized = sanitizeMatchList(remote.matches);
         setMatches(sanitized);
@@ -441,6 +443,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   }, [deskPin, tournamentId]);
 
   const broadcastAndSyncSingleMatch = (updatedMatch: MatchItem, allMatchesList?: MatchItem[]) => {
+    if (!tournamentId) return; // turnuva seçilmemişse Firestore'a yazma
     const fullList = allMatchesList || matches.map((m) => (m.id === updatedMatch.id ? updatedMatch : m));
     try {
       localStorage.setItem(STORAGE_KEYS.MATCHES, JSON.stringify(fullList));
@@ -477,6 +480,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   };
 
   const broadcastAndSyncMatches = (newMatches: MatchItem[]) => {
+    if (!tournamentId) return; // turnuva seçilmemişse Firestore'a yazma
     try {
       localStorage.setItem(STORAGE_KEYS.MATCHES, JSON.stringify(newMatches));
       if (broadcastChannelRef.current) {
