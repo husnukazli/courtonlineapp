@@ -27,6 +27,8 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
   const [successMsg, setSuccessMsg] = useState('');
   const [portalSyncMsg, setPortalSyncMsg] = useState('');
   const [isSyncing, setIsSyncing] = useState(false);
+  const [filterKort, setFilterKort] = useState('TUMU');
+  const [filterDurum, setFilterDurum] = useState('TUMU');
   const [now, setNow] = useState(Date.now());
 
   // Canlı saat — her 30 saniyede güncelle
@@ -56,6 +58,9 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
     if (ok) { setSuccessMsg('✅ Başhakem masasına giriş yapıldı!'); setTimeout(closeModal, 800); }
     else setErrorMsg('❌ Şifre hatalı.');
   };
+
+  // Kortlar
+  const distinctKortlar = Array.from(new Set(matches.map((m: any) => m.Kort).filter(Boolean))).sort() as string[];
 
   // Maç grupları
   const live    = matches.filter(m => m.Durum === 'Oynaniyor');
@@ -161,6 +166,42 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
           </div>
         </div>
 
+        {/* Filtre çubuğu */}
+        {matches.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 text-[11px]">
+            <span className="text-slate-600 font-bold uppercase tracking-wider">Kort:</span>
+            <button onClick={() => setFilterKort('TUMU')}
+              className={`px-2.5 py-1 rounded-lg font-bold transition ${filterKort === 'TUMU' ? 'bg-slate-600 text-white' : 'text-slate-500 hover:text-slate-300'}`}>
+              Tümü
+            </button>
+            {distinctKortlar.map((k: string) => (
+              <button key={k} onClick={() => setFilterKort(k)}
+                className={`px-2.5 py-1 rounded-lg font-bold transition ${filterKort === k ? 'bg-cyan-500/30 text-cyan-300 border border-cyan-500/40' : 'text-slate-500 hover:text-slate-300'}`}>
+                {k}
+              </button>
+            ))}
+            <span className="w-px h-3 bg-slate-700 mx-1" />
+            <span className="text-slate-600 font-bold uppercase tracking-wider">Durum:</span>
+            {[
+              { key: 'TUMU', label: 'Tümü' },
+              { key: 'Oynaniyor', label: '● Canlı' },
+              { key: 'Baslamadi', label: '◐ Bekliyor' },
+              { key: 'Bitti', label: '✕ Bitti' },
+            ].map(({ key, label }) => (
+              <button key={key} onClick={() => setFilterDurum(key)}
+                className={`px-2.5 py-1 rounded-lg font-bold transition ${
+                  filterDurum === key
+                    ? key === 'Oynaniyor' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                    : key === 'Baslamadi' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                    : key === 'Bitti' ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                    : 'bg-slate-600 text-white'
+                    : 'text-slate-500 hover:text-slate-300'}`}>
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Maç Listesi — Her sütun bir kort */}
         {matches.length === 0 ? (
           <div className="text-center py-20 text-slate-500">
@@ -170,7 +211,9 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
           </div>
         ) : (() => {
           // Tüm kortları sırala
-          const kortlar = Array.from(new Set(matches.map((m: any) => m.Kort).filter(Boolean))).sort() as string[];
+          const kortlar = (filterKort === 'TUMU'
+            ? Array.from(new Set(matches.map((m: any) => m.Kort).filter(Boolean))).sort()
+            : [filterKort]) as string[];
 
           // Maç kartı bileşeni (inline)
           const MacKarti = ({ m }: { m: any }) => {
@@ -232,6 +275,13 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
                 {kortlar.map((kort: string) => {
                   const kortMaclari = matches
                     .filter((m: any) => m.Kort === kort)
+                    .filter((m: any) => {
+                      if (filterDurum === 'TUMU') return true;
+                      if (filterDurum === 'Oynaniyor') return m.Durum === 'Oynaniyor';
+                      if (filterDurum === 'Baslamadi') return m.Durum === 'Baslamadi';
+                      if (filterDurum === 'Bitti') return m.Durum === 'Bitti' || m.Durum === 'Retired' || m.Durum === 'Walkover';
+                      return true;
+                    })
                     .sort((a: any, b: any) => (a.Saat || '99:99').localeCompare(b.Saat || '99:99'));
                   return (
                     <div key={kort} className="w-52 sm:w-60 flex-shrink-0 space-y-2">
