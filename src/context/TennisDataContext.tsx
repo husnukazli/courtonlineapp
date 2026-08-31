@@ -244,22 +244,8 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
  pushDeskPinToCloud(newPin.trim());
  };
 
- const [tournamentId, setTournamentIdState] = useState<string>('main');
+ const [tournamentId, setTournamentId] = useState<string>('main');
  const [matches, setMatches] = useState<MatchItem[]>([]);
-
- // ────────────────────────────────────────────────────────────────────────
- // GÜVENLİ TURNUVA DEĞİŞİM TETİKLEYİCİSİ: Sonsuz döngüyü keser, tek sefer çalışır
- // ────────────────────────────────────────────────────────────────────────
- const setTournamentId = (id: string) => {
- if (id && id !== tournamentId) {
- setMatches([]);
- setReferees(INITIAL_REFEREES);
- setCategoryFormats(INITIAL_CATEGORY_FORMAT_MEMORY);
- setDeskPin('2026');
- sessionStorage.removeItem(STORAGE_KEYS.AUTH_ROLE);
- }
- setTournamentIdState(id);
- };
 
  const [referees, setReferees] = useState<RefereeUser[]>(() => {
  const saved = localStorage.getItem(STORAGE_KEYS.REFEREES);
@@ -302,9 +288,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
  });
 
  useEffect(() => {
- if (matches && matches.length > 0) {
  localStorage.setItem(STORAGE_KEYS.MATCHES, JSON.stringify(matches));
- }
  }, [matches]);
 
  useEffect(() => {
@@ -544,6 +528,9 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
  }
  };
 
+ // ────────────────────────────────────────────────────────────────────────
+ // TEMİZ SIFIRLAMA METODU: Orijinal bulut verilerini ezmeden önbelleği tazeler
+ // ────────────────────────────────────────────────────────────────────────
  const clearLocalCacheAndResetFromCloud = async (): Promise<boolean> => {
  setCloudSyncStatus('syncing');
  try {
@@ -551,7 +538,6 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
  localStorage.removeItem(STORAGE_KEYS.REFEREES);
  localStorage.removeItem(STORAGE_KEYS.CATEGORY_FORMATS);
  localStorage.removeItem(STORAGE_KEYS.DESK_PIN);
- localStorage.removeItem(STORAGE_KEYS.ACTIVE_MATCH_ID);
 
  const remote = await fetchTournamentFromCloud(tournamentId);
  if (remote) {
@@ -559,15 +545,11 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
  const sanitized = sanitizeMatchList(remote.matches);
  setMatches(sanitized);
  localStorage.setItem(STORAGE_KEYS.MATCHES, JSON.stringify(sanitized));
- } else {
- setMatches([]);
  }
- 
  if (remote.referees && remote.referees.length > 0) {
  setReferees(remote.referees);
  localStorage.setItem(STORAGE_KEYS.REFEREES, JSON.stringify(remote.referees));
  }
-
  if (remote.deskPin) {
  setDeskPin(remote.deskPin);
  localStorage.setItem(STORAGE_KEYS.DESK_PIN, remote.deskPin);
@@ -576,6 +558,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
  setCloudSyncStatus('connected');
  return true;
  } catch (err) {
+ console.error('Clear cache error:', err);
  setCloudSyncStatus('offline');
  return false;
  }
@@ -621,6 +604,9 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
  });
  setMatches(cleanMatches);
  localStorage.setItem(STORAGE_KEYS.MATCHES, JSON.stringify(cleanMatches));
+ if (broadcastChannelRef.current) {
+ broadcastChannelRef.current.postMessage({ type: 'MATCHES_UPDATED', matches: cleanMatches });
+ }
  replaceAllMatchesInCloud(cleanMatches, currentReferee?.name || 'Turnuva Masası', tournamentId);
  };
 
@@ -638,7 +624,9 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
  return false;
  };
 
- const loginRefereeDirect = (name?: string) => {};
+ const loginRefereeDirect = (name?: string) => {
+ console.warn('Şifresiz giriş güvenlik nedeniyle tamamen kapatılmıştır.');
+ };
 
  const loginSupervisorByPin = (pin: string, name?: string): boolean => {
  const cleanPin = pin.trim();
@@ -911,7 +899,9 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
  const sanitized = sanitizeMatchList(localizedMatches);
  setMatches(sanitized);
  localStorage.setItem(STORAGE_KEYS.MATCHES, JSON.stringify(sanitized));
- 
+ if (broadcastChannelRef.current) {
+ broadcastChannelRef.current.postMessage({ type: 'MATCHES_UPDATED', matches: sanitized });
+ }
  setCloudSyncStatus('syncing');
  replaceAllMatchesInCloud(sanitized, currentReferee?.name || 'Turnuva Masası', tournamentId)
  .then(() => {
@@ -937,7 +927,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
  if (player === 1) stateCopy.p1ChallengesLeft = Math.max(0, (stateCopy.p1ChallengesLeft ?? 3) - 1);
  else stateCopy.p2ChallengesLeft = Math.max(0, (stateCopy.p2ChallengesLeft ?? 3) - 1);
  }
- const record: ChallengeRecord = {
+ const record = {
  id: 'ch-' + Date.now(),
  timestamp: new Date().toLocaleTimeString('tr-TR'),
  player,
