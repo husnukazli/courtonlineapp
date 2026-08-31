@@ -168,7 +168,6 @@ interface TennisDataContextType {
  endTime?: string
  ) => void;
  resumeMatchToLive: (matchId: string) => void;
- resumeMatchToLive: (matchId: string) => void;
  resetMatchScore: (matchId: string) => void;
  manualUpdateScoreString: (
  matchId: string,
@@ -245,8 +244,22 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
  pushDeskPinToCloud(newPin.trim());
  };
 
- const [tournamentId, setTournamentId] = useState<string>('main');
+ const [tournamentId, setTournamentIdState] = useState<string>('main');
  const [matches, setMatches] = useState<MatchItem[]>([]);
+
+ // ────────────────────────────────────────────────────────────────────────
+ // GÜVENLİ TURNUVA DEĞİŞİM TETİKLEYİCİSİ: Sonsuz döngüyü keser, tek sefer çalışır
+ // ────────────────────────────────────────────────────────────────────────
+ const setTournamentId = (id: string) => {
+ if (id && id !== tournamentId) {
+ setMatches([]);
+ setReferees(INITIAL_REFEREES);
+ setCategoryFormats(INITIAL_CATEGORY_FORMAT_MEMORY);
+ setDeskPin('2026');
+ sessionStorage.removeItem(STORAGE_KEYS.AUTH_ROLE);
+ }
+ setTournamentIdState(id);
+ };
 
  const [referees, setReferees] = useState<RefereeUser[]>(() => {
  const saved = localStorage.getItem(STORAGE_KEYS.REFEREES);
@@ -289,7 +302,9 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
  });
 
  useEffect(() => {
+ if (matches && matches.length > 0) {
  localStorage.setItem(STORAGE_KEYS.MATCHES, JSON.stringify(matches));
+ }
  }, [matches]);
 
  useEffect(() => {
@@ -357,11 +372,6 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
  useEffect(() => {
  if (!tournamentId) return;
-
- setMatches([]);
- setReferees(INITIAL_REFEREES);
- setCategoryFormats(INITIAL_CATEGORY_FORMAT_MEMORY);
- setDeskPin('2026');
 
  fetchTournamentFromCloud(tournamentId).then((remote) => {
  if (remote) {
@@ -473,13 +483,6 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
  .catch((err) => {
  console.warn('Sync match note:', err);
  setCloudSyncStatus('connected');
- setLastCloudSync(
- new Date().toLocaleTimeString('tr-TR', {
- hour: '2-digit',
- minute: '2-digit',
- second: '2-digit',
- })
- );
  });
  };
 
@@ -508,13 +511,6 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
  })
  .catch(() => {
  setCloudSyncStatus('connected');
- setLastCloudSync(
- new Date().toLocaleTimeString('tr-TR', {
- hour: '2-digit',
- minute: '2-digit',
- second: '2-digit',
- })
- );
  });
  };
 
@@ -539,40 +535,24 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
  localStorage.setItem(STORAGE_KEYS.DESK_PIN, remote.deskPin);
  }
  setCloudSyncStatus('connected');
- setLastCloudSync(
- new Date().toLocaleTimeString('tr-TR', {
- hour: '2-digit',
- minute: '2-digit',
- second: '2-digit',
- })
- );
- return true;
- } else {
- console.warn('Bulut verisi okunamadı veya boş. Verilerin ezilmemesi için hiçbir işlem yapılmadı.');
- setCloudSyncStatus('connected');
  return true;
  }
+ return false;
  } catch (err) {
- console.warn('Pull from cloud failed:', err);
  setCloudSyncStatus('offline');
  return false;
  }
  };
 
- // ────────────────────────────────────────────────────────────────────────
- // KRİTİK GÜVENLİK FIX: Önbelleği Sıfırlarken Bulut Verilerini Silme, Aktif Turnuvayı Çek
- // ────────────────────────────────────────────────────────────────────────
  const clearLocalCacheAndResetFromCloud = async (): Promise<boolean> => {
  setCloudSyncStatus('syncing');
  try {
- // 1. Aşama: Sadece cihazın yerel kırıntılarını temizle
  localStorage.removeItem(STORAGE_KEYS.MATCHES);
  localStorage.removeItem(STORAGE_KEYS.REFEREES);
  localStorage.removeItem(STORAGE_KEYS.CATEGORY_FORMATS);
  localStorage.removeItem(STORAGE_KEYS.DESK_PIN);
  localStorage.removeItem(STORAGE_KEYS.ACTIVE_MATCH_ID);
 
- // 2. Aşama: Aktif turnuva id parametresini zorlayarak uzak sunucudan güncel veriyi talep et
  const remote = await fetchTournamentFromCloud(tournamentId);
  if (remote) {
  if (Array.isArray(remote.matches) && remote.matches.length > 0) {
@@ -586,43 +566,16 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
  if (remote.referees && remote.referees.length > 0) {
  setReferees(remote.referees);
  localStorage.setItem(STORAGE_KEYS.REFEREES, JSON.stringify(remote.referees));
- } else {
- setReferees(INITIAL_REFEREES);
- }
-
- if (remote.categoryFormats && Object.keys(remote.categoryFormats).length > 0) {
- setCategoryFormats(remote.categoryFormats);
- localStorage.setItem(STORAGE_KEYS.CATEGORY_FORMATS, JSON.stringify(remote.categoryFormats));
- } else {
- setCategoryFormats(INITIAL_CATEGORY_FORMAT_MEMORY);
  }
 
  if (remote.deskPin) {
  setDeskPin(remote.deskPin);
  localStorage.setItem(STORAGE_KEYS.DESK_PIN, remote.deskPin);
- } else {
- setDeskPin('2026');
  }
- } else {
- // Bulutta hiçbir veri yoksa güvenli fabrika moduna geç
- const initialSanitized = sanitizeMatchList(INITIAL_MATCHES);
- setMatches(initialSanitized);
- setReferees(INITIAL_REFEREES);
- setCategoryFormats(INITIAL_CATEGORY_FORMAT_MEMORY);
- setDeskPin('2026');
  }
-
  setCloudSyncStatus('connected');
- setLastCloudSync(
- new Date().toLocaleTimeString('tr-TR', {
- hour: '2-digit',
- minute: '2-digit',
- second: '2-digit',
- })
- );
  return true;
  } catch (err) {
- console.error('Clear cache & reset from cloud error:', err);
  setCloudSyncStatus('offline');
  return false;
  }
@@ -636,13 +589,6 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
  await pushCategoryFormatsToCloud(categoryFormats);
  await pushDeskPinToCloud(deskPin);
  setCloudSyncStatus('connected');
- setLastCloudSync(
- new Date().toLocaleTimeString('tr-TR', {
- hour: '2-digit',
- minute: '2-digit',
- second: '2-digit',
- })
- );
  } catch (err) {
  setCloudSyncStatus('offline');
  throw err;
@@ -675,9 +621,6 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
  });
  setMatches(cleanMatches);
  localStorage.setItem(STORAGE_KEYS.MATCHES, JSON.stringify(cleanMatches));
- if (broadcastChannelRef.current) {
- broadcastChannelRef.current.postMessage({ type: 'MATCHES_UPDATED', matches: cleanMatches });
- }
  replaceAllMatchesInCloud(cleanMatches, currentReferee?.name || 'Turnuva Masası', tournamentId);
  };
 
@@ -695,9 +638,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
  return false;
  };
 
- const loginRefereeDirect = (name?: string) => {
- console.warn('Şifresiz giriş güvenlik nedeniyle tamamen kapatılmıştır.');
- };
+ const loginRefereeDirect = (name?: string) => {};
 
  const loginSupervisorByPin = (pin: string, name?: string): boolean => {
  const cleanPin = pin.trim();
@@ -960,6 +901,25 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
  });
  };
 
+ const importMatchesList = (newMatches: MatchItem[]) => {
+ if (!tournamentId) return;
+ const localizedMatches = newMatches.map(m => ({
+ ...m,
+ tournamentId: tournamentId,
+ Son_Guncelleme: new Date().toISOString()
+ }));
+ const sanitized = sanitizeMatchList(localizedMatches);
+ setMatches(sanitized);
+ localStorage.setItem(STORAGE_KEYS.MATCHES, JSON.stringify(sanitized));
+ 
+ setCloudSyncStatus('syncing');
+ replaceAllMatchesInCloud(sanitized, currentReferee?.name || 'Turnuva Masası', tournamentId)
+ .then(() => {
+ setCloudSyncStatus('connected');
+ })
+ .catch(e => console.error("JSON cloud import error:", e));
+ };
+
  const recordChallenge = (
  matchId: string,
  player: 1 | 2,
@@ -1095,28 +1055,6 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
  const [tournamentInfoState, setTournamentInfoState] = useState({ ad: '', yer: '', tarih: '', not: '' });
  const saveTournamentInfo = (info: { ad: string; yer: string; tarih: string; not: string }) => {
  setTournamentInfoState(info);
- };
-
- const importMatchesList = (newMatches: MatchItem[]) => {
- if (!tournamentId) return;
- const localizedMatches = newMatches.map(m => ({
- ...m,
- tournamentId: tournamentId,
- Son_Guncelleme: new Date().toISOString()
- }));
- const sanitized = sanitizeMatchList(localizedMatches);
- setMatches(sanitized);
- localStorage.setItem(STORAGE_KEYS.MATCHES, JSON.stringify(sanitized));
- if (broadcastChannelRef.current) {
- broadcastChannelRef.current.postMessage({ type: 'MATCHES_UPDATED', matches: sanitized });
- }
- setCloudSyncStatus('syncing');
- replaceAllMatchesInCloud(sanitized, currentReferee?.name || 'Turnuva Masası', tournamentId)
- .then(() => {
- setCloudSyncStatus('connected');
- setLastCloudSync(new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
- })
- .catch(e => console.error("JSON cloud import error:", e));
  };
 
  const updateGameScore = (matchId: string, setIndex: 1 | 2 | 3, player: 1 | 2, delta: number) => {};
