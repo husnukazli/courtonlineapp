@@ -208,7 +208,7 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
  <button key={key} onClick={() => setFilterDurum(key)}
  className={`px-2.5 py-1 rounded-lg font-bold transition ${
  filterDurum === key
- ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+ ? key === 'Oynaniyor' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
  : key === 'Baslamadi' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
  : key === 'Bitti' ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
  : 'bg-slate-600 text-white'
