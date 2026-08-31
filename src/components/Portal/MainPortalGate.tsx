@@ -8,7 +8,7 @@ import {
  Trophy, Circle,
 } from 'lucide-react';
 import { doc, getDoc } from 'firebase/firestore';
-import { db } from '../../utils/firebaseConfig'; // Firebase bağlantınız
+import { db } from '../../utils/firebase';
 
 interface MainPortalGateProps {
  onBackToList?: () => void;
@@ -53,9 +53,6 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
  else setErrorMsg('❌ PIN hatalı. Lütfen tekrar deneyin.');
  };
 
- // ────────────────────────────────────────────────────────────────────────
- // BASİT VE YENİ DOĞRULAMA MANTIĞI: Hafıza kilitlerini kır ve Buluttan canlı oku
- // ────────────────────────────────────────────────────────────────────────
  const handleDeskSubmit = async () => {
  if (!pin) { setErrorMsg('Şifre boş olamaz.'); return; }
  
@@ -63,15 +60,13 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
  setErrorMsg('');
  setSuccessMsg('Doğrulanıyor...');
 
- // 1. Aşama: Cihazda birikmiş tüm eski kilitli local hafıza kalıntılarını temizle
  localStorage.removeItem('courtonline_desk_pin_v2');
  localStorage.removeItem('courtonline_auth_role_v2');
 
- // 2. Aşama: Doğrudan buluttaki (Firestore) aktif turnuva dokümanına anlık bypass sorgusu at
  const tournamentRef = doc(db, 'tournaments', tournamentId);
  const snapshot = await getDoc(tournamentRef);
  
- let validMasterPin = '2026'; // Sistem varsayılanı
+ let validMasterPin = '2026';
 
  if (snapshot.exists()) {
  const data = snapshot.data();
@@ -80,15 +75,13 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
  }
  }
 
- // 3. Aşama: Buluttan gelen taze veriyle kullanıcının girdiği şifreyi canlı kıyasla
  if (pin.trim() === validMasterPin || pin.trim() === '1923') {
- // Doğrulama başarılı ise rolleri temiz bir şekilde yeniden set et
  localStorage.setItem('courtonline_desk_pin_v2', validMasterPin);
  setAuthRole('desk');
  setSuccessMsg('✅ Başhakem masasına giriş yapıldı!'); 
  setTimeout(() => {
  closeModal();
- window.location.reload(); // Eski state zincirlerini kırmak için sayfayı taze bir hafızayla yenile
+ window.location.reload();
  }, 600);
  } else {
  setSuccessMsg('');
@@ -215,7 +208,7 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
  <button key={key} onClick={() => setFilterDurum(key)}
  className={`px-2.5 py-1 rounded-lg font-bold transition ${
  filterDurum === key
- ? key === 'Oynaniyor' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+ ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
  : key === 'Baslamadi' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
  : key === 'Bitti' ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
  : 'bg-slate-600 text-white'
@@ -340,7 +333,6 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
  )}
  </main>
 
- {/* PIN MODAL */}
  {activeModal && (
  <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md animate-in fade-in duration-150 overflow-y-auto">
  <div className="bg-slate-900 border-2 border-slate-700/80 rounded-3xl p-5 sm:p-7 w-full max-w-md shadow-2xl space-y-4 my-auto">
@@ -393,7 +385,7 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
  </div>
 
  {errorMsg && <div className="p-3 bg-rose-500/15 border border-rose-500/30 rounded-xl text-rose-300 text-xs flex items-center gap-2"><AlertCircle className="w-4 h-4 shrink-0" />{errorMsg}</div>}
- {successMsg && <div className="p-3 bg-emerald-500/15 border border-emerald-500/30 rounded-xl text-emerald-300 text-xs flex items-center gap-2"><CheckCircle2 className="w-4 h-4 shrink-0" />{successMsg}</div>}
+ {snapshotMsg => successMsg && <div className="p-3 bg-emerald-500/15 border border-emerald-500/30 rounded-xl text-emerald-300 text-xs flex items-center gap-2"><CheckCircle2 className="w-4 h-4 shrink-0" />{successMsg}</div>}
 
  <button type="button"
  onClick={() => activeModal === 'supervisor' ? handleSupervisorSubmit() : handleDeskSubmit()}
