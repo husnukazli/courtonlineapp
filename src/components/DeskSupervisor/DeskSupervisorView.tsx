@@ -64,7 +64,7 @@ export const DeskSupervisorView: React.FC = () => {
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
   
-  // YENİ ZOOM LİMİTİ: %40 ile %150 arası
+  // YENİ ZOOM LİMİTİ: %40 ile %10 arası
   const [zoomLevel, setZoomLevel] = useState<number>(100);
   const [selectedMatchForModal, setSelectedMatchForModal] = useState<MatchItem | null>(null);
 
@@ -146,11 +146,11 @@ export const DeskSupervisorView: React.FC = () => {
 
   return (
     <div className="max-w-7xl mx-auto space-y-6 overflow-hidden">
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-4 sm:p-5 shadow-xl space-y-4">
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-4 sm:p- shadow-xl space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-800">
-          <div className="flex flex-wrap items-center gap-1.5 bg-slate-950 p-1 rounded-2xl border border-slate-800">
-            <button type="button" onClick={() => setActiveSubTab('grid')} className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition ${activeSubTab === 'grid' ? 'bg-cyan-400 text-slate-950 shadow-md font-black' : 'text-slate-400 hover:text-slate-200'}`}>
-              <Tv className="w-3.5 h-3.5" /><span>Canlı Kortlar Akışı</span>
+          <div className="flex flex-wrap items-center gap-1. bg-slate-90 p-1 rounded-2xl border border-slate-800">
+            <button type="button" onClick={() => setActiveSubTab('grid')} className={`flex items-center gap-2 px-3. py-2 rounded-xl text-xs font-bold transition ${activeSubTab === 'grid' ? 'bg-cyan-400 text-slate-90 shadow-md font-black' : 'text-slate-400 hover:text-slate-200'}`}>
+              <Tv className="w-3. h-3." /><span>Canlı Kortlar Akışı</span>
             </button>
             <button type="button" onClick={() => setActiveSubTab('stats')} className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition ${activeSubTab === 'stats' ? 'bg-cyan-400 text-slate-950 shadow-md font-black' : 'text-slate-400 hover:text-slate-200'}`}>
               <Award className="w-3.5 h-3.5" /><span>Turnuva İstatistikleri</span>
@@ -202,7 +202,7 @@ export const DeskSupervisorView: React.FC = () => {
             {/* YENİ: GENİŞLETİLMİŞ ZOOM ÇUBUĞU */}
             <div className="flex items-center gap-2 text-xs text-slate-400 bg-slate-950 p-2 rounded-xl border border-slate-800">
               <ZoomOut className="w-4 h-4 text-cyan-400" />
-              <input type="range" min="40" max="150" step="5" value={zoomLevel} onChange={(e) => setZoomLevel(Number(e.target.value))} className="w-24 sm:w-32 accent-cyan-400 cursor-pointer" />
+              <input type="range" min="40" max="150" step="1" value={zoomLevel} onChange={(e) => setZoomLevel(Number(e.target.value))} className="w-24 sm:w-32 accent-cyan-400 cursor-pointer" />
               <ZoomIn className="w-4 h-4 text-cyan-400" />
               <span className="font-mono text-[12px] w-10 text-right font-black text-cyan-400">%{zoomLevel}</span>
             </div>
