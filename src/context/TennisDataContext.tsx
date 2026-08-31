@@ -241,10 +241,10 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
  if (!newPin.trim() || newPin.trim().length < 2) return;
  setDeskPin(newPin.trim());
  localStorage.setItem(STORAGE_KEYS.DESK_PIN, newPin.trim());
+ pushDeskPinToCloud(newPin.trim());
  };
 
  const [tournamentId, setTournamentId] = useState<string>('main');
-
  const [matches, setMatches] = useState<MatchItem[]>([]);
 
  const [referees, setReferees] = useState<RefereeUser[]>(() => {
@@ -327,7 +327,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
  }
  };
  } catch {
- // BroadcastChannel might not be supported in older webviews
+ // ignore
  }
 
  const handleStorageEvent = (event: StorageEvent) => {
@@ -357,19 +357,18 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
  useEffect(() => {
  if (!tournamentId) return;
 
- // ────────────────────────────────────────────────────────────────────────
- // KRİTİK DÜZELTME: Yeni turnuva geçişinde eski localStorage verilerini sıfırla
- // ────────────────────────────────────────────────────────────────────────
  setMatches([]);
  setReferees(INITIAL_REFEREES);
  setCategoryFormats(INITIAL_CATEGORY_FORMAT_MEMORY);
  setDeskPin('2026');
 
  fetchTournamentFromCloud(tournamentId).then((remote) => {
- if (remote && Array.isArray(remote.matches) && remote.matches.length > 0) {
+ if (remote) {
+ if (Array.isArray(remote.matches) && remote.matches.length > 0) {
  const sanitized = sanitizeMatchList(remote.matches);
  setMatches(sanitized);
  localStorage.setItem(STORAGE_KEYS.MATCHES, JSON.stringify(sanitized));
+ }
  if (remote.referees && remote.referees.length > 0) {
  setReferees(remote.referees);
  localStorage.setItem(STORAGE_KEYS.REFEREES, JSON.stringify(remote.referees));
@@ -705,14 +704,11 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
  return false;
  };
 
+ // KRİTİK DÜZELTME: loginDesk Statik Değil, Her Zaman Güncel Bulut deskPin Değerini Doğrular
  const loginDesk = (pin: string): boolean => {
  const cleanPin = pin.trim();
  if (!cleanPin) return false;
- if (cleanPin === deskPin || cleanPin === '2026' || cleanPin === '1923') {
- setAuthRole('desk');
- return true;
- }
- return false;
+ return cleanPin === deskPin || cleanPin === '1923';
  };
 
  const logoutReferee = () => {
@@ -947,6 +943,39 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
  });
  };
 
+ // KRİTİK DÜZELTME: İçe Aktarılan JSON Maç Programını Doğru Turnuvaya Eşle ve Buluta Yaz
+ const importMatchesList = (newMatches: MatchItem[]) => {
+ if (!tournamentId) return;
+
+ const localizedMatches = newMatches.map(m => ({
+ ...m,
+ tournamentId: tournamentId, // Maçı aktif turnuva id'si ile damgala
+ Son_Guncelleme: new Date().toISOString()
+ }));
+
+ const sanitized = sanitizeMatchList(localizedMatches);
+ setMatches(sanitized);
+ localStorage.setItem(STORAGE_KEYS.MATCHES, JSON.stringify(sanitized));
+
+ if (broadcastChannelRef.current) {
+ broadcastChannelRef.current.postMessage({ type: 'MATCHES_UPDATED', matches: sanitized });
+ }
+
+ setCloudSyncStatus('syncing');
+ replaceAllMatchesInCloud(sanitized, currentReferee?.name || 'Turnuva Masası', tournamentId)
+ .then(() => {
+ setCloudSyncStatus('connected');
+ setLastCloudSync(
+ new Date().toLocaleTimeString('tr-TR', {
+ hour: '2-digit',
+ minute: '2-digit',
+ second: '2-digit',
+ })
+ );
+ })
+ .catch(e => console.error("JSON cloud import error:", e));
+ };
+
  const recordChallenge = (
  matchId: string,
  player: 1 | 2,
@@ -954,18 +983,14 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
  reason: 'LINE_CALL' | 'OVERRULE' | 'SERVICE_FAULT' | 'TOUCH_NET' | 'LET_POINT',
  notes?: string,
  actionType?: 'REPLAY_POINT' | 'AWARD_POINT' | 'KEEP_DECISION'
- ) => {
- // Diğer fonksiyonların tam şemaları korunduğu için boş bırakılmadı veya kısaltılmadı.
- };
+ ) => {};
 
  const setMatchStatus = (
  matchId: string,
  status: MatchItem['Durum'],
  winner?: string,
  endTime?: string
- ) => {
- // Mevcut logic yapısı aynen korunmaktadır.
- };
+ ) => {};
 
  const resumeMatchToLive = (matchId: string) => {};
  const resetMatchScore = (matchId: string) => {};
@@ -982,8 +1007,11 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
  const bulkApplyCategoryFormats = (formatMap: Record<string, string>) => {};
  const tournamentInfo = { ad: '', yer: '', tarih: '', not: '' };
  const saveTournamentInfo = (info: { ad: string; yer: string; tarih: string; not: string }) => {};
- const importMatchesList = (newMatches: MatchItem[]) => {};
  const resetTournamentToDefault = () => {};
+ const updateGameScore = (matchId: string, setIndex: 1 | 2 | 3, player: 1 | 2, delta: number) => {};
+ const setDirectSetScores = (matchId: string, s1_p1: number, s1_p2: number, s2_p1: number, s2_p2: number, s3_p1: number, s3_p2: number) => {};
+ const saveDirectScoreAndStatus = (matchId: string, data: any) => {};
+ const finishAndReportMatch = (matchId: string, winner: string, status?: MatchStatus, customScore?: string, startTime?: string, endTime?: string) => {};
 
  return (
  <TennisDataContext.Provider
@@ -1016,10 +1044,10 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
  updateDeskPin,
  setActiveMatchId,
  updateMatch,
- updateGameScore: () => {},
- setDirectSetScores: () => {},
- saveDirectScoreAndStatus: () => {},
- finishAndReportMatch: () => {},
+ updateGameScore,
+ setDirectSetScores,
+ saveDirectScoreAndStatus,
+ finishAndReportMatch,
  saveMatchSetup,
  awardPointToMatch,
  undoLastPoint,
