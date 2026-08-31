@@ -6,6 +6,8 @@ import {
  fetchTournamentList, createTournament, deleteTournamentFromCloud,
  fetchSuperAdminConfig, saveSuperAdminConfig, TournamentListItem, SuperAdminConfig
 } from '../../utils/firebaseSync';
+import { doc, updateDoc } from 'firebase/firestore';
+import { db } from '../../utils/firebase';
 
 interface Props {
  onLogout: () => void;
@@ -97,25 +99,38 @@ export const SuperAdminScreen: React.FC<Props> = ({ onLogout }) => {
  } else flash('❌ Güncellenemedi.');
  };
 
+ // ────────────────────────────────────────────────────────────────────────
+ // TETİKLEYİCİ GÜNCELLEME: Başhakem eklendiğinde doğrudan turnuva deskPin alanına yazılır
+ // ────────────────────────────────────────────────────────────────────────
  const handleBaskahakemEkle = async () => {
  if (!baskahakemForm.ad.trim() || !baskahakemForm.pin.trim() || !baskahakemForm.tournamentId) {
  flash('❌ Tüm alanları doldurun.'); return;
  }
+ 
+ try {
+ // 1. Adım: Süper Admin listesini kaydet
  const yeniCfg: SuperAdminConfig = {
  ...config!,
- deskPin: baskahakemForm.pin, // DOĞRUDAN MASANIN ANA GİRİŞ PIN KODUNA YAZILIYOR
  bashakem_listesi: [
  ...(config?.bashakem_listesi || []),
  { id: `bh_${Date.now()}`, ad: baskahakemForm.ad, pin: baskahakemForm.pin, tournamentId: baskahakemForm.tournamentId }
  ]
  };
- const ok = await saveSuperAdminConfig(yeniCfg);
- if (ok) {
+ await saveSuperAdminConfig(yeniCfg);
+
+ // 2. Adım: Atanan turnuva dokümanının deskPin alanını doğrudan güncelle
+ const tournamentDocRef = doc(db, 'tournaments', baskahakemForm.tournamentId);
+ await updateDoc(tournamentDocRef, {
+ deskPin: baskahakemForm.pin.trim()
+ });
+
  setConfig(yeniCfg);
  setBaskahakemForm({ ad: '', pin: '', tournamentId: '' });
  setBaskahakemGosteriliyor(false);
- flash('✅ Başhakem eklendi.');
- } else flash('❌ Kaydedilemedi.');
+ flash('✅ Başhakem eklendi ve turnuva şifresi aktif edildi.');
+ } catch (err: any) {
+ flash('❌ Kaydedilemedi: ' + err.message);
+ }
  };
 
  const handleBaskahakemSil = async (id: string) => {
@@ -137,12 +152,16 @@ export const SuperAdminScreen: React.FC<Props> = ({ onLogout }) => {
  });
  };
 
+ // ────────────────────────────────────────────────────────────────────────
+ // TETİKLEYİCİ GÜNCELLEME: Şifre düzenlendiğinde turnuva deskPin alanı güncellenir
+ // ────────────────────────────────────────────────────────────────────────
  const handleBaskahakemGuncelle = async () => {
  if (!duzenlenenBaskahakemId) return;
  if (!duzenleBaskahakemForm.ad.trim() || !duzenleBaskahakemForm.pin.trim() || !duzenleBaskahakemForm.tournamentId) {
  flash('❌ Tüm alanları doldurun.'); return;
  }
 
+ try {
  const guncelListe = (config?.bashakem_listesi || []).map(bh => {
  if (bh.id === duzenlenenBaskahakemId) {
  return { id: duzenlenenBaskahakemId, ad: duzenleBaskahakemForm.ad, pin: duzenleBaskahakemForm.pin, tournamentId: duzenleBaskahakemForm.tournamentId };
@@ -152,16 +171,23 @@ export const SuperAdminScreen: React.FC<Props> = ({ onLogout }) => {
 
  const yeniCfg: SuperAdminConfig = {
  ...config!,
- deskPin: duzenleBaskahakemForm.pin, // GÜNCELLEMEDE DE ANA MASA PIN KODUNA YAZILIYOR
  bashakem_listesi: guncelListe
  };
 
- const ok = await saveSuperAdminConfig(yeniCfg);
- if (ok) {
+ await saveSuperAdminConfig(yeniCfg);
+
+ // İlgili turnuvanın şifre kapısını bulutta güncelle
+ const tournamentDocRef = doc(db, 'tournaments', duzenleBaskahakemForm.tournamentId);
+ await updateDoc(tournamentDocRef, {
+ deskPin: duzenleBaskahakemForm.pin.trim()
+ });
+
  setConfig(yeniCfg);
  setDuzenlenenBaskahakemId(null);
- flash('✅ Başhakem bilgileri güncellendi.');
- } else flash('❌ Güncellenemedi.');
+ flash('✅ Başhakem bilgileri ve turnuva şifresi güncellendi.');
+ } catch (err: any) {
+ flash('❌ Güncellenemedi: ' + err.message);
+ }
  };
 
  const handleSuperSifreGuncelle = async () => {
@@ -190,7 +216,7 @@ export const SuperAdminScreen: React.FC<Props> = ({ onLogout }) => {
  {msg && <span className="text-xs font-bold text-emerald-400">{msg}</span>}
  <button onClick={yukle} className="p-2 rounded-lg text-slate-400 hover:text-white dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800 transition"><RefreshCw className="w-4 h-4" /></button>
  <button onClick={onLogout} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-slate-400 hover:text-white dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800 text-xs transition">
- <LogOut className="w-3.5 h-3.5" />Çıkış
+ <LogOut className="w-3.5 h-3.5" />Çış
  </button>
  </div>
  </div>
