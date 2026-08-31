@@ -203,17 +203,16 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
  return localStorage.getItem('courtonline_current_tournament_id') || 'main';
  });
 
- // ────────────────────────────────────────────────────────────────────────
- // DİNAMİK HAFIZA ANAHTARLARI: Klon turnuvaların verilerini tarayıcıda izole eder
- // ────────────────────────────────────────────────────────────────────────
- const getStorageKey = (baseKey: string) => `${baseKey}_${tournamentId}`;
+ const getStorageKey = (baseKey: string) => `${baseKey}_${tournamentId || 'main'}`;
 
  const [deskPin, setDeskPin] = useState<string>(() => {
- return localStorage.getItem(`courtonline_desk_pin_v2_${localStorage.getItem('courtonline_current_tournament_id') || 'main'}`) || '2026';
+ const currentTId = localStorage.getItem('courtonline_current_tournament_id') || 'main';
+ return localStorage.getItem(`courtonline_desk_pin_v2_${currentTId}`) || '2026';
  });
 
  const [authRole, setAuthRoleState] = useState<'none' | 'supervisor' | 'desk'>(() => {
- const savedRole = sessionStorage.getItem(`courtonline_auth_role_v2_${localStorage.getItem('courtonline_current_tournament_id') || 'main'}`);
+ const currentTId = localStorage.getItem('courtonline_current_tournament_id') || 'main';
+ const savedRole = sessionStorage.getItem(`courtonline_auth_role_v2_${currentTId}`);
  if (savedRole === 'supervisor' || savedRole === 'desk') {
  return savedRole as 'supervisor' | 'desk';
  }
@@ -256,7 +255,8 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
  const [matches, setMatches] = useState<MatchItem[]>([]);
 
  const [referees, setReferees] = useState<RefereeUser[]>(() => {
- const saved = localStorage.getItem(`courtonline_referees_v2_${localStorage.getItem('courtonline_current_tournament_id') || 'main'}`);
+ const currentTId = localStorage.getItem('courtonline_current_tournament_id') || 'main';
+ const saved = localStorage.getItem(`courtonline_referees_v2_${currentTId}`);
  if (saved) {
  try {
  return JSON.parse(saved);
@@ -268,7 +268,8 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
  });
 
  const [currentReferee, setCurrentReferee] = useState<RefereeUser | null>(() => {
- const saved = sessionStorage.getItem(`courtonline_curr_ref_v2_${localStorage.getItem('courtonline_current_tournament_id') || 'main'}`);
+ const currentTId = localStorage.getItem('courtonline_current_tournament_id') || 'main';
+ const saved = sessionStorage.getItem(`courtonline_curr_ref_v2_${currentTId}`);
  if (saved) {
  try {
  return JSON.parse(saved);
@@ -280,7 +281,8 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
  });
 
  const [categoryFormats, setCategoryFormats] = useState<Record<string, string>>(() => {
- const saved = localStorage.getItem(`courtonline_cat_formats_v2_${localStorage.getItem('courtonline_current_tournament_id') || 'main'}`);
+ const currentTId = localStorage.getItem('courtonline_current_tournament_id') || 'main';
+ const saved = localStorage.getItem(`courtonline_cat_formats_v2_${currentTId}`);
  if (saved) {
  try {
  return JSON.parse(saved);
@@ -292,39 +294,48 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
  });
 
  const [activeMatchId, setActiveMatchId] = useState<string | null>(() => {
- return localStorage.getItem(`courtonline_active_match_id_v2_${localStorage.getItem('courtonline_current_tournament_id') || 'main'}`) || 'm-9';
+ const currentTId = localStorage.getItem('courtonline_current_tournament_id') || 'main';
+ return localStorage.getItem(`courtonline_active_match_id_v2_${currentTId}`) || 'm-9';
  });
 
  useEffect(() => {
+ if (tournamentId) {
  localStorage.setItem('courtonline_current_tournament_id', tournamentId);
+ }
  }, [tournamentId]);
 
  useEffect(() => {
- if (matches && matches.length > 0) {
+ if (matches && matches.length > 0 && tournamentId) {
  localStorage.setItem(getStorageKey(STORAGE_KEYS.MATCHES), JSON.stringify(matches));
  }
  }, [matches, tournamentId]);
 
  useEffect(() => {
+ if (tournamentId) {
  localStorage.setItem(getStorageKey(STORAGE_KEYS.REFEREES), JSON.stringify(referees));
+ }
  }, [referees, tournamentId]);
 
  useEffect(() => {
+ if (tournamentId) {
  if (currentReferee) {
  sessionStorage.setItem(getStorageKey(STORAGE_KEYS.CURRENT_REF), JSON.stringify(currentReferee));
  } else {
  sessionStorage.removeItem(getStorageKey(STORAGE_KEYS.CURRENT_REF));
  }
+ }
  }, [currentReferee, tournamentId]);
 
  useEffect(() => {
+ if (tournamentId) {
  localStorage.setItem(getStorageKey(STORAGE_KEYS.CATEGORY_FORMATS), JSON.stringify(categoryFormats));
+ }
  }, [categoryFormats, tournamentId]);
 
  useEffect(() => {
- if (activeMatchId) {
+ if (activeMatchId && tournamentId) {
  localStorage.setItem(getStorageKey(STORAGE_KEYS.ACTIVE_MATCH_ID), activeMatchId);
- } else {
+ } else if (tournamentId) {
  localStorage.removeItem(getStorageKey(STORAGE_KEYS.ACTIVE_MATCH_ID));
  }
  }, [activeMatchId, tournamentId]);
@@ -371,7 +382,8 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
  useEffect(() => {
  if (!tournamentId) return;
 
- // Turnuva değiştiğinde local state'leri bellekten taze yükle
+ setCloudSyncStatus('syncing');
+
  const localSavedMatches = localStorage.getItem(getStorageKey(STORAGE_KEYS.MATCHES));
  if (localSavedMatches) {
  try { setMatches(JSON.parse(localSavedMatches)); } catch { setMatches([]); }
@@ -409,7 +421,11 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
  localStorage.setItem(getStorageKey(STORAGE_KEYS.DESK_PIN), remote.deskPin);
  }
  }
- }).catch((e) => console.warn('Initial cloud fetch error:', e));
+ setCloudSyncStatus('connected');
+ }).catch((e) => {
+ console.warn('Initial cloud fetch error:', e);
+ setCloudSyncStatus('connected');
+ });
 
  const unsubscribe = subscribeToCloudTournament(
  tournamentId,
@@ -527,6 +543,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
  setCloudSyncStatus('connected');
  return true;
  }
+ setCloudSyncStatus('connected');
  return false;
  } catch (err) {
  setCloudSyncStatus('offline');
