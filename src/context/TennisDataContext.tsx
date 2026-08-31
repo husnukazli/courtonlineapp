@@ -189,7 +189,7 @@ interface TennisDataContextType {
 const TennisDataContext = createContext<TennisDataContextType | null>(null);
 
 export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
- // TARAYICI HAFIZASI TAMAMEN KALDIRILDI: Tüm ilk değerler buluttan yüklenmek üzere temiz state olarak açılır
+ // TARAYICI HAFIZASI TAMAMEN DEVRE DIŞI: Tamamen bellek içi (state) yönetim barındırır.
  const [tournamentId, setTournamentId] = useState<string>('main');
  const [deskPin, setDeskPin] = useState<string>('2026');
  const [authRole, setAuthRoleState] = useState<'none' | 'supervisor' | 'desk'>('none');
@@ -198,6 +198,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
  const [currentReferee, setCurrentReferee] = useState<RefereeUser | null>(null);
  const [categoryFormats, setCategoryFormats] = useState<Record<string, string>>(INITIAL_CATEGORY_FORMAT_MEMORY);
  const [activeMatchId, setActiveMatchId] = useState<string | null>(null);
+ const [tournamentInfoState, setTournamentInfoState] = useState({ ad: '', yer: '', tarih: '', not: '' });
 
  const [cloudSyncStatus, setCloudSyncStatus] = useState<CloudSyncStatus>('connected');
  const [lastCloudSync, setLastCloudSync] = useState<string | null>(null);
@@ -248,7 +249,6 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
  };
  }, []);
 
- // CANLI VERİ AKIŞI: Turnuva değiştiği an her şey sıfırlanır ve sadece o turnuvanın verileri çekilir
  useEffect(() => {
  if (!tournamentId) return;
 
@@ -271,6 +271,9 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
  }
  if (remote.deskPin) {
  setDeskPin(remote.deskPin);
+ }
+ if (remote.tournamentInfo) {
+ setTournamentInfoState(remote.tournamentInfo);
  }
  }
  setCloudSyncStatus('connected');
@@ -304,6 +307,9 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
  }
  if (meta.deskPin) {
  setDeskPin(meta.deskPin);
+ }
+ if (meta.tournamentInfo) {
+ setTournamentInfoState(meta.tournamentInfo);
  }
  },
  () => {}
@@ -357,6 +363,9 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
  }
  if (remote.deskPin) {
  setDeskPin(remote.deskPin);
+ }
+ if (remote.tournamentInfo) {
+ setTournamentInfoState(remote.tournamentInfo);
  }
  setCloudSyncStatus('connected');
  return true;
@@ -431,6 +440,14 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
  const loginSupervisorByPin = (pin: string, name?: string): boolean => {
  const cleanPin = pin.trim();
  if (!cleanPin) return false;
+ if (name) {
+ const found = referees.find((r) => r.name.toLowerCase() === name.toLowerCase() && r.pin === cleanPin);
+ if (found) {
+ setCurrentReferee(found);
+ setAuthRole('supervisor');
+ return true;
+ }
+ }
  const matchingRef = referees.find((r) => r.pin === cleanPin);
  if (matchingRef) {
  setCurrentReferee(matchingRef);
@@ -668,14 +685,21 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
  }));
  const sanitized = sanitizeMatchList(localizedMatches);
  setMatches(sanitized);
- 
+
  setCloudSyncStatus('syncing');
  replaceAllMatchesInCloud(sanitized, currentReferee?.name || 'Turnuva Masası', tournamentId)
  .then(() => setCloudSyncStatus('connected'))
  .catch(e => console.error("JSON cloud import error:", e));
  };
 
- const recordChallenge = (matchId: string, player: 1 | 2, outcome: 'UPHELD' | 'OVERTURNED', reason: any, notes?: string) => {
+ const recordChallenge = (
+ matchId: string,
+ player: 1 | 2,
+ outcome: 'UPHELD' | 'OVERTURNED',
+ reason: 'LINE_CALL' | 'OVERRULE' | 'SERVICE_FAULT' | 'TOUCH_NET' | 'LET_POINT',
+ notes?: string,
+ actionType?: 'REPLAY_POINT' | 'AWARD_POINT' | 'KEEP_DECISION'
+ ) => {
  if (!matchId) return;
  setMatches((prev) => {
  const next = prev.map((m) => {
@@ -685,15 +709,32 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
  if (player === 1) stateCopy.p1ChallengesLeft = Math.max(0, (stateCopy.p1ChallengesLeft ?? 3) - 1);
  else stateCopy.p2ChallengesLeft = Math.max(0, (stateCopy.p2ChallengesLeft ?? 3) - 1);
  }
- const record = { id: 'ch-' + Date.now(), timestamp: new Date().toLocaleTimeString('tr-TR'), player, outcome, reason, notes: notes || '' };
- return { ...m, detailedState: stateCopy, disputeHistory: [...(m.disputeHistory || []), record], Son_Hakem: currentReferee ? currentReferee.name : m.Son_Hakem };
+ const record: ChallengeRecord = {
+ id: 'ch-' + Date.now(),
+ timestamp: new Date().toLocaleTimeString('tr-TR'),
+ player,
+ outcome,
+ reason,
+ notes: notes || '',
+ };
+ return {
+ ...m,
+ detailedState: stateCopy,
+ disputeHistory: [...(m.disputeHistory || []), record],
+ Son_Hakem: currentReferee ? currentReferee.name : m.Son_Hakem,
+ };
  });
  broadcastAndSyncMatches(next);
  return next;
  });
  };
 
- const setMatchStatus = (matchId: string, status: MatchItem['Durum'], winner?: string, endTime?: string) => {
+ const setMatchStatus = (
+ matchId: string,
+ status: MatchItem['Durum'],
+ winner?: string,
+ endTime?: string
+ ) => {
  if (!matchId) return;
  setMatches((prev) => {
  let updatedItem: MatchItem | null = null;
@@ -734,7 +775,13 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
  });
  };
 
- const manualUpdateScoreString = (matchId: string, skorStr: string, durum: MatchItem['Durum'], kazanan: string, bitisSaati: string) => {
+ const manualUpdateScoreString = (
+ matchId: string,
+ skorStr: string,
+ durum: MatchItem['Durum'],
+ kazanan: string,
+ bitisSaati: string
+ ) => {
  if (!matchId) return;
  setMatches((prev) => {
  const next = prev.map((m) => (m.id === matchId ? { ...m, Skor: skorStr, Durum: durum, Kazanan: kazanan, Bitis_Saati: bitisSaati } : m));
@@ -748,14 +795,25 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
  setReferees((prev) => [...prev, { name: name.trim(), pin: pin.trim() }]);
  };
 
- const deleteReferee = (name: string) => { setReferees((prev) => prev.filter((r) => r.name !== name)); };
- const updateCategoryFormat = (category: string, format: string) => { setCategoryFormats((prev) => ({ ...prev, [category]: format })); };
- const bulkApplyCategoryFormats = (formatMap: Record<string, string>) => { setCategoryFormats((prev) => ({ ...prev, ...formatMap })); };
- const [tournamentInfoState, setTournamentInfoState] = useState({ ad: '', yer: '', tarih: '', not: '' });
- const saveTournamentInfo = (info: any) => { setTournamentInfoState(info); };
- const updateGameScore = () => {};
- const setDirectSetScores = () => {};
- 
+ const deleteReferee = (name: string) => {
+ setReferees((prev) => prev.filter((r) => r.name !== name));
+ };
+
+ const updateCategoryFormat = (category: string, format: string) => {
+ setCategoryFormats((prev) => ({ ...prev, [category]: format }));
+ };
+
+ const bulkApplyCategoryFormats = (formatMap: Record<string, string>) => {
+ setCategoryFormats((prev) => ({ ...prev, ...formatMap }));
+ };
+
+ const saveTournamentInfo = (info: { ad: string; yer: string; tarih: string; not: string }) => {
+ setTournamentInfoState(info);
+ };
+
+ const updateGameScore = (matchId: string, setIndex: 1 | 2 | 3, player: 1 | 2, delta: number) => {};
+ const setDirectSetScores = (matchId: string, s1_p1: number, s1_p2: number, s2_p1: number, s2_p2: number, s3_p1: number, s3_p2: number) => {};
+
  const saveDirectScoreAndStatus = (matchId: string, data: any) => {
  if (!matchId) return;
  setMatches((prev) => {
