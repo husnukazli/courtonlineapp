@@ -15,7 +15,7 @@ type AppScreen =
   | { type: 'tournament'; id: string };     // Seçili bir turnuvanın izleyici/hakem ekranı
 
 const AppContent: React.FC = () => {
-  const { authRole, setAuthRole, setTournamentId } = useTennisData();
+  const { authRole, setAuthRole, setTournamentId, resetAllScores } = useTennisData();
   const [screen, setScreen] = useState<AppScreen>({ type: 'list' });
   const [currentTab, setCurrentTab] = useState<'supervisor' | 'desk'>('supervisor');
   const [isHelpOpen, setIsHelpOpen] = useState(false);
@@ -31,8 +31,8 @@ const AppContent: React.FC = () => {
 
   // Geri (turnuva listesine dön)
   const handleBackToList = () => {
-    setTournamentId('');
     setAuthRole('none');
+    setTournamentId('');          // Guard'lar bu boş ID'yi görünce Firestore'a yazmaz
     setScreen({ type: 'list' });
   };
 
