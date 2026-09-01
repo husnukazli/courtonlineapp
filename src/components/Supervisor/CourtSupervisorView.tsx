@@ -433,10 +433,7 @@ export const CourtSupervisorView: React.FC = () => {
         isOpen={Boolean(setupModalMatch)}
         onClose={() => setSetupModalMatch(null)}
         onStartMatch={(matchId) => {
-          const started = matches.find((m) => m.id === matchId);
-          if (started) {
-            setEditScoreModalMatch(started);
-          }
+          setSetupModalMatch(null);
         }}
       />
 
