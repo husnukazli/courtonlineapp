@@ -54,7 +54,6 @@ export const Navigation: React.FC<NavigationProps> = ({
 
   const handleTabClick = (tab: 'supervisor' | 'desk') => {
     if (tab === 'desk' && authRole !== 'desk') {
-      // Başhakem masasına geçiş için PIN sor
       setDeskPinInput('');
       setDeskPinError('');
       setIsDeskPinModalOpen(true);
@@ -81,197 +80,183 @@ export const Navigation: React.FC<NavigationProps> = ({
   return (
     <>
       <header className="sticky top-0 z-40 bg-slate-900/95 backdrop-blur border-b border-slate-800 shadow-md">
-        <div className="max-w-7xl mx-auto px-3 sm:px-6">
-          <div className="flex items-center justify-between h-16">
-            {/* Logo & Brand */}
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-2xl bg-gradient-to-br from-lime-400 to-emerald-400 text-slate-950 flex items-center justify-center font-bold text-xl shadow-lg shadow-lime-400/20 shrink-0">
-                🎾
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="font-extrabold text-lg tracking-tight text-white">CourtOnline</span>
-          {onBackToList && (
-            <button onClick={onBackToList} className="text-[10px] text-slate-500 hover:text-slate-300 px-2 py-1 rounded-lg hover:bg-slate-800 transition hidden sm:block">← Turnuvalar</button>
-          )}
-                  <span
-                    className={`text-[10px] uppercase font-black tracking-wider px-2 py-0.5 rounded-full border ${
-                      currentTab === 'supervisor'
-                        ? 'bg-lime-400/20 text-lime-400 border-lime-400/30'
-                        : 'bg-cyan-400/20 text-cyan-400 border-cyan-400/30'
-                    }`}
-                  >
-                    {currentTab === 'supervisor' ? 'Kort Hakemi' : 'Başhakem Masası'}
-                  </span>
+        <div className="max-w-7xl mx-auto px-2.5 sm:px-6 py-2.5 sm:py-0">
+          {/* Mobil ve Masaüstü Uyumlu Esnek Header Yapısı */}
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2.5 md:h-16">
+            
+            {/* Üst Satır (Mobilde): Logo, Marka ve Sağdaki Kritik Çıkış/Kilitle Butonu */}
+            <div className="flex items-center justify-between w-full md:w-auto">
+              <div className="flex items-center gap-2 sm:gap-3">
+                <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-2xl bg-gradient-to-br from-lime-400 to-emerald-400 text-slate-950 flex items-center justify-center font-bold text-lg sm:text-xl shadow-lg shadow-lime-400/20 shrink-0">
+                  🎾
                 </div>
-                <div className="flex items-center gap-2">
-                  <p className="text-[11px] text-slate-400 hidden md:block">
-                    {currentTab === 'supervisor'
-                      ? 'Canlı Maç Yönetimi ve Skor Girişi'
-                      : 'Tüm Kortlar, Fikstür ve Hakem Atamaları'}
-                  </p>
-                  <span className="hidden lg:inline-flex items-center gap-1 text-[10px] font-bold text-emerald-400 bg-emerald-950/60 border border-emerald-500/30 px-2 py-0.5 rounded-full">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-                    <span>Bulut Canlı (Telefon ↔ Masaüstü)</span>
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Center Tabs: Kort Hakemi vs Başhakem Masası */}
-            <div className="flex items-center bg-slate-950 p-1 rounded-2xl border border-slate-800 shadow-inner">
-              <button
-                type="button"
-                onClick={() => handleTabClick('supervisor')}
-                className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all ${
-                  currentTab === 'supervisor'
-                    ? 'bg-lime-400 text-slate-950 shadow-md font-extrabold'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
-                }`}
-              >
-                <Smartphone className="w-4 h-4" />
-                <span>Kort Hakemi</span>
-                {activeMatchesCount > 0 && (
-                  <span className="hidden sm:inline-flex items-center justify-center px-1.5 py-0.2 text-[10px] font-black rounded-full bg-slate-950/20 text-slate-950">
-                    {activeMatchesCount} Canlı
-                  </span>
-                )}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleTabClick('desk')}
-                className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all ${
-                  currentTab === 'desk'
-                    ? 'bg-cyan-400 text-slate-950 shadow-md font-extrabold'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
-                }`}
-              >
-                <Tv className="w-4 h-4" />
-                <span>Başhakem Masası</span>
-              </button>
-            </div>
-
-            {/* Right Status & Referee Login & Help & Lock / Exit */}
-            <div className="flex items-center gap-1.5 sm:gap-2.5">
-              {/* Cloud Sync Status Badge */}
-              <button
-                type="button"
-                disabled={isNavSyncing}
-                onClick={async () => {
-                  setIsNavSyncing(true);
-                  await pullFromCloudNow();
-                  setIsNavSyncing(false);
-                }}
-                title={`Bulut Senkronizasyonu: ${cloudSyncStatus === 'connected' ? 'Bağlı' : cloudSyncStatus === 'syncing' ? 'Eşitleniyor...' : 'Çevrimdışı'}. Buluttan son verileri çekmek için tıklayın.`}
-                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-[11px] font-bold transition active:scale-95 disabled:opacity-50 ${
-                  cloudSyncStatus === 'connected'
-                    ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-400 hover:bg-emerald-900/50'
-                    : cloudSyncStatus === 'syncing' || isNavSyncing
-                    ? 'bg-amber-950/40 border-amber-500/40 text-amber-400 hover:bg-amber-900/50'
-                    : 'bg-rose-950/40 border-rose-500/40 text-rose-400 hover:bg-rose-900/50'
-                }`}
-              >
-                <RefreshCw
-                  className={`w-3.5 h-3.5 ${
-                    cloudSyncStatus === 'syncing' || isNavSyncing ? 'animate-spin' : ''
-                  }`}
-                />
-                <span className="hidden sm:inline">
-                  {isNavSyncing
-                    ? 'Çekiliyor...'
-                    : cloudSyncStatus === 'connected'
-                    ? 'Canlı Bulut'
-                    : cloudSyncStatus === 'syncing'
-                    ? 'Eşitleniyor'
-                    : 'Yenile'}
-                </span>
-              </button>
-
-              {/* Share Referee Phone Link & QR Code */}
-              <button
-                type="button"
-                onClick={() => setIsShareLinkModalOpen(true)}
-                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-lime-400/15 hover:bg-lime-400/25 border border-lime-400/40 text-lime-300 text-xs font-black transition active:scale-95 shadow-sm"
-                title="Hakemler için telefon bağlantısı ve QR karekod üret / paylaş"
-              >
-                <QrCode className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Hakem Linki & QR</span>
-              </button>
-
-              {/* Referee Authentication Pill Button */}
-              <button
-                type="button"
-                onClick={() => setIsRefereeModalOpen(true)}
-                className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 rounded-xl border text-xs font-black transition ${
-                  currentReferee
-                    ? 'bg-emerald-950/40 border-emerald-500/50 text-emerald-300 hover:bg-emerald-900/50 shadow-sm shadow-emerald-500/20'
-                    : 'bg-slate-800/90 border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-white'
-                }`}
-                title={
-                  currentReferee
-                    ? `Aktif Hakem: ${currentReferee.name} (Profil/Değiştir)`
-                    : 'Hakem Girişi Yap'
-                }
-              >
-                {currentReferee ? (
-                  <>
-                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                    <span className="max-w-[80px] sm:max-w-[110px] truncate">
-                      {currentReferee.name.split(' ')[0]}
+                <div>
+                  <div className="flex items-center gap-1.5 sm:gap-2">
+                    <span className="font-extrabold text-base sm:text-lg tracking-tight text-white">CourtOnline</span>
+                    {onBackToList && (
+                      <button onClick={onBackToList} className="text-[10px] text-slate-400 hover:text-slate-200 px-1.5 py-0.5 rounded-lg hover:bg-slate-800 transition">← Turnuvalar</button>
+                    )}
+                    <span
+                      className={`text-[9px] sm:text-[10px] uppercase font-black tracking-wider px-2 py-0.5 rounded-full border ${
+                        currentTab === 'supervisor'
+                          ? 'bg-lime-400/20 text-lime-400 border-lime-400/30'
+                          : 'bg-cyan-400/20 text-cyan-400 border-cyan-400/30'
+                      }`}
+                    >
+                      {currentTab === 'supervisor' ? 'Kort Hakemi' : 'Başhakem'}
                     </span>
-                  </>
-                ) : (
-                  <>
-                    <LogIn className="w-3.5 h-3.5 text-lime-400" />
-                    <span className="hidden sm:inline">Hakem</span>
-                  </>
-                )}
-              </button>
+                  </div>
+                </div>
+              </div>
 
-              {/* Help Button */}
-              <button
-                type="button"
-                onClick={onOpenHelp}
-                title="Kullanım Kılavuzu"
-                className="p-2 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-xl transition"
-              >
-                <HelpCircle className="w-4 h-4 sm:w-5 sm:h-5" />
-              </button>
-
-              {/* Master Lock / Return to Protected Main Portal */}
-              <button
-                type="button"
-                onClick={() => {
-                  if (confirm('Oturumu kapatıp güvenli ana ekrana dönmek istiyor musunuz?')) {
-                    logoutAuth();
-                  }
-                }}
-                title="Oturumu Kilitle & Güvenli Ana Ekrana Dön"
-                className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-rose-500/15 hover:bg-rose-500 text-rose-300 hover:text-slate-950 border border-rose-500/30 text-xs font-black transition active:scale-95 shadow-sm"
-              >
-                <Lock className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Kilitle / Çıkış</span>
-                <span className="sm:hidden">Çıkış</span>
-              </button>
+              {/* Mobilde Sağ Üst Köşede Mutlaka Görünmesi Gereken Kilitle / Çıkış Butonu */}
+              <div className="flex items-center gap-1.5 md:hidden">
+                <button
+                  type="button"
+                  onClick={onOpenHelp}
+                  title="Kılavuz"
+                  className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition"
+                >
+                  <HelpCircle className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (confirm('Oturumu kapatıp güvenli ana ekrana dönmek istiyor musunuz?')) {
+                      logoutAuth();
+                    }
+                  }}
+                  title="Çıkış"
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs font-black active:scale-95 shadow-sm"
+                >
+                  <Lock className="w-3.5 h-3.5" />
+                  <span>Çıkış</span>
+                </button>
+              </div>
             </div>
+
+            {/* Alt Satır (Mobilde) / Orta Kısım (Masaüstünde): Sekmeler ve Araç Çubuğu */}
+            <div className="flex items-center justify-between md:justify-end gap-2 overflow-x-auto pb-1 md:pb-0 scrollbar-none">
+              
+              {/* Sekmeler: Kort Hakemi vs Başhakem Masası */}
+              <div className="flex items-center bg-slate-950 p-1 rounded-2xl border border-slate-800 shadow-inner shrink-0">
+                <button
+                  type="button"
+                  onClick={() => handleTabClick('supervisor')}
+                  className={`flex items-center gap-1.5 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all ${
+                    currentTab === 'supervisor'
+                      ? 'bg-lime-400 text-slate-950 shadow-md font-extrabold'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
+                  }`}
+                >
+                  <Smartphone className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                  <span>Kort Hakemi</span>
+                  {activeMatchesCount > 0 && (
+                    <span className="hidden sm:inline-flex items-center justify-center px-1.5 py-0.2 text-[10px] font-black rounded-full bg-slate-950/20 text-slate-950">
+                      {activeMatchesCount} Canlı
+                    </span>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleTabClick('desk')}
+                  className={`flex items-center gap-1.5 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all ${
+                    currentTab === 'desk'
+                      ? 'bg-cyan-400 text-slate-950 shadow-md font-extrabold'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
+                  }`}
+                >
+                  <Tv className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                  <span>Başhakem Masası</span>
+                </button>
+              </div>
+
+              {/* Ek Araçlar (Senkronizasyon, Hakem Linki ve Hakem Profili) */}
+              <div className="flex items-center gap-1.5 shrink-0">
+                
+                {/* Cloud Sync Status Badge */}
+                <button
+                  type="button"
+                  disabled={isNavSyncing}
+                  onClick={async () => {
+                    setIsNavSyncing(true);
+                    await pullFromCloudNow();
+                    setIsNavSyncing(false);
+                  }}
+                  title="Yenile / Eşitle"
+                  className={`flex items-center gap-1 px-2 py-1.5 rounded-xl border text-[11px] font-bold transition active:scale-95 disabled:opacity-50 ${
+                    cloudSyncStatus === 'connected'
+                      ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-400 hover:bg-emerald-900/50'
+                      : 'bg-amber-950/40 border-amber-500/40 text-amber-400'
+                  }`}
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${cloudSyncStatus === 'syncing' || isNavSyncing ? 'animate-spin' : ''}`} />
+                  <span className="hidden lg:inline">Canlı Bulut</span>
+                </button>
+
+                {/* Share Referee Phone Link & QR Code */}
+                <button
+                  type="button"
+                  onClick={() => setIsShareLinkModalOpen(true)}
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-lime-400/15 hover:bg-lime-400/25 border border-lime-400/40 text-lime-300 text-xs font-black transition active:scale-95"
+                  title="Hakem QR & Link"
+                >
+                  <QrCode className="w-3.5 h-3.5" />
+                  <span className="hidden lg:inline">Hakem Linki</span>
+                </button>
+
+                {/* Referee Authentication Pill Button */}
+                <button
+                  type="button"
+                  onClick={() => setIsRefereeModalOpen(true)}
+                  className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl border text-xs font-black transition ${
+                    currentReferee
+                      ? 'bg-emerald-950/40 border-emerald-500/50 text-emerald-300 shadow-sm'
+                      : 'bg-slate-800 border-slate-700 text-slate-300 hover:text-white'
+                  }`}
+                  title="Hakem Profili"
+                >
+                  {currentReferee ? (
+                    <>
+                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                      <span className="max-w-[70px] sm:max-w-[100px] truncate">{currentReferee.name.split(' ')[0]}</span>
+                    </>
+                  ) : (
+                    <>
+                      <LogIn className="w-3.5 h-3.5 text-lime-400" />
+                      <span className="hidden sm:inline">Hakem</span>
+                    </>
+                  )}
+                </button>
+
+                {/* Masaüstü İçin Gizli Olmayan Kilitle/Çıkış Butonu */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (confirm('Oturumu kapatıp güvenli ana ekrana dönmek istiyor musunuz?')) {
+                      logoutAuth();
+                    }
+                  }}
+                  title="Oturumu Kilitle"
+                  className="hidden md:flex items-center gap-1 px-3 py-1.5 rounded-xl bg-rose-500/15 hover:bg-rose-500 text-rose-300 hover:text-slate-950 border border-rose-500/30 text-xs font-black transition active:scale-95 shadow-sm"
+                >
+                  <Lock className="w-3.5 h-3.5" />
+                  <span>Çıkış</span>
+                </button>
+
+              </div>
+            </div>
+
           </div>
         </div>
       </header>
 
-      {/* Referee Login / Profile Modal */}
-      <RefereeLoginModal
-        isOpen={isRefereeModalOpen}
-        onClose={() => setIsRefereeModalOpen(false)}
-      />
+      {/* Modaller */}
+      <RefereeLoginModal isOpen={isRefereeModalOpen} onClose={() => setIsRefereeModalOpen(false)} />
+      <ShareRefereeLinkModal isOpen={isShareLinkModalOpen} onClose={() => setIsShareLinkModalOpen(false)} />
 
-      {/* Share Referee Public Phone Link & QR Code Modal */}
-      <ShareRefereeLinkModal
-        isOpen={isShareLinkModalOpen}
-        onClose={() => setIsShareLinkModalOpen(false)}
-      />
-
-      {/* Desk Master PIN Prompt Modal when switching tab */}
+      {/* Desk Master PIN Prompt Modal */}
       {isDeskPinModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md animate-in fade-in">
           <div className="bg-slate-900 border-2 border-slate-700/80 rounded-3xl p-5 sm:p-6 w-full max-w-sm shadow-2xl space-y-4">
