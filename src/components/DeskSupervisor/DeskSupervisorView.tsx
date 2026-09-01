@@ -81,7 +81,6 @@ export const DeskSupervisorView: React.FC = () => {
   const [importMsg, setImportMsg] = useState<string>('');
   const [isSyncingAction, setIsSyncingAction] = useState(false);
 
-  // YENİ: GÜN SONU RAPORU GÜVENLİK KİLİDİ
   const [raporAlindi, setRaporAlindi] = useState<boolean>(false);
 
   const distinctCourts = Array.from(new Set(matches.map((m) => m.Kort))).sort();
@@ -138,7 +137,7 @@ export const DeskSupervisorView: React.FC = () => {
         importMatchesList(parsed);
         setImportMsg(`✅ ${parsed.length} maç başarıyla içe aktarıldı!`);
         setJsonInput('');
-        setRaporAlindi(false); // Yeni liste yüklendiğinde güvenlik kilidini tekrar devreye al
+        setRaporAlindi(false); 
         setTimeout(() => setImportMsg(''), 3000);
       } else {
         setImportMsg('❌ JSON geçerli bir maç dizisi [ { ... } ] olmalıdır.');
@@ -148,7 +147,6 @@ export const DeskSupervisorView: React.FC = () => {
     }
   };
 
-  // YENİ: PDF / YAZDIRILABİLİR GÜN SONU RAPORU ÜRETİCİSİ
   const handlePrintDailyReport = () => {
     const printWindow = window.open('', '_blank');
     if (!printWindow) {
@@ -204,7 +202,6 @@ export const DeskSupervisorView: React.FC = () => {
           <tbody>
     `;
 
-    // Maçları korta ve saate göre sıralayarak yazdır
     const sortedMatches = [...matches].sort((a, b) => a.Kort.localeCompare(b.Kort) || a.Saat.localeCompare(b.Saat));
 
     sortedMatches.forEach(m => {
@@ -248,10 +245,8 @@ export const DeskSupervisorView: React.FC = () => {
     printWindow.document.write(html);
     printWindow.document.close();
 
-    // DOM'un yüklenmesi ve stillerin uygulanması için ufak bir bekleme
     setTimeout(() => {
       printWindow.print();
-      // Çıktı ekranı açıldığı an güvenli kilidi açıyoruz.
       setRaporAlindi(true);
     }, 250);
   };
@@ -339,55 +334,80 @@ export const DeskSupervisorView: React.FC = () => {
                     <div className="space-y-2.5 flex-1">
                       {courtMatches.length > 0 ? (
                         courtMatches.map((m) => {
-                          const isLive = m.Durum === 'Oynaniyor';
-                          const isFinished = ['Bitti', 'Retired', 'Walkover'].includes(m.Durum);
+                          const stat = (m.Durum || '').toLowerCase();
+                          const isFinished = ['bitti', 'retired', 'walkover'].includes(stat);
+                          const isLive = stat === 'oynaniyor';
+                          const isPaused = stat === 'duraklatildi';
+                          const isUpcoming = stat === 'baslamadi';
+                          
                           const state = m.detailedState;
                           const p1Name = m['Oyuncu 1'];
                           const p2Name = m['Oyuncu 2'];
 
+                          // YENİ: Agresif Renk Kodlaması ve Görsel Hiyerarşi
+                          const cardClass = isLive 
+                            ? 'bg-gradient-to-br from-emerald-950/60 to-slate-900 border-2 border-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.15)] ring-1 ring-emerald-500/50 z-10 scale-[1.01]'
+                            : isPaused 
+                            ? 'bg-gradient-to-br from-amber-950/60 to-slate-900 border-2 border-amber-500 shadow-[0_0_20px_rgba(245,158,11,0.15)] ring-1 ring-amber-500/50 z-10 scale-[1.01]'
+                            : isUpcoming 
+                            ? 'bg-slate-900 border-2 border-slate-700 border-dashed opacity-75 hover:opacity-100'
+                            : 'bg-gradient-to-br from-rose-950/20 to-slate-950 border-2 border-rose-900/50 opacity-60 hover:opacity-100 grayscale-[0.2]';
+
+                          const statusBadgeClass = isLive 
+                            ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 animate-pulse' 
+                            : isPaused 
+                            ? 'bg-amber-500/20 text-amber-400 border-amber-500/40' 
+                            : isUpcoming 
+                            ? 'bg-slate-800 text-slate-400 border-slate-700' 
+                            : 'bg-rose-500/20 text-rose-400 border-rose-500/40';
+
+                          const statusText = isLive ? 'CANLI' : isPaused ? 'ASKIDA' : isUpcoming ? 'BEKLİYOR' : m.Durum.toUpperCase();
+                          const timeClass = isLive ? 'text-emerald-400' : isPaused ? 'text-amber-400' : isUpcoming ? 'text-slate-400' : 'text-rose-400';
+
                           return (
-                            <div key={m.id} onClick={() => setSelectedMatchForModal(m)} className={`p-3 rounded-2xl border transition cursor-pointer relative overflow-hidden group hover:scale-[1.02] ${isLive ? 'bg-slate-950 border-l-4 border-l-emerald-400 border-emerald-500/40 shadow-lg shadow-emerald-500/5 ring-1 ring-emerald-500/20' : m.Durum === 'Duraklatildi' ? 'bg-slate-950 border-l-4 border-l-amber-400 border-amber-500/40 shadow-lg shadow-amber-500/5 ring-1 ring-amber-500/20' : isFinished ? 'bg-slate-950/70 border-l-4 border-l-cyan-500 border-slate-800' : 'bg-slate-950/50 border-l-4 border-l-slate-700 border-slate-800/80 hover:border-slate-700'}`}>
-                              <div className="flex items-center justify-between text-[10px] font-bold mb-1.5 gap-1">
-                                <span className="text-amber-400 font-mono flex items-center gap-1"><Clock className="w-3 h-3" />{m.Saat}</span>
+                            <div key={m.id} onClick={() => setSelectedMatchForModal(m)} className={`p-3 rounded-2xl transition-all cursor-pointer relative overflow-hidden group ${cardClass}`}>
+                              
+                              <div className="flex items-center justify-between text-[10px] font-bold mb-2 gap-1 pb-2 border-b border-slate-800/50">
+                                <span className={`${timeClass} font-mono flex items-center gap-1`}><Clock className="w-3.5 h-3.5" />{m.Saat}</span>
                                 <div className="flex items-center gap-1.5">
-                                  <MatchLiveTimer match={m} size="sm" />
-                                  <span className={`px-2 py-0.5 rounded-full uppercase text-[9px] font-extrabold ${isLive ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 animate-pulse' : m.Durum === 'Duraklatildi' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : m.Durum === 'Retired' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : m.Durum === 'Walkover' ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40' : isFinished ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40' : 'bg-slate-800 text-slate-400'}`}>
-                                    {isLive ? 'DEVAM' : m.Durum === 'Duraklatildi' ? 'MOLA' : m.Durum === 'Baslamadi' ? 'BEKLİYOR' : m.Durum}
+                                  {isLive && <MatchLiveTimer match={m} size="sm" />}
+                                  <span className={`px-2 py-0.5 rounded-md border uppercase text-[9px] font-black tracking-widest ${statusBadgeClass}`}>
+                                    {statusText}
                                   </span>
                                 </div>
                               </div>
 
-                              <div className="text-[10px] text-slate-400 truncate mb-1.5">{m.Kategori}</div>
+                              <div className="text-[10px] font-black text-slate-500 uppercase tracking-wider truncate mb-2">{m.Kategori}</div>
 
-                              <div className="space-y-1 my-1.5">
+                              <div className="space-y-1.5 my-2">
                                 <div className="flex items-center justify-between text-xs">
                                   <div className="flex items-center gap-1.5 truncate pr-2">
-                                    {state?.currentServer === 1 && isLive && <span className="text-lime-400 text-[10px]">🎾</span>}
-                                    <span className={`truncate ${m.Kazanan === p1Name ? 'text-white font-extrabold' : 'text-slate-300 font-medium'}`}>{m.Kazanan === p1Name ? '✓ ' : ''}{p1Name}</span>
+                                    {state?.currentServer === 1 && isLive && <span className="text-lime-400 text-[10px] animate-bounce">🎾</span>}
+                                    <span className={`truncate ${isFinished && m.Kazanan !== p1Name ? 'text-slate-600 line-through' : isFinished && m.Kazanan === p1Name ? 'text-lime-400 font-black' : 'text-white font-bold'}`}>{isFinished && m.Kazanan === p1Name ? '🏆 ' : ''}{p1Name}</span>
                                   </div>
-                                  <span className="font-mono text-xs font-bold text-white flex-shrink-0">
+                                  <span className={`font-mono text-xs font-black shrink-0 ${isFinished && m.Kazanan !== p1Name ? 'text-rose-700' : isFinished ? 'text-rose-400' : 'text-white'}`}>
                                     {state ? `${state.set1_p1} ${state.set2_p1} ${state.set3_p1}` : m.Skor !== '-' ? m.Skor.split(' ').map((s) => s.split('/')[0]).join(' ') : '-'}
                                   </span>
                                 </div>
 
                                 <div className="flex items-center justify-between text-xs">
                                   <div className="flex items-center gap-1.5 truncate pr-2">
-                                    {state?.currentServer === 2 && isLive && <span className="text-cyan-400 text-[10px]">🎾</span>}
-                                    <span className={`truncate ${m.Kazanan === p2Name ? 'text-white font-extrabold' : 'text-slate-300 font-medium'}`}>{m.Kazanan === p2Name ? '✓ ' : ''}{p2Name}</span>
+                                    {state?.currentServer === 2 && isLive && <span className="text-cyan-400 text-[10px] animate-bounce">🎾</span>}
+                                    <span className={`truncate ${isFinished && m.Kazanan !== p2Name ? 'text-slate-600 line-through' : isFinished && m.Kazanan === p2Name ? 'text-lime-400 font-black' : 'text-white font-bold'}`}>{isFinished && m.Kazanan === p2Name ? '🏆 ' : ''}{p2Name}</span>
                                   </div>
-                                  <span className="font-mono text-xs font-bold text-white flex-shrink-0">
+                                  <span className={`font-mono text-xs font-black shrink-0 ${isFinished && m.Kazanan !== p2Name ? 'text-rose-700' : isFinished ? 'text-rose-400' : 'text-white'}`}>
                                     {state ? `${state.set1_p2} ${state.set2_p2} ${state.set3_p2}` : m.Skor !== '-' ? m.Skor.split(' ').map((s) => s.split('/')[1]).join(' ') : '-'}
                                   </span>
                                 </div>
                               </div>
 
-                              <div className="pt-2 mt-2 border-t border-slate-800/80 flex items-center justify-between text-[10px]">
+                              <div className="pt-2 mt-2 border-t border-slate-800/50 flex items-center justify-between text-[10px]">
                                 {isLive && state ? (
-                                  <div className="font-mono font-bold text-lime-400 bg-lime-950/40 px-2 py-0.5 rounded border border-lime-500/30">
+                                  <div className="font-mono font-bold text-emerald-400 bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-500/30">
                                     {state.isTiebreak ? `TB: ${state.tiebreak_p1}-${state.tiebreak_p2}` : `${state.gamePoint_p1} - ${state.gamePoint_p2}`}
                                   </div>
                                 ) : (
-                                  <div className="text-slate-500 font-mono">Skor: <span className="text-slate-300">{m.Skor}</span></div>
+                                  <div className="text-slate-500 font-mono font-bold">Skor: <span className={isFinished ? 'text-rose-400' : 'text-slate-300'}>{m.Skor}</span></div>
                                 )}
                                 <div className="text-slate-400 truncate max-w-[110px] text-right">
                                   {m.Son_Hakem && m.Son_Hakem !== '-' ? <span className="text-amber-300/90 font-medium">👤 {m.Son_Hakem.split(' ')[0]}</span> : <span className="text-slate-600">Hakem Yok</span>}
@@ -530,7 +550,6 @@ export const DeskSupervisorView: React.FC = () => {
               <div><h3 className="font-bold text-base text-white">Raporlama, Program Yükleme & Sıfırlama</h3></div>
               
               <div className="flex gap-2">
-                {/* YENİ: PDF ÇIKTI BUTONU */}
                 <button 
                   type="button" 
                   onClick={handlePrintDailyReport} 
@@ -564,7 +583,6 @@ export const DeskSupervisorView: React.FC = () => {
               />
               
               <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-800">
-                {/* GÜNCELLENMİŞ SIFIRLAMA BUTONU (Kilitli) */}
                 <button 
                   type="button" 
                   disabled={isSyncingAction} 
