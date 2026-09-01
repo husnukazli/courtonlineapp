@@ -128,6 +128,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
     }
   }, [match.Skor, match.detailedState, isLive, format, s1_p1, s1_p2, s2_p1, s2_p2, s3_p1, s3_p2]);
 
+  // --- MATEMATİK MOTORU (SADECE GEÇERLİ SETİ BAZ ALIR) ---
   const currentSetGames = selectedSet === 1 ? s1_p1 + s1_p2 : selectedSet === 2 ? s2_p1 + s2_p2 : s3_p1 + s3_p2;
   const isTB = state?.isTiebreak || false;
   const tbPoints = isTB ? (state?.tiebreak_p1 || 0) + (state?.tiebreak_p2 || 0) : 0;
@@ -227,16 +228,59 @@ export const CourtCard: React.FC<CourtCardProps> = ({
   const leftTeamId = computedLeftTeam;
   const rightTeamId = computedLeftTeam === 1 ? 2 : 1;
 
+  // --- REVERSE ENGINE (TERSİNE HESAPLAMA) SADECE GEÇERLİ SETİ KULLANIR ---
   const handleSaveSetup = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!setupForm.firstServingTeam || !setupForm.leftTeam) return;
+
+    let initialServer: 1 | 2 = setupForm.firstServingTeam;
+    let initialLeft: 1 | 2 = setupForm.leftTeam;
+
+    if (!isTB) {
+      initialServer = currentSetGames % 2 === 0 ? setupForm.firstServingTeam : (setupForm.firstServingTeam === 1 ? 2 : 1);
+      initialLeft = (currentSetGames % 4 === 1 || currentSetGames % 4 === 2) ? (setupForm.leftTeam === 1 ? 2 : 1) : setupForm.leftTeam;
+    } else {
+      let tbGameServer = setupForm.firstServingTeam;
+      if (tbPoints > 0) {
+        const block = Math.floor((tbPoints - 1) / 2);
+        tbGameServer = block % 2 === 0 ? setupForm.firstServingTeam : (setupForm.firstServingTeam === 1 ? 2 : 1);
+      }
+      initialServer = currentSetGames % 2 === 0 ? tbGameServer : (tbGameServer === 1 ? 2 : 1);
+
+      let tbStartSide = setupForm.leftTeam;
+      if (tbPoints > 0) {
+        if (setupForm.tbType === 'coman') {
+          const block = Math.floor((tbPoints - 1) / 4);
+          tbStartSide = block % 2 === 0 ? setupForm.leftTeam : (setupForm.leftTeam === 1 ? 2 : 1);
+        } else {
+          const block = Math.floor(tbPoints / 6);
+          tbStartSide = block % 2 === 1 ? (setupForm.leftTeam === 1 ? 2 : 1) : setupForm.leftTeam;
+        }
+      }
+      initialLeft = (currentSetGames % 4 === 1 || currentSetGames % 4 === 2) ? (tbStartSide === 1 ? 2 : 1) : tbStartSide;
+    }
+
+    let t1InitSrvIdx = setupForm.t1ServerIdx;
+    let t2InitSrvIdx = setupForm.t2ServerIdx;
+
+    if (isDoubles) {
+      let teamServicesBeforeNowT1 = Math.floor(currentSetGames / 2);
+      let teamServicesBeforeNowT2 = Math.floor(currentSetGames / 2);
+      if (isTB) {
+        teamServicesBeforeNowT1 += Math.floor((tbPoints + (initialServer === 1 ? 3 : 1)) / 4);
+        teamServicesBeforeNowT2 += Math.floor((tbPoints + (initialServer === 2 ? 3 : 1)) / 4);
+      }
+      t1InitSrvIdx = ((setupForm.t1ServerIdx - teamServicesBeforeNowT1) % 2 + 2) % 2 as 0 | 1;
+      t2InitSrvIdx = ((setupForm.t2ServerIdx - teamServicesBeforeNowT2) % 2 + 2) % 2 as 0 | 1;
+    }
+
     setChairSetup({ 
       setupSetNum: selectedSet,
-      firstServingTeam: setupForm.firstServingTeam, 
-      leftTeam: setupForm.leftTeam, 
+      firstServingTeam: initialServer, 
+      leftTeam: initialLeft, 
       tbType: setupForm.tbType,
-      t1ServerIdx: setupForm.t1ServerIdx,
-      t2ServerIdx: setupForm.t2ServerIdx,
+      t1ServerIdx: t1InitSrvIdx,
+      t2ServerIdx: t2InitSrvIdx,
       t1DeuceReceiverIdx: setupForm.t1RecIdx,
       t2DeuceReceiverIdx: setupForm.t2RecIdx
     });
@@ -399,7 +443,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
             </div>
           ) : isLive || isPaused ? (
             <div className="flex items-center gap-2 w-full">
-              {/* YENİ EKLENEN ÇARK İKONU - FORMAT DÜZENLEME */}
               {onOpenSetup && (
                 <button type="button" onClick={(e) => { e.stopPropagation(); onOpenSetup(match); }} className="h-12 w-12 flex items-center justify-center shrink-0 bg-slate-800 hover:bg-slate-700 text-amber-400 border border-amber-500/30 rounded-xl transition active:scale-95" title="Maç Formatı ve Kura Ayarları">
                   <Settings className="w-5 h-5" />
@@ -434,7 +477,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                     <RotateCcw className="w-4 h-4" /> <span className="hidden sm:inline text-xs font-bold">Rotasyon</span>
                   </button>
                 )}
-                {/* YENİ EKLENEN ÇARK İKONU (KULE MODUNDA) - FORMAT DÜZENLEME */}
                 {onOpenSetup && (
                   <button type="button" onClick={(e) => { e.stopPropagation(); onOpenSetup(match); }} className="p-2 sm:px-3 sm:py-2 rounded-xl bg-amber-500/20 text-amber-400 hover:bg-amber-500 hover:text-slate-950 border border-amber-500/30 transition flex items-center gap-1.5" title="Maç Formatı ve Kura Ayarları">
                     <Settings className="w-4 h-4" /> <span className="hidden sm:inline text-xs font-bold">Kurulum</span>
@@ -452,8 +494,8 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                 /* HER YENİ SETTE KARŞIYA ÇIKAN KURULUM EKRANI */
                 <div className="bg-slate-900 p-4 sm:p-6 rounded-3xl border border-slate-800 text-center space-y-4 sm:space-y-6 shadow-2xl">
                   <div>
-                    <h4 className="text-amber-400 font-black text-base sm:text-xl mb-1 sm:mb-2 flex items-center justify-center gap-2">⚙️ {selectedSet}. Set Rotasyonu</h4>
-                    <p className="text-[11px] sm:text-sm text-slate-400">Bu sete başlarken sahadaki servisi ve konumları belirleyin.</p>
+                    <h4 className="text-amber-400 font-black text-base sm:text-xl mb-1 sm:mb-2 flex items-center justify-center gap-2">⚙️ {selectedSet}. Set Anlık Kurulumu</h4>
+                    <p className="text-[11px] sm:text-sm text-slate-400">Lütfen sahadaki <strong>ŞU ANKİ</strong> durumu seçin. Sistem geri kalanını hesaplar.</p>
                   </div>
                   
                   {isDoubles ? (
@@ -461,7 +503,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                       <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 flex flex-col gap-3">
                          <h5 className="text-lime-400 font-black text-sm uppercase mb-1">1. Takım (Lime)</h5>
                          <div className="text-left">
-                           <label className="text-[10px] text-slate-500 font-bold uppercase block mb-1.5">İlk Servisi Atacak Kişi:</label>
+                           <label className="text-[10px] text-slate-500 font-bold uppercase block mb-1.5">Şu Anki (Sıradaki) Servisçi:</label>
                            <div className="flex gap-2">
                              {t1Players.map((player, idx) => (
                                 <button key={`s1-${idx}`} type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, t1ServerIdx: idx as 0|1}); }} className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition border ${setupForm.t1ServerIdx === idx ? 'bg-lime-500 border-lime-400 text-slate-950 shadow-md' : 'bg-slate-900 border-slate-700 text-slate-300'}`}>{player.split(' ')[0]}</button>
@@ -469,7 +511,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                            </div>
                          </div>
                          <div className="text-left">
-                           <label className="text-[10px] text-slate-500 font-bold uppercase block mb-1.5">Sağda (Berabere) Karşılayacak Kişi:</label>
+                           <label className="text-[10px] text-slate-500 font-bold uppercase block mb-1.5">Sağda (Berabere) Karşılayan Kişi:</label>
                            <div className="flex gap-2">
                              {t1Players.map((player, idx) => (
                                 <button key={`r1-${idx}`} type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, t1RecIdx: idx as 0|1}); }} className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition border ${setupForm.t1RecIdx === idx ? 'bg-emerald-500 border-emerald-400 text-slate-950 shadow-md' : 'bg-slate-900 border-slate-700 text-slate-300'}`}>{player.split(' ')[0]}</button>
@@ -481,7 +523,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                       <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 flex flex-col gap-3">
                          <h5 className="text-cyan-400 font-black text-sm uppercase mb-1">2. Takım (Mavi)</h5>
                          <div className="text-left">
-                           <label className="text-[10px] text-slate-500 font-bold uppercase block mb-1.5">İlk Servisi Atacak Kişi:</label>
+                           <label className="text-[10px] text-slate-500 font-bold uppercase block mb-1.5">Şu Anki (Sıradaki) Servisçi:</label>
                            <div className="flex gap-2">
                              {t2Players.map((player, idx) => (
                                 <button key={`s2-${idx}`} type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, t2ServerIdx: idx as 0|1}); }} className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition border ${setupForm.t2ServerIdx === idx ? 'bg-cyan-500 border-cyan-400 text-slate-950 shadow-md' : 'bg-slate-900 border-slate-700 text-slate-300'}`}>{player.split(' ')[0]}</button>
@@ -489,7 +531,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                            </div>
                          </div>
                          <div className="text-left">
-                           <label className="text-[10px] text-slate-500 font-bold uppercase block mb-1.5">Sağda (Berabere) Karşılayacak Kişi:</label>
+                           <label className="text-[10px] text-slate-500 font-bold uppercase block mb-1.5">Sağda (Berabere) Karşılayan Kişi:</label>
                            <div className="flex gap-2">
                              {t2Players.map((player, idx) => (
                                 <button key={`r2-${idx}`} type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, t2RecIdx: idx as 0|1}); }} className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition border ${setupForm.t2RecIdx === idx ? 'bg-blue-500 border-blue-400 text-slate-950 shadow-md' : 'bg-slate-900 border-slate-700 text-slate-300'}`}>{player.split(' ')[0]}</button>
@@ -500,7 +542,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                     </div>
                   ) : (
                     <div className="space-y-2">
-                      <div className="text-[10px] sm:text-xs font-black uppercase text-slate-500 tracking-wider">Bu Set İlk Servisi Kim Atacak?</div>
+                      <div className="text-[10px] sm:text-xs font-black uppercase text-slate-500 tracking-wider">Şu An Servisi Kim Atıyor?</div>
                       <div className="flex gap-2">
                         <button type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, firstServingTeam: 1}); }} className={`flex-1 py-3 sm:py-4 rounded-xl text-xs sm:text-sm font-black transition active:scale-95 border-2 ${setupForm.firstServingTeam === 1 ? 'bg-lime-500 border-lime-400 text-slate-950 shadow-lg' : 'bg-slate-950 border-slate-800 text-slate-300'}`}>{match['Oyuncu 1']}</button>
                         <button type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, firstServingTeam: 2}); }} className={`flex-1 py-3 sm:py-4 rounded-xl text-xs sm:text-sm font-black transition active:scale-95 border-2 ${setupForm.firstServingTeam === 2 ? 'bg-cyan-500 border-cyan-400 text-slate-950 shadow-lg' : 'bg-slate-950 border-slate-800 text-slate-300'}`}>{match['Oyuncu 2']}</button>
@@ -510,7 +552,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
 
                   {isDoubles && (
                     <div className="space-y-2 pt-3 border-t border-slate-800/80">
-                      <div className="text-[10px] sm:text-xs font-black uppercase text-slate-500 tracking-wider">Genel: Bu Set Hangi Takım Servisle Başlıyor?</div>
+                      <div className="text-[10px] sm:text-xs font-black uppercase text-slate-500 tracking-wider">Genel: Şu An Hangi Takım Servis Atıyor?</div>
                       <div className="flex gap-2">
                         <button type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, firstServingTeam: 1}); }} className={`flex-1 py-3 rounded-xl text-xs font-black transition border-2 ${setupForm.firstServingTeam === 1 ? 'bg-lime-500 border-lime-400 text-slate-950 shadow-md' : 'bg-slate-950 border-slate-800 text-slate-300'}`}>1. Takım (Lime)</button>
                         <button type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, firstServingTeam: 2}); }} className={`flex-1 py-3 rounded-xl text-xs font-black transition border-2 ${setupForm.firstServingTeam === 2 ? 'bg-cyan-500 border-cyan-400 text-slate-950 shadow-md' : 'bg-slate-950 border-slate-800 text-slate-300'}`}>2. Takım (Mavi)</button>
@@ -519,7 +561,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                   )}
 
                   <div className="space-y-2 pt-3 border-t border-slate-800/80">
-                    <div className="text-[10px] sm:text-xs font-black uppercase text-slate-500 tracking-wider">Sandalyenin Solunda Kim (Hangi Takım) Başlıyor?</div>
+                    <div className="text-[10px] sm:text-xs font-black uppercase text-slate-500 tracking-wider">Şu An Sandalyenin Solunda Kim (Hangi Takım) Var?</div>
                     <div className="flex gap-2">
                       <button type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, leftTeam: 1}); }} className={`flex-1 py-3 sm:py-4 rounded-xl text-xs sm:text-sm font-black transition active:scale-95 border-2 ${setupForm.leftTeam === 1 ? 'bg-lime-500 border-lime-400 text-slate-950 shadow-lg' : 'bg-slate-950 border-slate-800 text-slate-300'}`}>{isDoubles ? '1. Takım' : match['Oyuncu 1']}</button>
                       <button type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, leftTeam: 2}); }} className={`flex-1 py-3 sm:py-4 rounded-xl text-xs sm:text-sm font-black transition active:scale-95 border-2 ${setupForm.leftTeam === 2 ? 'bg-cyan-500 border-cyan-400 text-slate-950 shadow-lg' : 'bg-slate-950 border-slate-800 text-slate-300'}`}>{isDoubles ? '2. Takım' : match['Oyuncu 2']}</button>
@@ -535,7 +577,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                   </div>
 
                   <div className="pt-4">
-                    <button type="button" disabled={!setupForm.firstServingTeam || !setupForm.leftTeam || (isDoubles && (setupForm.t1ServerIdx === undefined || setupForm.t2ServerIdx === undefined))} onClick={handleSaveSetup} className="w-full py-4 sm:py-5 bg-gradient-to-r from-emerald-500 to-emerald-400 hover:from-emerald-400 text-slate-950 font-black text-sm sm:text-lg rounded-xl disabled:opacity-50 transition active:scale-95 shadow-xl">Kaydet ve {selectedSet}. Sete Başla</button>
+                    <button type="button" disabled={!setupForm.firstServingTeam || !setupForm.leftTeam || (isDoubles && (setupForm.t1ServerIdx === undefined || setupForm.t2ServerIdx === undefined))} onClick={handleSaveSetup} className="w-full py-4 sm:py-5 bg-gradient-to-r from-emerald-500 to-emerald-400 hover:from-emerald-400 text-slate-950 font-black text-sm sm:text-lg rounded-xl disabled:opacity-50 transition active:scale-95 shadow-xl">Kaydet ve {selectedSet}. Sete Devam Et</button>
                   </div>
                 </div>
               ) : (
@@ -546,11 +588,11 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                     <div className="flex flex-col items-center sm:flex-row gap-1 sm:gap-2 text-[10px] sm:text-sm font-bold w-full sm:w-auto">
                       <span className="text-slate-400 bg-slate-950 px-2 py-1 rounded-md">{selectedSet}. Set</span>
                       <div className="flex items-center gap-2 w-full justify-center">
-                        <span className="text-lime-400 font-extrabold truncate max-w-[90px] sm:max-w-[150px]">{match['Oyuncu 1']}</span>
+                        <span className="text-lime-400 font-extrabold truncate max-w-[90px] sm:max-w-[150px]">{String(match['Oyuncu 1'] || '')}</span>
                         <span className="text-white font-mono text-lg sm:text-2xl font-black px-3 py-1 bg-slate-950 rounded-xl border-2 border-slate-700 shadow-inner">
                           {currentSetP1Games} - {currentSetP2Games}
                         </span>
-                        <span className="text-cyan-400 font-extrabold truncate max-w-[90px] sm:max-w-[150px]">{match['Oyuncu 2']}</span>
+                        <span className="text-cyan-400 font-extrabold truncate max-w-[90px] sm:max-w-[150px]">{String(match['Oyuncu 2'] || '')}</span>
                       </div>
                     </div>
                     <div className="flex items-center gap-1 sm:gap-2 shrink-0">
@@ -581,7 +623,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                            {computedServerTeam === leftTeamId && <span className="text-amber-400 animate-bounce mt-0.5 sm:mt-1.5 shrink-0 text-sm sm:text-xl">🎾</span>}
                            <div className="flex flex-col items-center">
                              <span className="font-black text-xs sm:text-xl text-center leading-tight line-clamp-3 break-words whitespace-normal px-1">
-                               {isDoubles ? match[`Oyuncu ${leftTeamId}` as keyof MatchItem] : activeServerName}
+                               {String(match[`Oyuncu ${leftTeamId}` as keyof MatchItem] || '')}
                              </span>
                              <div className="flex flex-wrap justify-center gap-1 mt-1">
                                {isDoubles && computedServerTeam === leftTeamId && (
@@ -625,7 +667,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                            {computedServerTeam === rightTeamId && <span className="text-amber-400 animate-bounce mt-0.5 sm:mt-1.5 shrink-0 text-sm sm:text-xl">🎾</span>}
                            <div className="flex flex-col items-center">
                              <span className="font-black text-xs sm:text-xl text-center leading-tight line-clamp-3 break-words whitespace-normal px-1">
-                               {isDoubles ? match[`Oyuncu ${rightTeamId}` as keyof MatchItem] : activeServerName}
+                               {String(match[`Oyuncu ${rightTeamId}` as keyof MatchItem] || '')}
                              </span>
                              <div className="flex flex-wrap justify-center gap-1 mt-1">
                                {isDoubles && computedServerTeam === rightTeamId && (
