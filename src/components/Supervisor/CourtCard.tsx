@@ -16,7 +16,7 @@ import {
   X,
   ArrowRightLeft,
   Settings,
-  LogOut // Çıkış ikonu eklendi
+  LogOut
 } from 'lucide-react';
 
 interface CourtCardProps {
@@ -64,27 +64,35 @@ export const CourtCard: React.FC<CourtCardProps> = ({
 
   const format = match.Skor_Formati || '3 Normal Set';
 
-  // --- KULE HAKEMİ: ÇIKIŞ VE GERİ TUŞU KORUMASI ---
+  // --- KULE HAKEMİ: ÇIKIŞ, GERİ TUŞU VE YENİLEME KORUMASI ---
   useEffect(() => {
-    const handlePopState = (e: PopStateEvent) => {
+    const handlePopState = () => {
       if (isChairMode) {
         const confirmExit = window.confirm('Kule hakemi modundan çıkmak istiyor musunuz? (Maç ayarlarınız kaybolmaz)');
         if (confirmExit) {
           setIsChairMode(false);
         } else {
-          // Geri çıkışı iptal et, state'i geri it
           window.history.pushState(null, '', window.location.href);
         }
+      }
+    };
+
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isChairMode) {
+        e.preventDefault();
+        e.returnValue = ''; // Tarayıcının varsayılan yenileme uyarısını tetikler
       }
     };
 
     if (isChairMode) {
       window.history.pushState(null, '', window.location.href);
       window.addEventListener('popstate', handlePopState);
+      window.addEventListener('beforeunload', handleBeforeUnload);
     }
 
     return () => {
       window.removeEventListener('popstate', handlePopState);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
     };
   }, [isChairMode]);
 
@@ -143,7 +151,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
   const rightPlayerId = computedLeftSide === 1 ? 2 : 1;
   // ------------------------------------------------
 
-  // Kurulumu Tersine Kaydetme
   const handleSaveSetup = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!setupForm.server || !setupForm.left) return;
@@ -243,11 +250,13 @@ export const CourtCard: React.FC<CourtCardProps> = ({
     else if (isPaused) setMatchStatus(match.id, 'Oynaniyor');
   };
 
+  // Aktif setteki oyun skorları
+  const currentSetP1Games = selectedSet === 1 ? s1_p1 : selectedSet === 2 ? s2_p1 : s3_p1;
+  const currentSetP2Games = selectedSet === 1 ? s1_p2 : selectedSet === 2 ? s2_p2 : s3_p2;
+
   return (
     <>
-      {/* ============================================================== */}
-      {/* 1. NORMAL KART GÖRÜNÜMÜ (DİĞER MAÇLARIN ARASINDA GÖRÜNEN KART) */}
-      {/* ============================================================== */}
+      {/* 1. KORT HAKEMİ KART GÖRÜNÜMÜ */}
       <div
         onClick={() => { if (isUpcoming && onOpenSetup) onOpenSetup(match); }}
         className={`rounded-3xl transition-all duration-200 overflow-hidden flex flex-col justify-between shadow-lg ${
@@ -286,7 +295,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
         </div>
 
         <div className="p-4 sm:p-5 space-y-3">
-          {/* Kort Hakemi Hızlı Puan Tablosu */}
           <div className="bg-slate-950 rounded-2xl border border-slate-800/90 overflow-hidden">
             <div className="grid grid-cols-12 bg-slate-900/80 text-[10px] font-extrabold uppercase text-slate-400 py-1.5 px-3 border-b border-slate-800">
               <div className="col-span-6">Oyuncu</div><div className="col-span-2 text-center">1. Set</div><div className="col-span-2 text-center">2. Set</div><div className="col-span-2 text-center">3. Set</div>
@@ -309,8 +317,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
 
           {(isLive || isPaused) && (
             <div className="bg-slate-900 border border-slate-700/80 rounded-2xl p-3 mt-2 shadow-inner">
-              
-              {/* Kule Modunu Açan Büyük Buton */}
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); setIsChairMode(true); }}
@@ -355,11 +361,9 @@ export const CourtCard: React.FC<CourtCardProps> = ({
         </div>
       </div>
 
-      {/* ============================================================== */}
-      {/* 2. TAM EKRAN KULE HAKEMİ MODU (TÜM SAYFAYI KAPLAR)             */}
-      {/* ============================================================== */}
+      {/* 2. TAM EKRAN KULE HAKEMİ MODU */}
       {isChairMode && (
-        <div className="fixed inset-0 z-[100] bg-slate-950 overflow-y-auto flex flex-col animate-in fade-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-[100] bg-slate-950 overflow-y-auto overscroll-contain flex flex-col animate-in fade-in zoom-in-95 duration-200 select-none">
           
           {/* ÜST BİLGİ VE ÇIKIŞ BARI */}
           <div className="bg-slate-900 border-b border-slate-800 px-4 py-3 sm:py-4 flex items-center justify-between shadow-md shrink-0">
@@ -436,10 +440,15 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                 
                 /* MAÇ EKRANI */
                 <div className="flex flex-col h-full gap-3 sm:gap-4">
-                  {/* Bilgi Çubuğu */}
-                  <div className="flex justify-between items-center bg-slate-900 rounded-2xl px-4 py-3 border border-slate-800 shadow-md">
-                    <div className="text-xs sm:text-sm font-bold text-slate-400">
-                      Set Skoru: <span className="text-white text-base sm:text-lg font-black ml-2 tracking-widest">{selectedSet === 1 ? `${s1_p1}-${s1_p2}` : selectedSet === 2 ? `${s2_p1}-${s2_p2}` : `${s3_p1}-${s3_p2}`}</span>
+                  {/* BİLGİ ÇUBUĞU (OYUNCU İSİMLERİ İLE NET SET SKORU) */}
+                  <div className="flex flex-col sm:flex-row justify-between items-center bg-slate-900 rounded-2xl px-4 py-3 border border-slate-800 shadow-md gap-2">
+                    <div className="flex items-center gap-2 text-xs sm:text-sm font-bold flex-wrap justify-center">
+                      <span className="text-slate-400">{selectedSet}. Set:</span>
+                      <span className="text-lime-400 font-extrabold truncate max-w-[120px]">{match['Oyuncu 1']}</span>
+                      <span className="text-white font-mono text-base sm:text-lg font-black px-2 py-0.5 bg-slate-950 rounded-lg border border-slate-800">
+                        {currentSetP1Games} - {currentSetP2Games}
+                      </span>
+                      <span className="text-cyan-400 font-extrabold truncate max-w-[120px]">{match['Oyuncu 2']}</span>
                     </div>
                     <div className="flex items-center gap-2">
                        {isTB && <div className="px-3 py-1 bg-amber-500/20 text-amber-400 text-[10px] sm:text-xs font-black uppercase rounded-lg animate-pulse border border-amber-500/30">{chairSetup.tbType === 'coman' ? 'Coman Tie-Break' : 'Standart Tie-Break'}</div>}
@@ -464,7 +473,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                     
                     {/* SOL SAHA */}
                     <div className={`bg-slate-900 rounded-3xl p-3 sm:p-5 border-4 flex flex-col justify-between shadow-2xl overflow-hidden ${computedServer === leftPlayerId ? 'border-amber-400 shadow-[0_0_30px_rgba(251,191,36,0.15)]' : 'border-slate-800'}`}>
-                      {/* İsim Kısmı (İki satır destekli, raket sabit) */}
                       <div className="flex flex-col items-center justify-center min-h-[4rem] sm:min-h-[5rem] border-b border-slate-800/80 pb-3 mb-2">
                         <div className={`flex items-start justify-center gap-1.5 w-full ${leftPlayerId === 1 ? 'text-lime-400' : 'text-cyan-400'}`}>
                            {computedServer === leftPlayerId && <span className="text-amber-400 animate-bounce mt-1 sm:mt-1.5 shrink-0 text-base sm:text-xl">🎾</span>}
@@ -482,18 +490,15 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                       </div>
 
                       <div className="flex flex-col gap-2 shrink-0">
-                        {/* DEvasa +1 Butonu */}
                         <button type="button" disabled={isPaused} onClick={(e) => handlePointScore(e, leftPlayerId)} className="w-full py-8 sm:py-12 bg-gradient-to-t from-emerald-600 to-emerald-400 hover:to-emerald-300 text-slate-950 font-black text-2xl sm:text-3xl rounded-2xl shadow-lg active:scale-95 transition disabled:opacity-50">
                           +1 PUAN
                         </button>
-                        {/* Servis Hatası Butonu / Veya Hizalama Boşluğu */}
                         <div className="h-12 sm:h-14 w-full">
                            {computedServer === leftPlayerId ? (
                              <button type="button" disabled={isPaused} onClick={(e) => handleFault(e, leftPlayerId)} className={`w-full h-full rounded-xl text-sm sm:text-base font-black transition active:scale-95 disabled:opacity-50 ${firstFault ? 'bg-rose-500 border-2 border-rose-400 text-white animate-pulse' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>
                                {firstFault ? '2. Hata (Puan Rakibe)' : '1. Servis Hatası'}
                              </button>
                            ) : (
-                             // Simetriyi korumak için görünmez kutu
                              <div className="w-full h-full invisible"></div>
                            )}
                         </div>
@@ -502,7 +507,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
 
                     {/* SAĞ SAHA */}
                     <div className={`bg-slate-900 rounded-3xl p-3 sm:p-5 border-4 flex flex-col justify-between shadow-2xl overflow-hidden ${computedServer === rightPlayerId ? 'border-amber-400 shadow-[0_0_30px_rgba(251,191,36,0.15)]' : 'border-slate-800'}`}>
-                       {/* İsim Kısmı (İki satır destekli, raket sabit) */}
                        <div className="flex flex-col items-center justify-center min-h-[4rem] sm:min-h-[5rem] border-b border-slate-800/80 pb-3 mb-2">
                         <div className={`flex items-start justify-center gap-1.5 w-full ${rightPlayerId === 1 ? 'text-lime-400' : 'text-cyan-400'}`}>
                            {computedServer === rightPlayerId && <span className="text-amber-400 animate-bounce mt-1 sm:mt-1.5 shrink-0 text-base sm:text-xl">🎾</span>}
@@ -520,18 +524,15 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                       </div>
 
                       <div className="flex flex-col gap-2 shrink-0">
-                        {/* DEvasa +1 Butonu */}
                         <button type="button" disabled={isPaused} onClick={(e) => handlePointScore(e, rightPlayerId)} className="w-full py-8 sm:py-12 bg-gradient-to-t from-emerald-600 to-emerald-400 hover:to-emerald-300 text-slate-950 font-black text-2xl sm:text-3xl rounded-2xl shadow-lg active:scale-95 transition disabled:opacity-50">
                           +1 PUAN
                         </button>
-                        {/* Servis Hatası Butonu / Veya Hizalama Boşluğu */}
                         <div className="h-12 sm:h-14 w-full">
                            {computedServer === rightPlayerId ? (
                              <button type="button" disabled={isPaused} onClick={(e) => handleFault(e, rightPlayerId)} className={`w-full h-full rounded-xl text-sm sm:text-base font-black transition active:scale-95 disabled:opacity-50 ${firstFault ? 'bg-rose-500 border-2 border-rose-400 text-white animate-pulse' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>
                                {firstFault ? '2. Hata (Puan Rakibe)' : '1. Servis Hatası'}
                              </button>
                            ) : (
-                             // Simetriyi korumak için görünmez kutu
                              <div className="w-full h-full invisible"></div>
                            )}
                         </div>
@@ -540,7 +541,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
 
                   </div>
 
-                  {/* Alt Aksiyon Çubuğu */}
+                  {/* ALT AKSİYON ÇUBUĞU */}
                   <div className="pt-2 border-t border-slate-800 flex flex-col gap-3 shrink-0">
                     <div className="flex gap-3">
                       <button type="button" onClick={(e) => startTimer(e, 'Saha Değişimi', 90)} className="flex-1 py-3 sm:py-4 bg-slate-900 border border-slate-700 text-slate-300 hover:text-white text-xs sm:text-sm font-black rounded-xl transition shadow-md">90sn Değişim</button>
