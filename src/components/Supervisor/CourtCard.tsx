@@ -13,7 +13,8 @@ import {
   Swords,
   PauseCircle,
   Timer,
-  X
+  X,
+  ArrowRightLeft // Saha değişimi uyarısı için eklendi
 } from 'lucide-react';
 
 interface CourtCardProps {
@@ -37,6 +38,9 @@ export const CourtCard: React.FC<CourtCardProps> = ({
   // Kule Hakemi Modu Anahtarı
   const [isChairMode, setIsChairMode] = useState<boolean>(false);
 
+  // YENİ: Kule Hakemi Akıllı Kurulum Hafızası (Servis ve Sandalye Yönü)
+  const [chairSetup, setChairSetup] = useState<{ server: 1 | 2 | null; left: 1 | 2 | null }>({ server: null, left: null });
+
   // Kule Hakemi Modu - Servis Hatası & Sayaç Hafızası
   const [firstFault, setFirstFault] = useState<boolean>(false);
   const [activeTimer, setActiveTimer] = useState<{ label: string; seconds: number } | null>(null);
@@ -56,6 +60,58 @@ export const CourtCard: React.FC<CourtCardProps> = ({
   const isUpcoming = match.Durum === 'Baslamadi';
 
   const format = match.Skor_Formati || '3 Normal Set';
+
+  // --- YENİ: AKILLI MATEMATİK MOTORU (Saha Değişimi & Servis Takibi) ---
+  const totalGamesCompleted = s1_p1 + s1_p2 + s2_p1 + s2_p2 + s3_p1 + s3_p2;
+  const isTB = state?.isTiebreak || false;
+  const tbPoints = isTB ? (state?.tiebreak_p1 || 0) + (state?.tiebreak_p2 || 0) : 0;
+  // Kategori isminde yaş grubu varsa Coman kuralını (1, 5, 9) uygular
+  const isComan = /senior|master|30\+|35\+|40\+|45\+|50\+|55\+|60\+|65\+|70\+/i.test(match.Kategori || '');
+
+  let computedServer: 1 | 2 = 1;
+  let computedLeftSide: 1 | 2 = 1;
+  let isSideChangePoint = false;
+
+  // Sadece Kule Hakemi kurulumu yapıldıysa hesaplamaları devreye sok
+  if (chairSetup.server && chairSetup.left) {
+    if (!isTB) {
+      // Normal Oyunlarda Servis ve Saha Hesaplama
+      computedServer = totalGamesCompleted % 2 === 0 ? chairSetup.server : (chairSetup.server === 1 ? 2 : 1);
+      computedLeftSide = (totalGamesCompleted % 4 === 1 || totalGamesCompleted % 4 === 2) ? (chairSetup.left === 1 ? 2 : 1) : chairSetup.left;
+      
+      // Toplam oyun tek sayıysa ve yeni oyuna başlanıyorsa Saha Değişimi Uyarısı ver
+      if ((totalGamesCompleted % 2 === 1) && (state?.gamePoint_p1 === '0' && state?.gamePoint_p2 === '0')) {
+          isSideChangePoint = true;
+      }
+    } else {
+      // Tie-Break Servis Matematiği
+      const tbGameServer = totalGamesCompleted % 2 === 0 ? chairSetup.server : (chairSetup.server === 1 ? 2 : 1);
+      if (tbPoints === 0) {
+        computedServer = tbGameServer;
+      } else {
+        const block = Math.floor((tbPoints - 1) / 2);
+        computedServer = block % 2 === 0 ? (tbGameServer === 1 ? 2 : 1) : tbGameServer;
+      }
+
+      // Tie-Break Saha Değişimi Matematiği (Coman vs Standart)
+      const tbStartSide = (totalGamesCompleted % 4 === 1 || totalGamesCompleted % 4 === 2) ? (chairSetup.left === 1 ? 2 : 1) : chairSetup.left;
+      if (tbPoints === 0) {
+        computedLeftSide = tbStartSide;
+      } else if (isComan) {
+        const block = Math.floor((tbPoints - 1) / 4);
+        computedLeftSide = block % 2 === 0 ? (tbStartSide === 1 ? 2 : 1) : tbStartSide;
+        isSideChangePoint = ((tbPoints - 1) % 4 === 0) && tbPoints > 0; // Coman (1, 5, 9) bildirimi
+      } else {
+        const block = Math.floor(tbPoints / 6);
+        computedLeftSide = block % 2 === 1 ? (tbStartSide === 1 ? 2 : 1) : tbStartSide;
+        isSideChangePoint = (tbPoints > 0 && tbPoints % 6 === 0); // Standart (6, 12) bildirimi
+      }
+    }
+  }
+
+  const leftPlayerId = computedLeftSide;
+  const rightPlayerId = computedLeftSide === 1 ? 2 : 1;
+  // ----------------------------------------------------------------------
 
   // Otomatik aktif seti bul
   useEffect(() => {
@@ -84,9 +140,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
       interval = setInterval(() => {
         setActiveTimer((prev) => prev ? { ...prev, seconds: prev.seconds - 1 } : null);
       }, 1000);
-    } else if (activeTimer && activeTimer.seconds <= 0) {
-      // Süre bittiğinde sayacı ekranda sıfırda bırakmak yerine otomatik kaldırabiliriz
-      // setActiveTimer(null); // Otomatik kapanması istenmiyorsa yorumda kalabilir
     }
     return () => clearInterval(interval);
   }, [activeTimer]);
@@ -282,7 +335,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
             <div className="col-span-6 flex items-center gap-2 pr-2">
               <span className="w-2.5 h-2.5 rounded-full bg-lime-400 shrink-0"></span>
               <span className="text-xs sm:text-sm font-bold text-white truncate flex items-center gap-1.5">
-                {state?.currentServer === 1 && (isLive || isPaused) && <span className="text-lime-400 text-[10px]">🎾</span>}
+                {state?.currentServer === 1 && (isLive || isPaused) && !isChairMode && <span className="text-lime-400 text-[10px]">🎾</span>}
                 {match['Oyuncu 1']}
               </span>
               {match.Kazanan === match['Oyuncu 1'] && isFinished && (
@@ -309,7 +362,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
             <div className="col-span-6 flex items-center gap-2 pr-2">
               <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 shrink-0"></span>
               <span className="text-xs sm:text-sm font-bold text-white truncate flex items-center gap-1.5">
-                {state?.currentServer === 2 && (isLive || isPaused) && <span className="text-cyan-400 text-[10px]">🎾</span>}
+                {state?.currentServer === 2 && (isLive || isPaused) && !isChairMode && <span className="text-cyan-400 text-[10px]">🎾</span>}
                 {match['Oyuncu 2']}
               </span>
               {match.Kazanan === match['Oyuncu 2'] && isFinished && (
@@ -351,126 +404,158 @@ export const CourtCard: React.FC<CourtCardProps> = ({
               </button>
             </div>
 
-            {/* MOD 1: KULE HAKEMİ (Sadeleştirilmiş Detaylı Puan Modu) */}
+            {/* MOD 1: KULE HAKEMİ (Devasa Puan Ekranı & Akıllı Saha/Servis) */}
             {isChairMode ? (
               <div className="space-y-3 animate-in fade-in zoom-in-95 duration-200">
                 
-                {/* 1) Mevcut Puan Ekranı */}
-                <div className="bg-slate-950 rounded-xl p-3 border border-slate-800 flex flex-col items-center justify-center relative overflow-hidden">
-                  <div className="absolute inset-0 bg-gradient-to-b from-transparent to-cyan-500/5"></div>
-                  <div className="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-1 z-10">Mevcut Puan Durumu</div>
-                  <div className="text-3xl font-black text-white font-mono tracking-tight z-10 flex items-center gap-3">
-                    <span className="text-lime-400">{state?.isTiebreak ? state.tiebreak_p1 : state?.gamePoint_p1 ?? '0'}</span>
-                    <span className="text-slate-600">-</span>
-                    <span className="text-cyan-400">{state?.isTiebreak ? state.tiebreak_p2 : state?.gamePoint_p2 ?? '0'}</span>
-                  </div>
-                  {state?.isTiebreak && <div className="text-[9px] text-amber-400 font-bold uppercase mt-1 z-10 bg-amber-500/10 px-2 py-0.5 rounded">Tie-Break</div>}
-                </div>
+                {/* AŞAMA 1: Eğer Ayar Yapılmadıysa Kurulum Ekranını Göster */}
+                {!chairSetup.server || !chairSetup.left ? (
+                  <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 text-center space-y-4">
+                    <h4 className="text-amber-400 font-bold text-sm">⚠️ Kule Hakemi Kurulumu</h4>
+                    <p className="text-xs text-slate-400">Maçın akıllı yönetimi (Saha değişimi ve Servis takibi) için maça başlarkenki durumları seçin:</p>
+                    
+                    <div className="space-y-2">
+                      <div className="text-[10px] font-black uppercase text-slate-500">1. İlk Servisi Kim Attı?</div>
+                      <div className="flex gap-2">
+                        <button type="button" onClick={(e) => { e.stopPropagation(); setChairSetup({...chairSetup, server: 1}); }} className={`flex-1 py-3 rounded-lg text-xs font-bold transition ${chairSetup.server === 1 ? 'bg-lime-500 text-slate-950 shadow-md' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>{match['Oyuncu 1']}</button>
+                        <button type="button" onClick={(e) => { e.stopPropagation(); setChairSetup({...chairSetup, server: 2}); }} className={`flex-1 py-3 rounded-lg text-xs font-bold transition ${chairSetup.server === 2 ? 'bg-cyan-500 text-slate-950 shadow-md' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>{match['Oyuncu 2']}</button>
+                      </div>
+                    </div>
 
-                {/* 2) Aktif Sayaç Ekranı (Eğer çalışıyorsa) */}
-                {activeTimer && (
-                  <div className="bg-amber-500/10 border border-amber-500/30 p-2.5 rounded-xl flex items-center justify-between">
-                    <span className="text-amber-400 font-bold text-xs flex items-center gap-1.5"><Timer className="w-3.5 h-3.5" />{activeTimer.label}</span>
-                    <div className="flex items-center gap-3">
-                      <span className={`font-mono font-black text-lg ${activeTimer.seconds === 0 ? 'text-rose-400 animate-pulse' : 'text-amber-300'}`}>
-                        {Math.floor(activeTimer.seconds / 60)}:{(activeTimer.seconds % 60).toString().padStart(2, '0')}
-                      </span>
-                      <button type="button" onClick={(e) => { e.stopPropagation(); setActiveTimer(null); }} className="text-amber-500 hover:text-amber-300 p-1">
-                        <X className="w-4 h-4" />
-                      </button>
+                    <div className="space-y-2 pt-2 border-t border-slate-800">
+                      <div className="text-[10px] font-black uppercase text-slate-500">2. Sandalyenin Solunda Kim Başladı?</div>
+                      <div className="flex gap-2">
+                        <button type="button" onClick={(e) => { e.stopPropagation(); setChairSetup({...chairSetup, left: 1}); }} className={`flex-1 py-3 rounded-lg text-xs font-bold transition ${chairSetup.left === 1 ? 'bg-lime-500 text-slate-950 shadow-md' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>{match['Oyuncu 1']}</button>
+                        <button type="button" onClick={(e) => { e.stopPropagation(); setChairSetup({...chairSetup, left: 2}); }} className={`flex-1 py-3 rounded-lg text-xs font-bold transition ${chairSetup.left === 2 ? 'bg-cyan-500 text-slate-950 shadow-md' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>{match['Oyuncu 2']}</button>
+                      </div>
                     </div>
                   </div>
-                )}
-
-                {/* 3) Puan & Servis Hatası Butonları */}
-                <div className="grid grid-cols-2 gap-3">
-                  {/* Oyuncu 1 */}
-                  <div className="flex flex-col gap-1.5">
-                    <button
-                      type="button"
-                      disabled={isPaused}
-                      onClick={(e) => handlePointScore(e, 1)}
-                      className="w-full py-4 bg-lime-500 hover:bg-lime-400 text-slate-950 font-black text-sm rounded-xl shadow-lg active:scale-95 transition disabled:opacity-50"
-                    >
-                      PUAN VER (+1)
-                    </button>
-                    {state?.currentServer === 1 && (
-                      <button
-                        type="button"
-                        disabled={isPaused}
-                        onClick={(e) => handleFault(e, 1)}
-                        className={`w-full py-2.5 rounded-xl text-[10px] font-bold transition active:scale-95 disabled:opacity-50 ${
-                          firstFault 
-                          ? 'bg-rose-500 border border-rose-400 text-white animate-pulse shadow-md shadow-rose-500/30' 
-                          : 'bg-slate-800 border border-slate-600 text-slate-300 hover:bg-slate-700'
-                        }`}
-                      >
-                        {firstFault ? '2. Hata (Puan Rakibe)' : '1. Servis Hatası'}
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Oyuncu 2 */}
-                  <div className="flex flex-col gap-1.5">
-                    <button
-                      type="button"
-                      disabled={isPaused}
-                      onClick={(e) => handlePointScore(e, 2)}
-                      className="w-full py-4 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black text-sm rounded-xl shadow-lg active:scale-95 transition disabled:opacity-50"
-                    >
-                      PUAN VER (+1)
-                    </button>
-                    {state?.currentServer === 2 && (
-                      <button
-                        type="button"
-                        disabled={isPaused}
-                        onClick={(e) => handleFault(e, 2)}
-                        className={`w-full py-2.5 rounded-xl text-[10px] font-bold transition active:scale-95 disabled:opacity-50 ${
-                          firstFault 
-                          ? 'bg-rose-500 border border-rose-400 text-white animate-pulse shadow-md shadow-rose-500/30' 
-                          : 'bg-slate-800 border border-slate-600 text-slate-300 hover:bg-slate-700'
-                        }`}
-                      >
-                        {firstFault ? '2. Hata (Puan Rakibe)' : '1. Servis Hatası'}
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {/* 4) Alt Aksiyon Çubuğu (Geri Al & Süreler & Askıya Al) */}
-                <div className="pt-2 border-t border-slate-800/80 flex flex-col gap-2">
+                ) : (
                   
-                  {/* Sayaç Başlatıcılar */}
-                  <div className="flex gap-2">
-                    <button type="button" onClick={(e) => startTimer(e, 'Saha Değişimi', 90)} className="flex-1 py-2 bg-slate-950 border border-slate-700 text-slate-400 hover:text-white text-[10px] font-bold rounded-lg transition">Saha Değiş. (90sn)</button>
-                    <button type="button" onClick={(e) => startTimer(e, 'Set Arası', 120)} className="flex-1 py-2 bg-slate-950 border border-slate-700 text-slate-400 hover:text-white text-[10px] font-bold rounded-lg transition">Set Arası (120sn)</button>
-                    <button type="button" onClick={(e) => startTimer(e, 'Sağlık Molası', 180)} className="flex-1 py-2 bg-slate-950 border border-slate-700 text-slate-400 hover:text-white text-[10px] font-bold rounded-lg transition">MTO (3dk)</button>
+                  /* AŞAMA 2: Kurulum Tamamlandı, Akıllı Puan Ekranı Göster (Sol / Sağ) */
+                  <div className="space-y-3">
+                    
+                    {/* Üst Bilgi Barı (Saha Değişimi Uyarısı ve Tie-Break Türü) */}
+                    <div className="flex justify-between items-center bg-slate-950 rounded-xl px-3 py-2 border border-slate-800 shadow-inner">
+                      <div className="text-[10px] font-bold text-slate-400">
+                        Set Skoru: <span className="text-white text-sm ml-1">{selectedSet === 1 ? `${s1_p1}-${s1_p2}` : selectedSet === 2 ? `${s2_p1}-${s2_p2}` : `${s3_p1}-${s3_p2}`}</span>
+                      </div>
+                      {isTB && <div className="px-2 py-0.5 bg-amber-500/20 text-amber-400 text-[10px] font-black uppercase rounded animate-pulse">{isComan ? 'Coman Tie-Break' : 'Standart Tie-Break'}</div>}
+                      {isSideChangePoint && <div className="flex items-center gap-1 text-rose-400 font-bold text-[10px] sm:text-xs uppercase animate-pulse bg-rose-500/10 px-2 py-1 rounded-md"><ArrowRightLeft className="w-3.5 h-3.5"/> Saha Değişimi</div>}
+                    </div>
+
+                    {/* Aktif Sayaç Ekranı (Eğer çalışıyorsa) */}
+                    {activeTimer && (
+                      <div className="bg-amber-500/10 border border-amber-500/30 p-2.5 rounded-xl flex items-center justify-between">
+                        <span className="text-amber-400 font-bold text-xs flex items-center gap-1.5"><Timer className="w-4 h-4" />{activeTimer.label}</span>
+                        <div className="flex items-center gap-3">
+                          <span className={`font-mono font-black text-xl ${activeTimer.seconds === 0 ? 'text-rose-400 animate-pulse' : 'text-amber-300'}`}>
+                            {Math.floor(activeTimer.seconds / 60)}:{(activeTimer.seconds % 60).toString().padStart(2, '0')}
+                          </span>
+                          <button type="button" onClick={(e) => { e.stopPropagation(); setActiveTimer(null); }} className="text-amber-500 hover:text-amber-300 p-1">
+                            <X className="w-5 h-5" />
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 3) DEV EKRAN: SOL OYUNCU vs SAĞ OYUNCU */}
+                    <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                      
+                      {/* SOL SAHA OYUNCUSU (Sandalyeye Göre) */}
+                      <div className={`bg-slate-950 rounded-2xl p-3 border-2 flex flex-col justify-between shadow-lg ${computedServer === leftPlayerId ? 'border-amber-400 shadow-[0_0_15px_rgba(251,191,36,0.15)]' : 'border-slate-800'}`}>
+                        <div className="text-center truncate border-b border-slate-800 pb-2 mb-2">
+                          <div className={`text-sm sm:text-base font-black truncate flex justify-center items-center gap-1.5 ${leftPlayerId === 1 ? 'text-lime-400' : 'text-cyan-400'}`}>
+                            {computedServer === leftPlayerId && <span className="text-amber-400 animate-bounce">🎾</span>}
+                            {match[`Oyuncu ${leftPlayerId}` as keyof MatchItem]}
+                          </div>
+                          <div className="text-[9px] text-slate-500 uppercase font-bold mt-1">Sol Saha (Sana Göre)</div>
+                        </div>
+                        
+                        <div className="flex justify-center items-center py-4 sm:py-6">
+                           <span className="text-6xl sm:text-7xl font-mono font-black tracking-tighter text-white">
+                             {isTB ? (leftPlayerId === 1 ? state?.tiebreak_p1 : state?.tiebreak_p2) || '0' : (leftPlayerId === 1 ? state?.gamePoint_p1 : state?.gamePoint_p2) || '0'}
+                           </span>
+                        </div>
+
+                        <div className="space-y-2 mt-auto">
+                          <button type="button" disabled={isPaused} onClick={(e) => handlePointScore(e, leftPlayerId)} className="w-full py-5 sm:py-6 bg-gradient-to-t from-emerald-600 to-emerald-400 hover:to-emerald-300 text-slate-950 font-black text-lg rounded-xl shadow-lg active:scale-95 transition disabled:opacity-50">
+                            +1 PUAN
+                          </button>
+                          {computedServer === leftPlayerId && (
+                            <button type="button" disabled={isPaused} onClick={(e) => handleFault(e, leftPlayerId)} className={`w-full py-3 rounded-xl text-xs font-bold transition active:scale-95 disabled:opacity-50 ${firstFault ? 'bg-rose-500 border border-rose-400 text-white animate-pulse' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>
+                              {firstFault ? '2. Hata (Puan Rakibe)' : '1. Servis Hatası'}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* SAĞ SAHA OYUNCUSU (Sandalyeye Göre) */}
+                      <div className={`bg-slate-950 rounded-2xl p-3 border-2 flex flex-col justify-between shadow-lg ${computedServer === rightPlayerId ? 'border-amber-400 shadow-[0_0_15px_rgba(251,191,36,0.15)]' : 'border-slate-800'}`}>
+                         <div className="text-center truncate border-b border-slate-800 pb-2 mb-2">
+                          <div className={`text-sm sm:text-base font-black truncate flex justify-center items-center gap-1.5 ${rightPlayerId === 1 ? 'text-lime-400' : 'text-cyan-400'}`}>
+                            {computedServer === rightPlayerId && <span className="text-amber-400 animate-bounce">🎾</span>}
+                            {match[`Oyuncu ${rightPlayerId}` as keyof MatchItem]}
+                          </div>
+                          <div className="text-[9px] text-slate-500 uppercase font-bold mt-1">Sağ Saha (Sana Göre)</div>
+                        </div>
+                        
+                        <div className="flex justify-center items-center py-4 sm:py-6">
+                           <span className="text-6xl sm:text-7xl font-mono font-black tracking-tighter text-white">
+                             {isTB ? (rightPlayerId === 1 ? state?.tiebreak_p1 : state?.tiebreak_p2) || '0' : (rightPlayerId === 1 ? state?.gamePoint_p1 : state?.gamePoint_p2) || '0'}
+                           </span>
+                        </div>
+
+                        <div className="space-y-2 mt-auto">
+                          <button type="button" disabled={isPaused} onClick={(e) => handlePointScore(e, rightPlayerId)} className="w-full py-5 sm:py-6 bg-gradient-to-t from-emerald-600 to-emerald-400 hover:to-emerald-300 text-slate-950 font-black text-lg rounded-xl shadow-lg active:scale-95 transition disabled:opacity-50">
+                            +1 PUAN
+                          </button>
+                          {computedServer === rightPlayerId && (
+                            <button type="button" disabled={isPaused} onClick={(e) => handleFault(e, rightPlayerId)} className={`w-full py-3 rounded-xl text-xs font-bold transition active:scale-95 disabled:opacity-50 ${firstFault ? 'bg-rose-500 border border-rose-400 text-white animate-pulse' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>
+                              {firstFault ? '2. Hata (Puan Rakibe)' : '1. Servis Hatası'}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                    </div>
+
+                    {/* 4) Alt Aksiyon Çubuğu (Geri Al & Süreler & Askıya Al) */}
+                    <div className="pt-2 border-t border-slate-800/80 flex flex-col gap-2">
+                      
+                      {/* Sayaç Başlatıcılar */}
+                      <div className="flex gap-2">
+                        <button type="button" onClick={(e) => startTimer(e, 'Saha Değişimi', 90)} className="flex-1 py-2.5 bg-slate-950 border border-slate-700 text-slate-400 hover:text-white text-[11px] font-bold rounded-lg transition shadow-inner">Saha Değiş. (90s)</button>
+                        <button type="button" onClick={(e) => startTimer(e, 'Set Arası', 120)} className="flex-1 py-2.5 bg-slate-950 border border-slate-700 text-slate-400 hover:text-white text-[11px] font-bold rounded-lg transition shadow-inner">Set Arası (120s)</button>
+                        <button type="button" onClick={(e) => startTimer(e, 'Sağlık Molası', 180)} className="flex-1 py-2.5 bg-slate-950 border border-slate-700 text-slate-400 hover:text-white text-[11px] font-bold rounded-lg transition shadow-inner">MTO (3dk)</button>
+                      </div>
+
+                      {/* Güvenlik & Yönetim */}
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={handleUndo}
+                          className="flex-1 flex items-center justify-center gap-1.5 py-3 bg-rose-500/10 border border-rose-500/20 hover:bg-rose-500/20 text-rose-400 text-xs font-bold rounded-xl transition active:scale-95 shadow-sm"
+                        >
+                          <RotateCcw className="w-4 h-4" /> Son Puanı Geri Al
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={toggleSuspend}
+                          className={`flex-1 flex items-center justify-center gap-1.5 py-3 text-xs font-bold rounded-xl transition active:scale-95 shadow-sm ${
+                            isPaused 
+                            ? 'bg-emerald-500/20 border border-emerald-500/30 text-emerald-400' 
+                            : 'bg-amber-500/10 border border-amber-500/20 text-amber-400'
+                          }`}
+                        >
+                          {isPaused ? <><PlayCircle className="w-4 h-4" /> Oyuna Devam Et</> : <><PauseCircle className="w-4 h-4" /> Oyunu Askıya Al</>}
+                        </button>
+                      </div>
+                    </div>
+
                   </div>
-
-                  {/* Güvenlik & Yönetim */}
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={handleUndo}
-                      className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-rose-500/10 border border-rose-500/20 hover:bg-rose-500/20 text-rose-400 text-[11px] font-bold rounded-xl transition active:scale-95"
-                    >
-                      <RotateCcw className="w-3.5 h-3.5" /> Son Puanı Geri Al
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={toggleSuspend}
-                      className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-[11px] font-bold rounded-xl transition active:scale-95 ${
-                        isPaused 
-                        ? 'bg-emerald-500/20 border border-emerald-500/30 text-emerald-400' 
-                        : 'bg-amber-500/10 border border-amber-500/20 text-amber-400'
-                      }`}
-                    >
-                      {isPaused ? <><PlayCircle className="w-3.5 h-3.5" /> Oyuna Devam Et</> : <><PauseCircle className="w-3.5 h-3.5" /> Oyunu Askıya Al</>}
-                    </button>
-                  </div>
-                </div>
-
+                )}
               </div>
             ) : (
               /* MOD 2: KORT HAKEMİ (Mevcut Hızlı Oyun Modu) */
