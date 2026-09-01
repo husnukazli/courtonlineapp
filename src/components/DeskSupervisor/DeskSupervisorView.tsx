@@ -51,7 +51,7 @@ export const DeskSupervisorView: React.FC = () => {
     saveTournamentInfo,
     purgeOrphanMatches,
     importMatchesList,
-    resetTournamentToDefault,
+    wipeAllMatchesForTournament,
     resetAllScores,
     forcePushAllToCloud,
     pullFromCloudNow,
@@ -64,7 +64,6 @@ export const DeskSupervisorView: React.FC = () => {
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
   
-  // YENİ ZOOM LİMİTİ: %40 ile %10 arası
   const [zoomLevel, setZoomLevel] = useState<number>(100);
   const [selectedMatchForModal, setSelectedMatchForModal] = useState<MatchItem | null>(null);
 
@@ -146,11 +145,11 @@ export const DeskSupervisorView: React.FC = () => {
 
   return (
     <div className="max-w-7xl mx-auto space-y-6 overflow-hidden">
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-4 sm:p- shadow-xl space-y-4">
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-4 sm:p-5 shadow-xl space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-800">
-          <div className="flex flex-wrap items-center gap-1. bg-slate-90 p-1 rounded-2xl border border-slate-800">
-            <button type="button" onClick={() => setActiveSubTab('grid')} className={`flex items-center gap-2 px-3. py-2 rounded-xl text-xs font-bold transition ${activeSubTab === 'grid' ? 'bg-cyan-400 text-slate-90 shadow-md font-black' : 'text-slate-400 hover:text-slate-200'}`}>
-              <Tv className="w-3. h-3." /><span>Canlı Kortlar Akışı</span>
+          <div className="flex flex-wrap items-center gap-1.5 bg-slate-950 p-1 rounded-2xl border border-slate-800">
+            <button type="button" onClick={() => setActiveSubTab('grid')} className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition ${activeSubTab === 'grid' ? 'bg-cyan-400 text-slate-950 shadow-md font-black' : 'text-slate-400 hover:text-slate-200'}`}>
+              <Tv className="w-3.5 h-3.5" /><span>Canlı Kortlar Akışı</span>
             </button>
             <button type="button" onClick={() => setActiveSubTab('stats')} className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition ${activeSubTab === 'stats' ? 'bg-cyan-400 text-slate-950 shadow-md font-black' : 'text-slate-400 hover:text-slate-200'}`}>
               <Award className="w-3.5 h-3.5" /><span>Turnuva İstatistikleri</span>
@@ -199,7 +198,6 @@ export const DeskSupervisorView: React.FC = () => {
               </select>
             </div>
 
-            {/* YENİ: GENİŞLETİLMİŞ ZOOM ÇUBUĞU */}
             <div className="flex items-center gap-2 text-xs text-slate-400 bg-slate-950 p-2 rounded-xl border border-slate-800">
               <ZoomOut className="w-4 h-4 text-cyan-400" />
               <input type="range" min="40" max="150" step="1" value={zoomLevel} onChange={(e) => setZoomLevel(Number(e.target.value))} className="w-24 sm:w-32 accent-cyan-400 cursor-pointer" />
@@ -211,11 +209,9 @@ export const DeskSupervisorView: React.FC = () => {
       </div>
 
       {activeSubTab === 'grid' && (
-        /* YENİ: YATAY KAYDIRMA İZNİ (overflow-x-auto) VE SABİT GENİŞLİK MATRİSİ */
         <div className="w-full overflow-x-auto pb-6">
           <div style={{ transform: `scale(${zoomLevel / 100})`, transformOrigin: 'top left', minWidth: 'min-content' }} className="transition-transform duration-150 p-2">
             
-            {/* Kortların Yanyana Dizilimi: Asla alt satıra geçmez (flex-nowrap) */}
             <div className="flex flex-nowrap gap-4">
               {(selectedCourtFilter === 'ALL' ? distinctCourts : [selectedCourtFilter]).map((courtName) => {
                 const courtMatches = filteredMatches.filter((m) => m.Kort === courtName);
@@ -302,7 +298,6 @@ export const DeskSupervisorView: React.FC = () => {
         </div>
       )}
 
-      {/* SUB-TAB 2, 3, 4, 5 ARE THE SAME AS BEFORE */}
       {activeSubTab === 'stats' && (
         <div className="space-y-6">
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
@@ -415,22 +410,57 @@ export const DeskSupervisorView: React.FC = () => {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
               <button type="button" disabled={isSyncingAction} onClick={async () => { setIsSyncingAction(true); try { await forcePushAllToCloud(); setImportMsg('✅ Buluta zorla yazıldı!'); setTimeout(() => setImportMsg(''), 4000); } catch { setImportMsg('❌ Başarısız.'); } finally { setIsSyncingAction(false); } }} className="flex items-center justify-center gap-2 px-4 py-3 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 rounded-2xl text-xs font-bold transition shadow"><Upload className="w-4 h-4 text-emerald-400" /><span>Zorla Yayınla</span></button>
-              <button type="button" disabled={isSyncingAction} onClick={async () => { setIsSyncingAction(true); try { const n = await purgeOrphanMatches(); setImportMsg(n > 0 ? '🧹 ' + n + ' hayalet döküman silindi!' : '✅ Hayalet yok, temiz!'); setTimeout(() => setImportMsg(''), 4000); } catch { setImportMsg('❌ Temizlenemedi.'); } finally { setIsSyncingAction(false); } }} className="flex items-center justify-center gap-2 px-4 py-3 bg-rose-600/20 hover:bg-rose-600/30 border border-rose-500/40 text-rose-300 rounded-2xl text-xs font-bold transition shadow"><span>🧹</span><span>Hayalet Temizle</span></button>
+              <button type="button" disabled={isSyncingAction} onClick={async () => { setIsSyncingAction(true); try { const n = await purgeOrphanMatches(); setImportMsg(n > 0 ? '🧹 ' + n + ' hayalet döküman silindi!' : '✅ Hayalet yok, temiz!'); setTimeout(() => setImportMsg(''), 4000); } catch { setImportMsg('❌ Temizlenemedi.'); } finally { setIsSyncingAction(false); } }} className="flex items-center justify-center gap-2 px-4 py-3 bg-amber-600/20 hover:bg-amber-600/30 border border-amber-500/40 text-amber-300 rounded-2xl text-xs font-bold transition shadow"><span>🧹</span><span>Hayalet Temizle</span></button>
               <button type="button" disabled={isSyncingAction} onClick={async () => { setIsSyncingAction(true); try { await pullFromCloudNow(); setImportMsg('✅ Veri çekildi!'); setTimeout(() => setImportMsg(''), 4000); } catch { setImportMsg('❌ Başarısız.'); } finally { setIsSyncingAction(false); } }} className="flex items-center justify-center gap-2 px-4 py-3 bg-cyan-600/20 hover:bg-cyan-600/30 border border-cyan-500/40 text-cyan-300 rounded-2xl text-xs font-bold transition shadow"><Download className="w-4 h-4 text-cyan-400" /><span>Buluttan Çek</span></button>
-              <button type="button" disabled={isSyncingAction} onClick={() => { if (confirm('Sıfırlansın mı?')) { resetAllScores(); } }} className="flex items-center justify-center gap-2 px-4 py-3 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 rounded-2xl text-xs font-bold transition shadow"><RefreshCw className="w-4 h-4 text-amber-400" /><span>Skorları Sıfırla</span></button>
             </div>
           </div>
+          
           <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-6">
             <div className="flex items-center justify-between">
-              <div><h3 className="font-bold text-base text-white">Maç Programı (JSON)</h3></div>
+              <div><h3 className="font-bold text-base text-white">Maç Programı (JSON) & Sıfırlama</h3></div>
               <button type="button" onClick={handleExportJson} className="flex items-center gap-1.5 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl transition shadow"><Download className="w-4 h-4" /><span>İndir</span></button>
             </div>
+            
             {importMsg && <div className="p-3.5 bg-cyan-950/70 border border-cyan-500/40 rounded-2xl text-cyan-300 text-xs font-bold shadow-lg animate-in fade-in">{importMsg}</div>}
+            
             <div className="space-y-3">
-              <textarea rows={8} value={jsonInput} onChange={(e) => setJsonInput(e.target.value)} className="w-full p-3.5 bg-slate-950 border border-slate-800 rounded-2xl text-xs font-mono text-cyan-300 focus:outline-none focus:border-cyan-400" />
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <button type="button" onClick={() => { if (confirm('Varsayılana dön?')) resetTournamentToDefault(); }} className="text-xs text-rose-400 hover:text-rose-300 underline font-medium">Varsayılana Sıfırla</button>
-                <button type="button" onClick={handleImportJson} disabled={!jsonInput.trim()} className="px-6 py-2.5 bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-bold text-xs rounded-xl shadow transition disabled:opacity-50 flex items-center gap-2"><Upload className="w-4 h-4" /><span>JSON Yükle</span></button>
+              <textarea rows={8} value={jsonInput} onChange={(e) => setJsonInput(e.target.value)} placeholder="Yeni maç programı JSON verisini buraya yapıştırın..." className="w-full p-3.5 bg-slate-950 border border-slate-800 rounded-2xl text-xs font-mono text-cyan-300 focus:outline-none focus:border-cyan-400" />
+              
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-800">
+                {/* YENİ: DİKKAT ÇEKİCİ SIFIRLAMA BUTONU */}
+                <button 
+                  type="button" 
+                  disabled={isSyncingAction} 
+                  onClick={async () => {
+                    const onay = window.confirm("DİKKAT: Bu turnuvaya ait TÜM MAÇLAR (veritabanı dahil) silinecek!\n\nYeni bir maç programı yüklemeden önce her şeyi sıfırlamak istediğinize emin misiniz?");
+                    if (onay) {
+                      setIsSyncingAction(true);
+                      const success = await wipeAllMatchesForTournament();
+                      if (success) {
+                        setImportMsg('🧹 Bütün maç verileri kökten silindi! Yeni maç listesini (JSON) güvenle yükleyebilirsiniz.');
+                        setJsonInput('');
+                      } else {
+                        setImportMsg('❌ Veriler silinirken hata oluştu.');
+                      }
+                      setIsSyncingAction(false);
+                      setTimeout(() => setImportMsg(''), 5000);
+                    }
+                  }} 
+                  className="flex items-center gap-1.5 px-4 py-2.5 bg-rose-600/20 hover:bg-rose-600/40 border border-rose-500/50 text-rose-300 font-bold text-xs rounded-xl transition disabled:opacity-50"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span>Tüm Maçları Kökten Sil (Sıfırla)</span>
+                </button>
+
+                <button 
+                  type="button" 
+                  onClick={handleImportJson} 
+                  disabled={!jsonInput.trim() || isSyncingAction} 
+                  className="px-6 py-2.5 bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-bold text-xs rounded-xl shadow transition disabled:opacity-50 flex items-center gap-2"
+                >
+                  <Upload className="w-4 h-4" />
+                  <span>JSON Yükle</span>
+                </button>
               </div>
             </div>
           </div>
