@@ -21,6 +21,7 @@ import {
   Lock,
   KeyRound,
   ShieldCheck,
+  FileText,
 } from 'lucide-react';
 import { useTennisData } from '../../context/TennisDataContext';
 import { MatchItem, ScoreFormatType } from '../../types/tennis';
@@ -80,6 +81,9 @@ export const DeskSupervisorView: React.FC = () => {
   const [importMsg, setImportMsg] = useState<string>('');
   const [isSyncingAction, setIsSyncingAction] = useState(false);
 
+  // YENİ: GÜN SONU RAPORU GÜVENLİK KİLİDİ
+  const [raporAlindi, setRaporAlindi] = useState<boolean>(false);
+
   const distinctCourts = Array.from(new Set(matches.map((m) => m.Kort))).sort();
   const distinctCategories = Array.from(new Set(matches.map((m) => m.Kategori).filter(Boolean))).sort();
 
@@ -134,6 +138,7 @@ export const DeskSupervisorView: React.FC = () => {
         importMatchesList(parsed);
         setImportMsg(`✅ ${parsed.length} maç başarıyla içe aktarıldı!`);
         setJsonInput('');
+        setRaporAlindi(false); // Yeni liste yüklendiğinde güvenlik kilidini tekrar devreye al
         setTimeout(() => setImportMsg(''), 3000);
       } else {
         setImportMsg('❌ JSON geçerli bir maç dizisi [ { ... } ] olmalıdır.');
@@ -141,6 +146,114 @@ export const DeskSupervisorView: React.FC = () => {
     } catch (e: any) {
       setImportMsg('❌ Geçersiz JSON formatı: ' + e.message);
     }
+  };
+
+  // YENİ: PDF / YAZDIRILABİLİR GÜN SONU RAPORU ÜRETİCİSİ
+  const handlePrintDailyReport = () => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      alert("⚠️ Tarayıcınız açılır pencereleri (pop-up) engelliyor. Lütfen bu site için izin verin.");
+      return;
+    }
+
+    const bugun = new Date().toLocaleDateString('tr-TR');
+    const saat = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+
+    let html = `
+      <!DOCTYPE html>
+      <html lang="tr">
+      <head>
+        <meta charset="UTF-8">
+        <title>Gün Sonu Raporu - ${tournamentInfo?.ad || 'Turnuva'}</title>
+        <style>
+          body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 20px; color: #222; font-size: 12px; }
+          .header-container { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #000; padding-bottom: 10px; }
+          h1 { margin: 0; font-size: 22px; text-transform: uppercase; }
+          h2 { margin: 5px 0 0 0; font-size: 14px; font-weight: normal; color: #555; }
+          table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+          th, td { border: 1px solid #aaa; padding: 8px 6px; text-align: left; }
+          th { background-color: #eee; font-weight: bold; text-transform: uppercase; font-size: 11px; }
+          .winner { font-weight: bold; background-color: #f9f9f9; }
+          .status-bitti { color: #166534; font-weight: bold; }
+          .footer-signature { margin-top: 50px; display: flex; justify-content: space-between; padding: 0 40px; }
+          .signature-box { text-align: center; }
+          @media print {
+            @page { size: A4 portrait; margin: 10mm; }
+            body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header-container">
+          <h1>${tournamentInfo?.ad || 'CourtOnline Tenis Turnuvası'}</h1>
+          <h2>Resmi Gün Sonu Raporu | Tarih: ${bugun} - Saat: ${saat}</h2>
+          ${tournamentInfo?.yer ? `<h3>Yer: ${tournamentInfo.yer}</h3>` : ''}
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th width="8%">Kort</th>
+              <th width="8%">Saat</th>
+              <th width="15%">Kategori</th>
+              <th width="20%">Oyuncu 1</th>
+              <th width="20%">Oyuncu 2</th>
+              <th width="15%">Kazanan</th>
+              <th width="14%">Skor</th>
+            </tr>
+          </thead>
+          <tbody>
+    `;
+
+    // Maçları korta ve saate göre sıralayarak yazdır
+    const sortedMatches = [...matches].sort((a, b) => a.Kort.localeCompare(b.Kort) || a.Saat.localeCompare(b.Saat));
+
+    sortedMatches.forEach(m => {
+      const p1Winner = m.Kazanan === m['Oyuncu 1'];
+      const p2Winner = m.Kazanan === m['Oyuncu 2'];
+      
+      html += `
+        <tr>
+          <td>${m.Kort}</td>
+          <td>${m.Saat}</td>
+          <td>${m.Kategori}</td>
+          <td class="${p1Winner ? 'winner' : ''}">${p1Winner ? '✓ ' : ''}${m['Oyuncu 1']}</td>
+          <td class="${p2Winner ? 'winner' : ''}">${p2Winner ? '✓ ' : ''}${m['Oyuncu 2']}</td>
+          <td class="winner">${m.Kazanan !== 'Secilmedi' ? m.Kazanan : '-'}</td>
+          <td class="status-bitti">${m.Skor}</td>
+        </tr>
+      `;
+    });
+
+    html += `
+          </tbody>
+        </table>
+        
+        <div class="footer-signature">
+          <div class="signature-box">
+            <p><strong>Turnuva Başhakemi</strong></p>
+            <p>İmza</p>
+            <p><br>.......................................</p>
+          </div>
+          <div class="signature-box">
+            <p><strong>Turnuva Direktörü / Kulüp Yetkilisi</strong></p>
+            <p>İmza</p>
+            <p><br>.......................................</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.open();
+    printWindow.document.write(html);
+    printWindow.document.close();
+
+    // DOM'un yüklenmesi ve stillerin uygulanması için ufak bir bekleme
+    setTimeout(() => {
+      printWindow.print();
+      // Çıktı ekranı açıldığı an güvenli kilidi açıyoruz.
+      setRaporAlindi(true);
+    }, 250);
   };
 
   return (
@@ -171,9 +284,6 @@ export const DeskSupervisorView: React.FC = () => {
           <div className="flex items-center gap-2 text-xs font-mono">
             <span className="px-2.5 py-1 rounded-lg bg-emerald-950/60 border border-emerald-500/30 text-emerald-300 font-bold">{liveMatches} Canlı</span>
             <span className="px-2.5 py-1 rounded-lg bg-cyan-950/60 border border-cyan-500/30 text-cyan-300 font-bold">%{completionRate} Bitti</span>
-            <button type="button" onClick={handleExportJson} className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition" title="Yedek JSON İndir">
-              <Download className="w-4 h-4" />
-            </button>
           </div>
         </div>
 
@@ -416,28 +526,60 @@ export const DeskSupervisorView: React.FC = () => {
           </div>
           
           <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-6">
-            <div className="flex items-center justify-between">
-              <div><h3 className="font-bold text-base text-white">Maç Programı (JSON) & Sıfırlama</h3></div>
-              <button type="button" onClick={handleExportJson} className="flex items-center gap-1.5 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl transition shadow"><Download className="w-4 h-4" /><span>İndir</span></button>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div><h3 className="font-bold text-base text-white">Raporlama, Program Yükleme & Sıfırlama</h3></div>
+              
+              <div className="flex gap-2">
+                {/* YENİ: PDF ÇIKTI BUTONU */}
+                <button 
+                  type="button" 
+                  onClick={handlePrintDailyReport} 
+                  className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl transition shadow"
+                >
+                  <FileText className="w-4 h-4" />
+                  <span>Gün Sonu Raporu Al (PDF)</span>
+                </button>
+
+                <button 
+                  type="button" 
+                  onClick={handleExportJson} 
+                  className="flex items-center gap-1.5 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl transition shadow"
+                  title="Ham JSON Yedeği İndir"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Yedek (JSON)</span>
+                </button>
+              </div>
             </div>
             
             {importMsg && <div className="p-3.5 bg-cyan-950/70 border border-cyan-500/40 rounded-2xl text-cyan-300 text-xs font-bold shadow-lg animate-in fade-in">{importMsg}</div>}
             
             <div className="space-y-3">
-              <textarea rows={8} value={jsonInput} onChange={(e) => setJsonInput(e.target.value)} placeholder="Yeni maç programı JSON verisini buraya yapıştırın..." className="w-full p-3.5 bg-slate-950 border border-slate-800 rounded-2xl text-xs font-mono text-cyan-300 focus:outline-none focus:border-cyan-400" />
+              <textarea 
+                rows={8} 
+                value={jsonInput} 
+                onChange={(e) => setJsonInput(e.target.value)} 
+                placeholder="Yeni günün maç programı (JSON) verisini buraya yapıştırın..." 
+                className="w-full p-3.5 bg-slate-950 border border-slate-800 rounded-2xl text-xs font-mono text-cyan-300 focus:outline-none focus:border-cyan-400" 
+              />
               
               <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-800">
-                {/* YENİ: DİKKAT ÇEKİCİ SIFIRLAMA BUTONU */}
+                {/* GÜNCELLENMİŞ SIFIRLAMA BUTONU (Kilitli) */}
                 <button 
                   type="button" 
                   disabled={isSyncingAction} 
                   onClick={async () => {
-                    const onay = window.confirm("DİKKAT: Bu turnuvaya ait TÜM MAÇLAR (veritabanı dahil) silinecek!\n\nYeni bir maç programı yüklemeden önce her şeyi sıfırlamak istediğinize emin misiniz?");
+                    if (matches.length > 0 && !raporAlindi) {
+                      alert("⚠️ UYARI: Gün sonu raporunu henüz indirmediniz!\n\nLütfen tüm verileri silmeden önce yukarıdaki yeşil 'Gün Sonu Raporu Al (PDF)' butonuna tıklayarak sonuçları kaydedin.");
+                      return;
+                    }
+
+                    const onay = window.confirm("DİKKAT: Bu turnuvaya ait TÜM MAÇLAR silinecek!\n\nYeni bir maç programı yüklemeden önce her şeyi sıfırlamak istediğinize emin misiniz?");
                     if (onay) {
                       setIsSyncingAction(true);
                       const success = await wipeAllMatchesForTournament();
                       if (success) {
-                        setImportMsg('🧹 Bütün maç verileri kökten silindi! Yeni maç listesini (JSON) güvenle yükleyebilirsiniz.');
+                        setImportMsg('🧹 Bütün maç verileri kökten silindi! Yeni maç listesini güvenle yükleyebilirsiniz.');
                         setJsonInput('');
                       } else {
                         setImportMsg('❌ Veriler silinirken hata oluştu.');
@@ -459,7 +601,7 @@ export const DeskSupervisorView: React.FC = () => {
                   className="px-6 py-2.5 bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-bold text-xs rounded-xl shadow transition disabled:opacity-50 flex items-center gap-2"
                 >
                   <Upload className="w-4 h-4" />
-                  <span>JSON Yükle</span>
+                  <span>Yeni Maçları Yükle</span>
                 </button>
               </div>
             </div>
