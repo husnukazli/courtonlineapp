@@ -49,8 +49,8 @@ export const CourtCard: React.FC<CourtCardProps> = ({
   const [isChairMode, setIsChairMode] = useState<boolean>(false);
   
   // YENİ: Artık her setin kurulumunu ayrı hafızada tutuyoruz (Singles için otomatik geçişi sağlayacak)
-  const [setSetups, setSetups] = useState<Record<number, ChairSetup>>({});
-  const chairSetup = setSetups[selectedSet] || null;
+  const [setupsBySet, setSetupsBySet] = useState<Record<number, ChairSetup>>({});
+  const chairSetup = setupsBySet[selectedSet] || null;
   const isSetupValid = !!chairSetup;
 
   const [setupForm, setSetupForm] = useState<{
@@ -137,9 +137,9 @@ export const CourtCard: React.FC<CourtCardProps> = ({
 
   // --- YENİ: TEKLER MAÇI İÇİN OTOMATİK SONRAKİ SETE GEÇİŞ (Auto-Advance) ---
   useEffect(() => {
-    if (!isDoubles && selectedSet > 1 && !setSetups[selectedSet] && setSetups[selectedSet - 1]) {
+    if (!isDoubles && selectedSet > 1 && !setupsBySet[selectedSet] && setupsBySet[selectedSet - 1]) {
       const prevSet = selectedSet - 1;
-      const prevSetup = setSetups[prevSet];
+      const prevSetup = setupsBySet[prevSet];
       
       const prevS1 = prevSet === 1 ? s1_p1 : prevSet === 2 ? s2_p1 : s3_p1;
       const prevS2 = prevSet === 1 ? s1_p2 : prevSet === 2 ? s2_p2 : s3_p2;
@@ -155,7 +155,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
         const nextInitialOpposite = changeEnds ? !lastGameOpposite : lastGameOpposite;
         const nextLeftTeam = nextInitialOpposite ? (prevSetup.leftTeam === 1 ? 2 : 1) : prevSetup.leftTeam;
 
-        setSetups(prev => ({
+        setSetupsBySet(prev => ({
           ...prev,
           [selectedSet]: {
             ...prevSetup,
@@ -166,7 +166,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
         }));
       }
     }
-  }, [selectedSet, isDoubles, setSetups, s1_p1, s1_p2, s2_p1, s2_p2, s3_p1, s3_p2]);
+  }, [selectedSet, isDoubles, setupsBySet, s1_p1, s1_p2, s2_p1, s2_p2, s3_p1, s3_p2]);
 
   const currentSetGames = selectedSet === 1 ? s1_p1 + s1_p2 : selectedSet === 2 ? s2_p1 + s2_p2 : s3_p1 + s3_p2;
   const isTB = state?.isTiebreak || false;
@@ -310,7 +310,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
       t2InitSrvIdx = ((setupForm.t2ServerIdx - teamServicesBeforeNowT2) % 2 + 2) % 2 as 0 | 1;
     }
 
-    setSetups(prev => ({
+    setSetupsBySet(prev => ({
       ...prev,
       [selectedSet]: {
         setupSetNum: selectedSet,
@@ -514,7 +514,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                {isSetupValid && (
                   <button type="button" onClick={(e) => { 
                     e.stopPropagation(); 
-                    setSetups(prev => { const next = {...prev}; delete next[selectedSet]; return next; }); 
+                    setSetupsBySet(prev => { const next = {...prev}; delete next[selectedSet]; return next; }); 
                   }} className="p-2 sm:px-3 sm:py-2 rounded-xl bg-slate-800 text-slate-400 hover:text-white border border-slate-700 transition flex items-center gap-1.5" title="Saha ve Servis Rotasyonunu Sıfırla">
                     <RotateCcw className="w-4 h-4" /> <span className="hidden sm:inline text-xs font-bold">Rotasyon</span>
                   </button>
