@@ -83,6 +83,13 @@ export const CourtCard: React.FC<CourtCardProps> = ({
   const t1Players = isDoubles ? match['Oyuncu 1'].split('/').map(p => p.trim()) : [match['Oyuncu 1']];
   const t2Players = isDoubles ? match['Oyuncu 2'].split('/').map(p => p.trim()) : [match['Oyuncu 2']];
 
+  // --- LİMİT KONTROLÜ İÇİN AKTİF SET DOĞRULAMASI ---
+  const val1 = validateSingleSet(s1_p1, s1_p2, 1, format);
+  const val2 = validateSingleSet(s2_p1, s2_p2, 2, format);
+  const val3 = validateSingleSet(s3_p1, s3_p2, 3, format);
+
+  const isCurrentSetComplete = selectedSet === 1 ? val1.isComplete : selectedSet === 2 ? val2.isComplete : val3.isComplete;
+
   useEffect(() => {
     const handlePopState = () => {
       if (isChairMode) {
@@ -117,8 +124,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
 
   useEffect(() => {
     if (isLive) {
-      const val1 = validateSingleSet(s1_p1, s1_p2, 1, format);
-      const val2 = validateSingleSet(s2_p1, s2_p2, 2, format);
       let activeSet: 1 | 2 | 3 = 1;
       if (val1.isComplete && !val2.isComplete) activeSet = 2;
       else if (val1.isComplete && val2.isComplete && val1.winner !== val2.winner) activeSet = 3;
@@ -126,9 +131,8 @@ export const CourtCard: React.FC<CourtCardProps> = ({
       else if (s2_p1 > 0 || s2_p2 > 0) activeSet = 2;
       setSelectedSet(activeSet);
     }
-  }, [match.Skor, match.detailedState, isLive, format, s1_p1, s1_p2, s2_p1, s2_p2, s3_p1, s3_p2]);
+  }, [match.Skor, match.detailedState, isLive, format, s1_p1, s1_p2, s2_p1, s2_p2, s3_p1, s3_p2, val1.isComplete, val2.isComplete, val1.winner]);
 
-  // --- MATEMATİK MOTORU (SADECE GEÇERLİ SETİ BAZ ALIR) ---
   const currentSetGames = selectedSet === 1 ? s1_p1 + s1_p2 : selectedSet === 2 ? s2_p1 + s2_p2 : s3_p1 + s3_p2;
   const isTB = state?.isTiebreak || false;
   const tbPoints = isTB ? (state?.tiebreak_p1 || 0) + (state?.tiebreak_p2 || 0) : 0;
@@ -228,7 +232,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
   const leftTeamId = computedLeftTeam;
   const rightTeamId = computedLeftTeam === 1 ? 2 : 1;
 
-  // --- REVERSE ENGINE (TERSİNE HESAPLAMA) SADECE GEÇERLİ SETİ KULLANIR ---
   const handleSaveSetup = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!setupForm.firstServingTeam || !setupForm.leftTeam) return;
@@ -422,12 +425,14 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="flex flex-col gap-1.5">
-                    <button type="button" onClick={(e) => handleQuickScore(e, 1, 1)} className="w-full py-3 rounded-xl bg-lime-400 hover:bg-lime-300 text-slate-950 font-black text-sm flex items-center justify-center gap-1 transition"><Plus className="w-5 h-5" />+1 OYUN</button>
-                    <button type="button" onClick={(e) => handleQuickScore(e, 1, -1)} className="w-full py-2 rounded-xl bg-rose-500/10 text-rose-400 font-bold text-xs flex items-center justify-center gap-1 transition"><Minus className="w-4 h-4" />-1 Düş</button>
+                    {/* LİMİT KONTROLÜ BURADA: Eğer set bitmişse (+1 OYUN) butonu kilitlenir */}
+                    <button type="button" disabled={isPaused || isFinished || isCurrentSetComplete} onClick={(e) => handleQuickScore(e, 1, 1)} className="w-full py-3 rounded-xl bg-lime-400 hover:bg-lime-300 text-slate-950 font-black text-sm flex items-center justify-center gap-1 transition disabled:opacity-50 disabled:cursor-not-allowed"><Plus className="w-5 h-5" />+1 OYUN</button>
+                    {/* Yanlışı düzeltmek için (-1 Düş) butonu her zaman açık kalır */}
+                    <button type="button" disabled={isPaused} onClick={(e) => handleQuickScore(e, 1, -1)} className="w-full py-2 rounded-xl bg-rose-500/10 text-rose-400 font-bold text-xs flex items-center justify-center gap-1 transition disabled:opacity-50"><Minus className="w-4 h-4" />-1 Düş</button>
                   </div>
                   <div className="flex flex-col gap-1.5">
-                    <button type="button" onClick={(e) => handleQuickScore(e, 2, 1)} className="w-full py-3 rounded-xl bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-black text-sm flex items-center justify-center gap-1 transition"><Plus className="w-5 h-5" />+1 OYUN</button>
-                    <button type="button" onClick={(e) => handleQuickScore(e, 2, -1)} className="w-full py-2 rounded-xl bg-rose-500/10 text-cyan-400 font-bold text-xs flex items-center justify-center gap-1 transition"><Minus className="w-4 h-4" />-1 Düş</button>
+                    <button type="button" disabled={isPaused || isFinished || isCurrentSetComplete} onClick={(e) => handleQuickScore(e, 2, 1)} className="w-full py-3 rounded-xl bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-black text-sm flex items-center justify-center gap-1 transition disabled:opacity-50 disabled:cursor-not-allowed"><Plus className="w-5 h-5" />+1 OYUN</button>
+                    <button type="button" disabled={isPaused} onClick={(e) => handleQuickScore(e, 2, -1)} className="w-full py-2 rounded-xl bg-rose-500/10 text-cyan-400 font-bold text-xs flex items-center justify-center gap-1 transition disabled:opacity-50"><Minus className="w-4 h-4" />-1 Düş</button>
                   </div>
                 </div>
               </div>
@@ -645,12 +650,13 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                       </div>
 
                       <div className="flex flex-col gap-1.5 sm:gap-2 shrink-0">
-                        <button type="button" disabled={isPaused} onClick={(e) => handlePointScore(e, leftTeamId)} className="w-full py-8 sm:py-12 bg-gradient-to-t from-emerald-600 to-emerald-400 hover:to-emerald-300 text-slate-950 font-black text-xl sm:text-3xl rounded-2xl shadow-lg active:scale-95 transition disabled:opacity-50">
+                        {/* LİMİT KONTROLÜ BURADA DA EKLENDİ (isFinished) */}
+                        <button type="button" disabled={isPaused || isFinished} onClick={(e) => handlePointScore(e, leftTeamId)} className="w-full py-8 sm:py-12 bg-gradient-to-t from-emerald-600 to-emerald-400 hover:to-emerald-300 text-slate-950 font-black text-xl sm:text-3xl rounded-2xl shadow-lg active:scale-95 transition disabled:opacity-50 disabled:cursor-not-allowed">
                           +1 PUAN
                         </button>
                         <div className="h-10 sm:h-14 w-full">
                            {computedServerTeam === leftTeamId ? (
-                             <button type="button" disabled={isPaused} onClick={(e) => handleFault(e, leftTeamId)} className={`w-full h-full rounded-xl text-[10px] sm:text-base font-black transition active:scale-95 disabled:opacity-50 ${firstFault ? 'bg-rose-500 border-2 border-rose-400 text-white animate-pulse' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>
+                             <button type="button" disabled={isPaused || isFinished} onClick={(e) => handleFault(e, leftTeamId)} className={`w-full h-full rounded-xl text-[10px] sm:text-base font-black transition active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed ${firstFault ? 'bg-rose-500 border-2 border-rose-400 text-white animate-pulse' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>
                                {firstFault ? '2. Hata (Rakibe Puan)' : '1. Servis Hatası'}
                              </button>
                            ) : (
@@ -689,12 +695,13 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                       </div>
 
                       <div className="flex flex-col gap-1.5 sm:gap-2 shrink-0">
-                        <button type="button" disabled={isPaused} onClick={(e) => handlePointScore(e, rightTeamId)} className="w-full py-8 sm:py-12 bg-gradient-to-t from-emerald-600 to-emerald-400 hover:to-emerald-300 text-slate-950 font-black text-xl sm:text-3xl rounded-2xl shadow-lg active:scale-95 transition disabled:opacity-50">
+                        {/* LİMİT KONTROLÜ BURADA DA EKLENDİ (isFinished) */}
+                        <button type="button" disabled={isPaused || isFinished} onClick={(e) => handlePointScore(e, rightTeamId)} className="w-full py-8 sm:py-12 bg-gradient-to-t from-emerald-600 to-emerald-400 hover:to-emerald-300 text-slate-950 font-black text-xl sm:text-3xl rounded-2xl shadow-lg active:scale-95 transition disabled:opacity-50 disabled:cursor-not-allowed">
                           +1 PUAN
                         </button>
                         <div className="h-10 sm:h-14 w-full">
                            {computedServerTeam === rightTeamId ? (
-                             <button type="button" disabled={isPaused} onClick={(e) => handleFault(e, rightTeamId)} className={`w-full h-full rounded-xl text-[10px] sm:text-base font-black transition active:scale-95 disabled:opacity-50 ${firstFault ? 'bg-rose-500 border-2 border-rose-400 text-white animate-pulse' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>
+                             <button type="button" disabled={isPaused || isFinished} onClick={(e) => handleFault(e, rightTeamId)} className={`w-full h-full rounded-xl text-[10px] sm:text-base font-black transition active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed ${firstFault ? 'bg-rose-500 border-2 border-rose-400 text-white animate-pulse' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>
                                {firstFault ? '2. Hata (Rakibe Puan)' : '1. Servis Hatası'}
                              </button>
                            ) : (
@@ -715,7 +722,8 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                     </div>
 
                     <div className="flex gap-2 sm:gap-3">
-                      <button type="button" onClick={handleUndo} className="flex-1 flex items-center justify-center gap-1.5 py-3 sm:py-4 bg-rose-500/10 border border-rose-500/20 hover:bg-rose-500/20 text-rose-400 text-[11px] sm:text-base font-black rounded-xl transition active:scale-95 shadow-sm">
+                      {/* Geri Al Butonu limit veya bitti durumuna bakmaksızın düzeltebilmen için açık kalır */}
+                      <button type="button" onClick={handleUndo} disabled={isPaused} className="flex-1 flex items-center justify-center gap-1.5 py-3 sm:py-4 bg-rose-500/10 border border-rose-500/20 hover:bg-rose-500/20 text-rose-400 text-[11px] sm:text-base font-black rounded-xl transition active:scale-95 shadow-sm disabled:opacity-50">
                         <RotateCcw className="w-4 h-4 sm:w-5 sm:h-5" /> Geri Al
                       </button>
                       <button type="button" onClick={toggleSuspend} className={`flex-1 flex items-center justify-center gap-1.5 py-3 sm:py-4 text-[11px] sm:text-base font-black rounded-xl transition active:scale-95 shadow-sm ${isPaused ? 'bg-emerald-500/20 border border-emerald-500/30 text-emerald-400' : 'bg-amber-500/10 border border-amber-500/20 text-amber-400'}`}>
