@@ -26,6 +26,16 @@ interface CourtCardProps {
   onOpenSetup?: (match: MatchItem) => void;
 }
 
+// Çiftler ve Tekler için Ortak Kurulum Tipi (Set Bazlı)
+type ChairSetup = {
+  setupSetNum: number;
+  serverTeam: 1 | 2;
+  leftTeam: 1 | 2;
+  tbType: 'standard' | 'coman';
+  t1InitialServerIdx: 0 | 1; 
+  t2InitialServerIdx: 0 | 1;
+};
+
 export const CourtCard: React.FC<CourtCardProps> = ({
   match,
   onFinishMatch,
@@ -34,17 +44,15 @@ export const CourtCard: React.FC<CourtCardProps> = ({
   const { updateGameScore, setMatchStatus, awardPointToMatch, undoLastPoint } = useTennisData();
   const lastScoreClickRef = useRef<number>(0);
 
-  // Kort Hakemi Modu için Set Seçici
   const [selectedSet, setSelectedSet] = useState<1 | 2 | 3>(1);
-  
-  // Kule Hakemi Modu (Tam Ekran) Anahtarı
   const [isChairMode, setIsChairMode] = useState<boolean>(false);
+  const [chairSetup, setChairSetup] = useState<ChairSetup | null>(null);
 
-  // Kule Hakemi - Form ve Kurulum Hafızası
-  const [setupForm, setSetupForm] = useState<{server: 1 | 2 | null; left: 1 | 2 | null; tbType: 'standard' | 'coman'}>({ server: null, left: null, tbType: 'standard' });
-  const [chairSetup, setChairSetup] = useState<{ server: 1 | 2; left: 1 | 2; tbType: 'standard' | 'coman' } | null>(null);
+  // Kurulum Formu Geçici Hafızası
+  const [setupForm, setSetupForm] = useState<{serverTeam: 1 | 2 | null; leftTeam: 1 | 2 | null; tbType: 'standard' | 'coman'; t1Idx: 0 | 1; t2Idx: 0 | 1}>({ 
+    serverTeam: null, leftTeam: null, tbType: 'standard', t1Idx: 0, t2Idx: 0 
+  });
 
-  // Kule Hakemi Modu - Servis Hatası & Sayaç Hafızası
   const [firstFault, setFirstFault] = useState<boolean>(false);
   const [activeTimer, setActiveTimer] = useState<{ label: string; seconds: number } | null>(null);
 
@@ -61,19 +69,20 @@ export const CourtCard: React.FC<CourtCardProps> = ({
   const isFinished = match.Durum === 'Bitti' || match.Durum === 'Retired' || match.Durum === 'Walkover';
   const isPaused = match.Durum === 'Duraklatildi';
   const isUpcoming = match.Durum === 'Baslamadi';
-
   const format = match.Skor_Formati || '3 Normal Set';
 
-  // --- KULE HAKEMİ: ÇIKIŞ, GERİ TUŞU VE YENİLEME KORUMASI ---
+  // --- ÇİFTLER (DOUBLES) ALGILAYICI ---
+  const isDoubles = match['Oyuncu 1'].includes('/') || match['Oyuncu 2'].includes('/');
+  const t1Players = isDoubles ? match['Oyuncu 1'].split('/').map(p => p.trim()) : [match['Oyuncu 1']];
+  const t2Players = isDoubles ? match['Oyuncu 2'].split('/').map(p => p.trim()) : [match['Oyuncu 2']];
+
+  // --- KULE HAKEMİ: ÇIKIŞ VE YUKARIDAN ÇEKME (PULL-TO-REFRESH) KORUMASI ---
   useEffect(() => {
     const handlePopState = () => {
       if (isChairMode) {
-        const confirmExit = window.confirm('Kule hakemi modundan çıkmak istiyor musunuz? (Maç ayarlarınız kaybolmaz)');
-        if (confirmExit) {
-          setIsChairMode(false);
-        } else {
-          window.history.pushState(null, '', window.location.href);
-        }
+        const confirmExit = window.confirm('Kule hakemi modundan çıkmak istiyor musunuz? (Ayarlarınız kaybolmaz)');
+        if (confirmExit) setIsChairMode(false);
+        else window.history.pushState(null, '', window.location.href);
       }
     };
 
@@ -88,11 +97,20 @@ export const CourtCard: React.FC<CourtCardProps> = ({
       window.history.pushState(null, '', window.location.href);
       window.addEventListener('popstate', handlePopState);
       window.addEventListener('beforeunload', handleBeforeUnload);
+      
+      // Mobil kaydırma ve yenilemeyi fiziksel olarak kilitler
+      document.body.style.overscrollBehaviorY = 'none';
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overscrollBehaviorY = 'auto';
+      document.body.style.overflow = 'auto';
     }
 
     return () => {
       window.removeEventListener('popstate', handlePopState);
       window.removeEventListener('beforeunload', handleBeforeUnload);
+      document.body.style.overscrollBehaviorY = 'auto';
+      document.body.style.overflow = 'auto';
     };
   }, [isChairMode]);
 
@@ -102,89 +120,8 @@ export const CourtCard: React.FC<CourtCardProps> = ({
       setIsChairMode(false);
     }
   };
-  // ------------------------------------------------
 
-  // --- AKILLI MATEMATİK MOTORU ---
-  const totalGamesCompleted = s1_p1 + s1_p2 + s2_p1 + s2_p2 + s3_p1 + s3_p2;
-  const isTB = state?.isTiebreak || false;
-  const tbPoints = isTB ? (state?.tiebreak_p1 || 0) + (state?.tiebreak_p2 || 0) : 0;
-  
-  let computedServer: 1 | 2 = 1;
-  let computedLeftSide: 1 | 2 = 1;
-  let isSideChangePoint = false;
-
-  if (chairSetup) {
-    const isComan = chairSetup.tbType === 'coman';
-
-    if (!isTB) {
-      computedServer = totalGamesCompleted % 2 === 0 ? chairSetup.server : (chairSetup.server === 1 ? 2 : 1);
-      computedLeftSide = (totalGamesCompleted % 4 === 1 || totalGamesCompleted % 4 === 2) ? (chairSetup.left === 1 ? 2 : 1) : chairSetup.left;
-      
-      if ((totalGamesCompleted % 2 === 1) && (state?.gamePoint_p1 === '0' && state?.gamePoint_p2 === '0')) {
-          isSideChangePoint = true;
-      }
-    } else {
-      const tbGameServer = totalGamesCompleted % 2 === 0 ? chairSetup.server : (chairSetup.server === 1 ? 2 : 1);
-      if (tbPoints === 0) {
-        computedServer = tbGameServer;
-      } else {
-        const block = Math.floor((tbPoints - 1) / 2);
-        computedServer = block % 2 === 0 ? (tbGameServer === 1 ? 2 : 1) : tbGameServer;
-      }
-
-      const tbStartSide = (totalGamesCompleted % 4 === 1 || totalGamesCompleted % 4 === 2) ? (chairSetup.left === 1 ? 2 : 1) : chairSetup.left;
-      if (tbPoints === 0) {
-        computedLeftSide = tbStartSide;
-      } else if (isComan) {
-        const block = Math.floor((tbPoints - 1) / 4);
-        computedLeftSide = block % 2 === 0 ? (tbStartSide === 1 ? 2 : 1) : tbStartSide;
-        isSideChangePoint = ((tbPoints - 1) % 4 === 0) && tbPoints > 0;
-      } else {
-        const block = Math.floor(tbPoints / 6);
-        computedLeftSide = block % 2 === 1 ? (tbStartSide === 1 ? 2 : 1) : tbStartSide;
-        isSideChangePoint = (tbPoints > 0 && tbPoints % 6 === 0);
-      }
-    }
-  }
-
-  const leftPlayerId = computedLeftSide;
-  const rightPlayerId = computedLeftSide === 1 ? 2 : 1;
-  // ------------------------------------------------
-
-  const handleSaveSetup = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!setupForm.server || !setupForm.left) return;
-
-    let initialServer: 1 | 2 = setupForm.server;
-    let initialLeft: 1 | 2 = setupForm.left;
-
-    if (!isTB) {
-      initialServer = totalGamesCompleted % 2 === 0 ? setupForm.server : (setupForm.server === 1 ? 2 : 1);
-      initialLeft = (totalGamesCompleted % 4 === 1 || totalGamesCompleted % 4 === 2) ? (setupForm.left === 1 ? 2 : 1) : setupForm.left;
-    } else {
-      let tbGameServer = setupForm.server;
-      if (tbPoints > 0) {
-        const block = Math.floor((tbPoints - 1) / 2);
-        tbGameServer = block % 2 === 0 ? (setupForm.server === 1 ? 2 : 1) : setupForm.server;
-      }
-      initialServer = totalGamesCompleted % 2 === 0 ? tbGameServer : (tbGameServer === 1 ? 2 : 1);
-
-      let tbStartSide = setupForm.left;
-      if (tbPoints > 0) {
-        if (setupForm.tbType === 'coman') {
-          const block = Math.floor((tbPoints - 1) / 4);
-          tbStartSide = block % 2 === 0 ? (setupForm.left === 1 ? 2 : 1) : setupForm.left;
-        } else {
-          const block = Math.floor(tbPoints / 6);
-          tbStartSide = block % 2 === 1 ? (setupForm.left === 1 ? 2 : 1) : setupForm.left;
-        }
-      }
-      initialLeft = (totalGamesCompleted % 4 === 1 || totalGamesCompleted % 4 === 2) ? (tbStartSide === 1 ? 2 : 1) : tbStartSide;
-    }
-
-    setChairSetup({ server: initialServer, left: initialLeft, tbType: setupForm.tbType });
-  };
-
+  // Otomatik aktif seti bul
   useEffect(() => {
     if (isLive) {
       const val1 = validateSingleSet(s1_p1, s1_p2, 1, format);
@@ -197,6 +134,109 @@ export const CourtCard: React.FC<CourtCardProps> = ({
       setSelectedSet(activeSet);
     }
   }, [match.Skor, match.detailedState, isLive, format, s1_p1, s1_p2, s2_p1, s2_p2, s3_p1, s3_p2]);
+
+  // --- AKILLI MATEMATİK MOTORU (TEKLER VE ÇİFTLER İÇİN) ---
+  const currentSetGames = selectedSet === 1 ? s1_p1 + s1_p2 : selectedSet === 2 ? s2_p1 + s2_p2 : s3_p1 + s3_p2;
+  const isTB = state?.isTiebreak || false;
+  const tbPoints = isTB ? (state?.tiebreak_p1 || 0) + (state?.tiebreak_p2 || 0) : 0;
+  
+  let computedServerTeam: 1 | 2 = 1;
+  let computedLeftTeam: 1 | 2 = 1;
+  let activeServerName = '';
+  let isSideChangePoint = false;
+
+  // Sadece o an oynanan set için kurulum yapılmışsa hesapla (Aksi halde Setup Formu açılacak)
+  const isSetupValid = chairSetup && chairSetup.setupSetNum === selectedSet;
+
+  if (isSetupValid) {
+    const isComan = chairSetup.tbType === 'coman';
+    const otherTeam = chairSetup.serverTeam === 1 ? 2 : 1;
+
+    if (!isTB) {
+      // Normal Oyunlar
+      computedServerTeam = currentSetGames % 2 === 0 ? chairSetup.serverTeam : otherTeam;
+      computedLeftTeam = (currentSetGames % 4 === 1 || currentSetGames % 4 === 2) ? (chairSetup.leftTeam === 1 ? 2 : 1) : chairSetup.leftTeam;
+      
+      // Saha Değişimi Uyarı Tetikleyicisi
+      if ((currentSetGames % 2 === 1) && (state?.gamePoint_p1 === '0' && state?.gamePoint_p2 === '0')) {
+          isSideChangePoint = true;
+      }
+      
+      // Çiftler için Aktif Servisçi Bulucu
+      if (isDoubles) {
+        const teamServiceRounds = Math.floor(currentSetGames / 2);
+        if (computedServerTeam === 1) {
+          const activeIdx = (chairSetup.t1InitialServerIdx + teamServiceRounds) % 2;
+          activeServerName = t1Players[activeIdx] || t1Players[0];
+        } else {
+          const activeIdx = (chairSetup.t2InitialServerIdx + teamServiceRounds) % 2;
+          activeServerName = t2Players[activeIdx] || t2Players[0];
+        }
+      } else {
+        activeServerName = match[`Oyuncu ${computedServerTeam}` as keyof MatchItem];
+      }
+
+    } else {
+      // Tie-Break Kuralları
+      const tbGameServerTeam = currentSetGames % 2 === 0 ? chairSetup.serverTeam : otherTeam;
+      const tbOtherTeam = tbGameServerTeam === 1 ? 2 : 1;
+      
+      if (tbPoints === 0) {
+        computedServerTeam = tbGameServerTeam;
+      } else {
+        const block = Math.floor((tbPoints - 1) / 2);
+        computedServerTeam = block % 2 === 0 ? tbOtherTeam : tbGameServerTeam;
+      }
+
+      // Tie-Break Saha Değişimi
+      const tbStartSide = (currentSetGames % 4 === 1 || currentSetGames % 4 === 2) ? (chairSetup.leftTeam === 1 ? 2 : 1) : chairSetup.leftTeam;
+      if (tbPoints === 0) {
+        computedLeftTeam = tbStartSide;
+      } else if (isComan) {
+        const block = Math.floor((tbPoints - 1) / 4);
+        computedLeftTeam = block % 2 === 0 ? (tbStartSide === 1 ? 2 : 1) : tbStartSide;
+        isSideChangePoint = ((tbPoints - 1) % 4 === 0) && tbPoints > 0;
+      } else {
+        const block = Math.floor(tbPoints / 6);
+        computedLeftTeam = block % 2 === 1 ? (tbStartSide === 1 ? 2 : 1) : tbStartSide;
+        isSideChangePoint = (tbPoints > 0 && tbPoints % 6 === 0);
+      }
+
+      // Tie-Break Çiftler Servisçi Bulucu (Partner Değişimi)
+      if (isDoubles) {
+        const teamServicesBeforeTB = Math.floor(currentSetGames / 2);
+        const tbTeamBlocksT1 = Math.floor((tbPoints + (tbGameServerTeam === 1 ? 3 : 1)) / 4);
+        const tbTeamBlocksT2 = Math.floor((tbPoints + (tbGameServerTeam === 2 ? 3 : 1)) / 4);
+        
+        if (computedServerTeam === 1) {
+          const activeIdx = (chairSetup.t1InitialServerIdx + teamServicesBeforeTB + tbTeamBlocksT1) % 2;
+          activeServerName = t1Players[activeIdx] || t1Players[0];
+        } else {
+          const activeIdx = (chairSetup.t2InitialServerIdx + teamServicesBeforeTB + tbTeamBlocksT2) % 2;
+          activeServerName = t2Players[activeIdx] || t2Players[0];
+        }
+      } else {
+        activeServerName = match[`Oyuncu ${computedServerTeam}` as keyof MatchItem];
+      }
+    }
+  }
+
+  const leftTeamId = computedLeftTeam;
+  const rightTeamId = computedLeftTeam === 1 ? 2 : 1;
+  // ------------------------------------------------
+
+  const handleSaveSetup = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!setupForm.serverTeam || !setupForm.leftTeam) return;
+    setChairSetup({ 
+      setupSetNum: selectedSet,
+      serverTeam: setupForm.serverTeam, 
+      leftTeam: setupForm.leftTeam, 
+      tbType: setupForm.tbType,
+      t1InitialServerIdx: setupForm.t1Idx,
+      t2InitialServerIdx: setupForm.t2Idx
+    });
+  };
 
   useEffect(() => {
     let interval: any;
@@ -214,22 +254,23 @@ export const CourtCard: React.FC<CourtCardProps> = ({
     updateGameScore(match.id, selectedSet, player, delta);
   };
 
-  const handlePointScore = (e: React.MouseEvent, player: 1 | 2) => {
+  // Çiftlerde Puan Verilirken Oyuncu/Takım ayrımını arka plan otomatik yapar
+  const handlePointScore = (e: React.MouseEvent, teamId: 1 | 2) => {
     e.stopPropagation();
     const now = Date.now();
     if (now - lastScoreClickRef.current < 400) return; 
     lastScoreClickRef.current = now;
     setFirstFault(false); 
-    awardPointToMatch(match.id, player, 'NORMAL');
+    awardPointToMatch(match.id, teamId, 'NORMAL'); // Backend takım ID'si ile kusursuz çalışır
   };
 
-  const handleFault = (e: React.MouseEvent, serverPlayer: 1 | 2) => {
+  const handleFault = (e: React.MouseEvent, serverTeamId: 1 | 2) => {
     e.stopPropagation();
     if (!firstFault) setFirstFault(true);
     else {
-      const receiver = serverPlayer === 1 ? 2 : 1;
+      const receiverTeamId = serverTeamId === 1 ? 2 : 1;
       setFirstFault(false);
-      awardPointToMatch(match.id, receiver, 'NORMAL');
+      awardPointToMatch(match.id, receiverTeamId, 'NORMAL');
     }
   };
 
@@ -250,29 +291,24 @@ export const CourtCard: React.FC<CourtCardProps> = ({
     else if (isPaused) setMatchStatus(match.id, 'Oynaniyor');
   };
 
-  // EKSİK OLAN VE GERİ EKLENEN FONKSİYONLAR
   const handleCardClick = () => {
-    if (isUpcoming && onOpenSetup) {
-      onOpenSetup(match);
-    }
+    if (isUpcoming && onOpenSetup) onOpenSetup(match);
   };
 
   const handleStartMatchDirect = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (onOpenSetup) {
-      onOpenSetup(match);
-    } else {
-      setMatchStatus(match.id, 'Oynaniyor', undefined, undefined);
-    }
+    if (onOpenSetup) onOpenSetup(match);
+    else setMatchStatus(match.id, 'Oynaniyor', undefined, undefined);
   };
 
-  // Aktif setteki oyun skorları
   const currentSetP1Games = selectedSet === 1 ? s1_p1 : selectedSet === 2 ? s2_p1 : s3_p1;
   const currentSetP2Games = selectedSet === 1 ? s1_p2 : selectedSet === 2 ? s2_p2 : s3_p2;
 
   return (
     <>
-      {/* 1. KORT HAKEMİ KART GÖRÜNÜMÜ */}
+      {/* ============================================================== */}
+      {/* 1. KORT HAKEMİ KART GÖRÜNÜMÜ (Normal Listede Görünen)          */}
+      {/* ============================================================== */}
       <div
         onClick={handleCardClick}
         className={`rounded-3xl transition-all duration-200 overflow-hidden flex flex-col justify-between shadow-lg ${
@@ -290,16 +326,16 @@ export const CourtCard: React.FC<CourtCardProps> = ({
             <span className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-xs ${isLive || isPaused ? 'bg-emerald-400 text-slate-950 shadow-emerald-400/30' : isUpcoming ? 'bg-amber-400/20 text-amber-300 border-amber-400/30' : 'bg-rose-500/20 text-rose-300'}`}>
               {match.Kort.replace('KORT', 'K').trim()}
             </span>
-            <div>
-              <h3 className="font-extrabold text-white text-base sm:text-lg flex items-center gap-1.5">
+            <div className="min-w-0">
+              <h3 className="font-extrabold text-white text-base sm:text-lg flex items-center gap-1.5 truncate">
                 <span>{match.Kort}</span>
-                {isLive && <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-400 animate-pulse">CANLI</span>}
+                {isLive && <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-400 animate-pulse shrink-0">CANLI</span>}
               </h3>
               <p className="text-xs text-slate-400 font-medium truncate max-w-[180px]">{match.Kategori}</p>
             </div>
           </div>
-          <span className={`px-2.5 py-1 rounded-xl text-xs font-black tracking-wide uppercase ${isLive ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' : isPaused ? 'bg-amber-500/20 text-amber-300' : isUpcoming ? 'bg-amber-500/20 text-amber-300' : 'bg-rose-500/20 text-rose-300'}`}>
-            {match.Durum === 'Retired' ? '✕ RET' : match.Durum === 'Walkover' ? '✕ W/O' : match.Durum === 'Bitti' ? '✕ BİTTİ' : match.Durum === 'Duraklatildi' ? 'ASKIYA ALINDI' : match.Durum}
+          <span className={`px-2.5 py-1 rounded-xl text-xs font-black tracking-wide uppercase shrink-0 ${isLive ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' : isPaused ? 'bg-amber-500/20 text-amber-300' : isUpcoming ? 'bg-amber-500/20 text-amber-300' : 'bg-rose-500/20 text-rose-300'}`}>
+            {match.Durum === 'Retired' ? '✕ RET' : match.Durum === 'Walkover' ? '✕ W/O' : match.Durum === 'Bitti' ? '✕ BİTTİ' : match.Durum === 'Duraklatildi' ? 'ASKIYA' : match.Durum}
           </span>
         </div>
 
@@ -313,19 +349,19 @@ export const CourtCard: React.FC<CourtCardProps> = ({
         <div className="p-4 sm:p-5 space-y-3">
           <div className="bg-slate-950 rounded-2xl border border-slate-800/90 overflow-hidden">
             <div className="grid grid-cols-12 bg-slate-900/80 text-[10px] font-extrabold uppercase text-slate-400 py-1.5 px-3 border-b border-slate-800">
-              <div className="col-span-6">Oyuncu</div><div className="col-span-2 text-center">1. Set</div><div className="col-span-2 text-center">2. Set</div><div className="col-span-2 text-center">3. Set</div>
+              <div className="col-span-6">Oyuncu / Takım</div><div className="col-span-2 text-center">1. Set</div><div className="col-span-2 text-center">2. Set</div><div className="col-span-2 text-center">3. Set</div>
             </div>
-            <div className={`grid grid-cols-12 items-center py-2.5 px-3 border-b border-slate-800/50 ${match.Kazanan === match['Oyuncu 1'] && isFinished ? 'bg-lime-500/10' : ''}`}>
-              <div className="col-span-6 flex items-center gap-2 pr-2">
+            <div className={`grid grid-cols-12 items-center py-2 px-3 border-b border-slate-800/50 ${match.Kazanan === match['Oyuncu 1'] && isFinished ? 'bg-lime-500/10' : ''}`}>
+              <div className="col-span-6 flex items-center gap-2 pr-2 min-w-0">
                 <span className="w-2.5 h-2.5 rounded-full bg-lime-400 shrink-0"></span>
-                <span className="text-xs sm:text-sm font-bold text-white truncate">{match['Oyuncu 1']}</span>
+                <span className="text-xs sm:text-sm font-bold text-white truncate leading-tight">{match['Oyuncu 1']}</span>
               </div>
               <div className="col-span-2 text-center font-mono font-black text-lime-300">{isUpcoming ? '-' : s1_p1}</div><div className="col-span-2 text-center font-mono font-black text-lime-300">{isUpcoming ? '-' : s2_p1}</div><div className="col-span-2 text-center font-mono font-black text-lime-300">{isUpcoming ? '-' : s3_p1}</div>
             </div>
-            <div className={`grid grid-cols-12 items-center py-2.5 px-3 ${match.Kazanan === match['Oyuncu 2'] && isFinished ? 'bg-cyan-500/10' : ''}`}>
-              <div className="col-span-6 flex items-center gap-2 pr-2">
+            <div className={`grid grid-cols-12 items-center py-2 px-3 ${match.Kazanan === match['Oyuncu 2'] && isFinished ? 'bg-cyan-500/10' : ''}`}>
+              <div className="col-span-6 flex items-center gap-2 pr-2 min-w-0">
                 <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 shrink-0"></span>
-                <span className="text-xs sm:text-sm font-bold text-white truncate">{match['Oyuncu 2']}</span>
+                <span className="text-xs sm:text-sm font-bold text-white truncate leading-tight">{match['Oyuncu 2']}</span>
               </div>
               <div className="col-span-2 text-center font-mono font-black text-cyan-300">{isUpcoming ? '-' : s1_p2}</div><div className="col-span-2 text-center font-mono font-black text-cyan-300">{isUpcoming ? '-' : s2_p2}</div><div className="col-span-2 text-center font-mono font-black text-cyan-300">{isUpcoming ? '-' : s3_p2}</div>
             </div>
@@ -357,7 +393,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                     <button type="button" onClick={(e) => handleQuickScore(e, 2, -1)} className="w-full py-2 rounded-xl bg-rose-500/10 text-cyan-400 font-bold text-xs flex items-center justify-center gap-1 transition"><Minus className="w-4 h-4" />-1 Düş</button>
                   </div>
                 </div>
-                <div className="text-center mt-2"><span className="text-[10px] font-medium text-slate-500">Düzenlenen Set: {selectedSet}. Set</span></div>
               </div>
             </div>
           )}
@@ -371,35 +406,37 @@ export const CourtCard: React.FC<CourtCardProps> = ({
             </div>
           ) : isLive || isPaused ? (
             <div className="flex items-center gap-2 w-full">
-              <button type="button" onClick={(e) => { e.stopPropagation(); onFinishMatch(match); }} className="w-full py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-sm rounded-xl flex justify-center items-center gap-2"><Trophy className="w-4 h-4 text-cyan-400" /> Maçı Sonlandır / Bitir</button>
+              <button type="button" onClick={(e) => { e.stopPropagation(); onFinishMatch(match); }} className="w-full py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-sm rounded-xl flex justify-center items-center gap-2"><Trophy className="w-4 h-4 text-cyan-400" /> Maçı Sonlandır</button>
             </div>
           ) : null}
         </div>
       </div>
 
-      {/* 2. TAM EKRAN KULE HAKEMİ MODU */}
+      {/* ============================================================== */}
+      {/* 2. TAM EKRAN KULE HAKEMİ MODU (ZEN MODU)                       */}
+      {/* ============================================================== */}
       {isChairMode && (
-        <div className="fixed inset-0 z-[100] bg-slate-950 overflow-y-auto overscroll-contain flex flex-col animate-in fade-in zoom-in-95 duration-200 select-none">
+        <div className="fixed inset-0 z-[100] bg-slate-950 flex flex-col animate-in fade-in zoom-in-95 duration-200 select-none" style={{ touchAction: 'none' }}>
           
           {/* ÜST BİLGİ VE ÇIKIŞ BARI */}
-          <div className="bg-slate-900 border-b border-slate-800 px-4 py-3 sm:py-4 flex items-center justify-between shadow-md shrink-0">
-            <div className="flex items-center gap-3">
-              <span className="w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm bg-emerald-400 text-slate-950 shadow-md shadow-emerald-400/30">
+          <div className="bg-slate-900 border-b border-slate-800 px-3 sm:px-4 py-3 flex items-center justify-between shadow-md shrink-0">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <span className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center font-black text-xs sm:text-sm bg-emerald-400 text-slate-950 shadow-md shadow-emerald-400/30 shrink-0">
                 {match.Kort.replace('KORT', 'K').trim()}
               </span>
               <div className="flex flex-col">
-                <span className="text-white font-extrabold text-sm sm:text-base leading-none mb-1">Kule Hakemi Modu</span>
-                <span className="text-[10px] sm:text-xs text-emerald-400 font-black tracking-widest uppercase">Canlı Yayın</span>
+                <span className="text-white font-extrabold text-sm sm:text-base leading-none mb-1">Kule Hakemi</span>
+                <span className="text-[9px] sm:text-[10px] text-emerald-400 font-black tracking-widest uppercase flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>Canlı</span>
               </div>
             </div>
             
             <div className="flex items-center gap-2">
-               {chairSetup && (
+               {isSetupValid && (
                   <button
                     type="button"
                     onClick={(e) => { e.stopPropagation(); setChairSetup(null); }}
                     className="p-2 sm:px-3 sm:py-2 rounded-xl bg-slate-800 text-slate-400 hover:text-white transition flex items-center gap-1.5"
-                    title="Kurulumu Sıfırla"
+                    title="Rotasyonu Sıfırla"
                   >
                     <Settings className="w-4 h-4" /> <span className="hidden sm:inline text-xs font-bold">Ayarlar</span>
                   </button>
@@ -414,104 +451,135 @@ export const CourtCard: React.FC<CourtCardProps> = ({
             </div>
           </div>
 
-          <div className="flex-1 p-3 sm:p-6 w-full max-w-5xl mx-auto flex flex-col justify-center gap-4">
+          <div className="flex-1 p-2 sm:p-6 w-full max-w-5xl mx-auto flex flex-col justify-center gap-3 overflow-y-auto">
               
-              {!chairSetup ? (
-                /* KURULUM EKRANI */
-                <div className="bg-slate-900 p-6 rounded-3xl border border-slate-800 text-center space-y-6 shadow-2xl">
+              {!isSetupValid ? (
+                /* HER YENİ SETTE KARŞIYA ÇIKAN KURULUM EKRANI */
+                <div className="bg-slate-900 p-4 sm:p-6 rounded-3xl border border-slate-800 text-center space-y-4 sm:space-y-6 shadow-2xl">
                   <div>
-                    <h4 className="text-amber-400 font-black text-lg sm:text-xl mb-2">⚙️ Anlık Kule Kurulumu</h4>
-                    <p className="text-sm text-slate-400">Maçın <strong>ŞU ANKİ</strong> durumunu (anlık sahadaki düzeni) aşağıdan seçin, sistem kalanını kendi hesaplar.</p>
+                    <h4 className="text-amber-400 font-black text-base sm:text-xl mb-1 sm:mb-2 flex items-center justify-center gap-2">⚙️ {selectedSet}. Set Rotasyonu</h4>
+                    <p className="text-[11px] sm:text-sm text-slate-400">Bu sete başlarken sahadaki servisi ve konumları seçin.</p>
                   </div>
                   
-                  <div className="space-y-3">
-                    <div className="text-xs font-black uppercase text-slate-500 tracking-wider">1. Şu An Servisi Kim Atıyor?</div>
-                    <div className="flex gap-3">
-                      <button type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, server: 1}); }} className={`flex-1 py-4 sm:py-5 rounded-2xl text-sm sm:text-base font-black transition active:scale-95 ${setupForm.server === 1 ? 'bg-lime-500 text-slate-950 shadow-lg shadow-lime-500/20 scale-105' : 'bg-slate-950 border border-slate-800 text-slate-300'}`}>{match['Oyuncu 1']}</button>
-                      <button type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, server: 2}); }} className={`flex-1 py-4 sm:py-5 rounded-2xl text-sm sm:text-base font-black transition active:scale-95 ${setupForm.server === 2 ? 'bg-cyan-500 text-slate-950 shadow-lg shadow-cyan-500/20 scale-105' : 'bg-slate-950 border border-slate-800 text-slate-300'}`}>{match['Oyuncu 2']}</button>
+                  {isDoubles ? (
+                    <>
+                      <div className="space-y-2">
+                        <div className="text-[10px] sm:text-xs font-black uppercase text-slate-500 tracking-wider">1. Takım İlk Servisçisi</div>
+                        <div className="flex flex-wrap gap-2">
+                          {t1Players.map((player, idx) => (
+                            <button key={idx} type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, serverTeam: 1, t1Idx: idx as 0|1}); }} className={`flex-1 min-w-[120px] py-3 sm:py-4 rounded-xl text-xs sm:text-sm font-black transition active:scale-95 border-2 ${setupForm.serverTeam === 1 && setupForm.t1Idx === idx ? 'bg-lime-500 border-lime-400 text-slate-950 shadow-lg' : 'bg-slate-950 border-slate-800 text-slate-300'}`}>{player}</button>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="space-y-2 pt-3 border-t border-slate-800/80">
+                        <div className="text-[10px] sm:text-xs font-black uppercase text-slate-500 tracking-wider">2. Takım İlk Servisçisi</div>
+                        <div className="flex flex-wrap gap-2">
+                          {t2Players.map((player, idx) => (
+                            <button key={idx} type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, serverTeam: 2, t2Idx: idx as 0|1}); }} className={`flex-1 min-w-[120px] py-3 sm:py-4 rounded-xl text-xs sm:text-sm font-black transition active:scale-95 border-2 ${setupForm.serverTeam === 2 && setupForm.t2Idx === idx ? 'bg-cyan-500 border-cyan-400 text-slate-950 shadow-lg' : 'bg-slate-950 border-slate-800 text-slate-300'}`}>{player}</button>
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="space-y-2">
+                      <div className="text-[10px] sm:text-xs font-black uppercase text-slate-500 tracking-wider">Bu Set İlk Servisi Kim Atacak?</div>
+                      <div className="flex gap-2">
+                        <button type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, serverTeam: 1}); }} className={`flex-1 py-3 sm:py-4 rounded-xl text-xs sm:text-sm font-black transition active:scale-95 border-2 ${setupForm.serverTeam === 1 ? 'bg-lime-500 border-lime-400 text-slate-950 shadow-lg' : 'bg-slate-950 border-slate-800 text-slate-300'}`}>{match['Oyuncu 1']}</button>
+                        <button type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, serverTeam: 2}); }} className={`flex-1 py-3 sm:py-4 rounded-xl text-xs sm:text-sm font-black transition active:scale-95 border-2 ${setupForm.serverTeam === 2 ? 'bg-cyan-500 border-cyan-400 text-slate-950 shadow-lg' : 'bg-slate-950 border-slate-800 text-slate-300'}`}>{match['Oyuncu 2']}</button>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="space-y-2 pt-3 border-t border-slate-800/80">
+                    <div className="text-[10px] sm:text-xs font-black uppercase text-slate-500 tracking-wider">Bu Sete Sandalyenin Solunda Hangi Takım Başlıyor?</div>
+                    <div className="flex gap-2">
+                      <button type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, leftTeam: 1}); }} className={`flex-1 py-3 sm:py-4 rounded-xl text-xs sm:text-sm font-black transition active:scale-95 border-2 ${setupForm.leftTeam === 1 ? 'bg-lime-500 border-lime-400 text-slate-950 shadow-lg' : 'bg-slate-950 border-slate-800 text-slate-300'}`}>1. Takım (Lime)</button>
+                      <button type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, leftTeam: 2}); }} className={`flex-1 py-3 sm:py-4 rounded-xl text-xs sm:text-sm font-black transition active:scale-95 border-2 ${setupForm.leftTeam === 2 ? 'bg-cyan-500 border-cyan-400 text-slate-950 shadow-lg' : 'bg-slate-950 border-slate-800 text-slate-300'}`}>2. Takım (Mavi)</button>
                     </div>
                   </div>
 
-                  <div className="space-y-3 pt-4 border-t border-slate-800/80">
-                    <div className="text-xs font-black uppercase text-slate-500 tracking-wider">2. Şu An Sandalyenin Solunda Kim Var?</div>
-                    <div className="flex gap-3">
-                      <button type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, left: 1}); }} className={`flex-1 py-4 sm:py-5 rounded-2xl text-sm sm:text-base font-black transition active:scale-95 ${setupForm.left === 1 ? 'bg-lime-500 text-slate-950 shadow-lg shadow-lime-500/20 scale-105' : 'bg-slate-950 border border-slate-800 text-slate-300'}`}>{match['Oyuncu 1']}</button>
-                      <button type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, left: 2}); }} className={`flex-1 py-4 sm:py-5 rounded-2xl text-sm sm:text-base font-black transition active:scale-95 ${setupForm.left === 2 ? 'bg-cyan-500 text-slate-950 shadow-lg shadow-cyan-500/20 scale-105' : 'bg-slate-950 border border-slate-800 text-slate-300'}`}>{match['Oyuncu 2']}</button>
+                  <div className="space-y-2 pt-3 border-t border-slate-800/80">
+                    <div className="text-[10px] sm:text-xs font-black uppercase text-slate-500 tracking-wider">Tie-Break Kuralı</div>
+                    <div className="flex gap-2">
+                      <button type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, tbType: 'standard'}); }} className={`flex-1 py-3 rounded-xl text-xs font-black transition active:scale-95 border-2 ${setupForm.tbType === 'standard' ? 'bg-amber-500 border-amber-400 text-slate-950 shadow-lg' : 'bg-slate-950 border-slate-800 text-slate-300'}`}>Standart (6'da Bir)</button>
+                      <button type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, tbType: 'coman'}); }} className={`flex-1 py-3 rounded-xl text-xs font-black transition active:scale-95 border-2 ${setupForm.tbType === 'coman' ? 'bg-amber-500 border-amber-400 text-slate-950 shadow-lg' : 'bg-slate-950 border-slate-800 text-slate-300'}`}>Coman (1-5-9)</button>
                     </div>
                   </div>
 
-                  <div className="space-y-3 pt-4 border-t border-slate-800/80">
-                    <div className="text-xs font-black uppercase text-slate-500 tracking-wider">3. Tie-Break Türü</div>
-                    <div className="flex gap-3">
-                      <button type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, tbType: 'standard'}); }} className={`flex-1 py-4 rounded-2xl text-sm font-black transition active:scale-95 ${setupForm.tbType === 'standard' ? 'bg-amber-500 text-slate-950 shadow-lg scale-105' : 'bg-slate-950 border border-slate-800 text-slate-300'}`}>Standart (6'da Bir)</button>
-                      <button type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, tbType: 'coman'}); }} className={`flex-1 py-4 rounded-2xl text-sm font-black transition active:scale-95 ${setupForm.tbType === 'coman' ? 'bg-amber-500 text-slate-950 shadow-lg scale-105' : 'bg-slate-950 border border-slate-800 text-slate-300'}`}>Coman (1-5-9)</button>
-                    </div>
-                  </div>
-
-                  <div className="pt-6">
-                    <button type="button" disabled={!setupForm.server || !setupForm.left} onClick={handleSaveSetup} className="w-full py-5 bg-gradient-to-r from-emerald-500 to-emerald-400 hover:from-emerald-400 text-slate-950 font-black text-lg rounded-2xl disabled:opacity-50 transition active:scale-95 shadow-xl">Kaydet ve Maçı Yönet</button>
+                  <div className="pt-4">
+                    <button type="button" disabled={!setupForm.serverTeam || !setupForm.leftTeam || (isDoubles && (setupForm.t1Idx === undefined || setupForm.t2Idx === undefined))} onClick={handleSaveSetup} className="w-full py-4 sm:py-5 bg-gradient-to-r from-emerald-500 to-emerald-400 hover:from-emerald-400 text-slate-950 font-black text-sm sm:text-lg rounded-xl disabled:opacity-50 transition active:scale-95 shadow-xl">Kaydet ve {selectedSet}. Sete Başla</button>
                   </div>
                 </div>
               ) : (
                 
-                /* MAÇ EKRANI */
-                <div className="flex flex-col h-full gap-3 sm:gap-4">
+                /* MAÇ EKRANI (ZEN MODU) */
+                <div className="flex flex-col h-full gap-2 sm:gap-4">
                   {/* BİLGİ ÇUBUĞU (OYUNCU İSİMLERİ İLE NET SET SKORU) */}
-                  <div className="flex flex-col sm:flex-row justify-between items-center bg-slate-900 rounded-2xl px-4 py-3 border border-slate-800 shadow-md gap-2">
-                    <div className="flex items-center gap-2 text-xs sm:text-sm font-bold flex-wrap justify-center">
-                      <span className="text-slate-400">{selectedSet}. Set:</span>
-                      <span className="text-lime-400 font-extrabold truncate max-w-[120px]">{match['Oyuncu 1']}</span>
-                      <span className="text-white font-mono text-base sm:text-lg font-black px-2 py-0.5 bg-slate-950 rounded-lg border border-slate-800">
-                        {currentSetP1Games} - {currentSetP2Games}
-                      </span>
-                      <span className="text-cyan-400 font-extrabold truncate max-w-[120px]">{match['Oyuncu 2']}</span>
+                  <div className="flex flex-col sm:flex-row justify-between items-center bg-slate-900 rounded-2xl px-3 sm:px-4 py-2 sm:py-3 border border-slate-800 shadow-md gap-2 shrink-0">
+                    <div className="flex flex-col items-center sm:flex-row gap-1 sm:gap-2 text-[10px] sm:text-sm font-bold w-full sm:w-auto">
+                      <span className="text-slate-400 bg-slate-950 px-2 py-1 rounded-md">{selectedSet}. Set</span>
+                      <div className="flex items-center gap-2 w-full justify-center">
+                        <span className="text-lime-400 font-extrabold truncate max-w-[90px] sm:max-w-[150px]">{match['Oyuncu 1']}</span>
+                        <span className="text-white font-mono text-lg sm:text-2xl font-black px-3 py-1 bg-slate-950 rounded-xl border-2 border-slate-700 shadow-inner">
+                          {currentSetP1Games} - {currentSetP2Games}
+                        </span>
+                        <span className="text-cyan-400 font-extrabold truncate max-w-[90px] sm:max-w-[150px]">{match['Oyuncu 2']}</span>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                       {isTB && <div className="px-3 py-1 bg-amber-500/20 text-amber-400 text-[10px] sm:text-xs font-black uppercase rounded-lg animate-pulse border border-amber-500/30">{chairSetup.tbType === 'coman' ? 'Coman Tie-Break' : 'Standart Tie-Break'}</div>}
-                       {isSideChangePoint && <div className="flex items-center gap-1.5 text-rose-300 font-black text-xs sm:text-sm uppercase animate-pulse bg-rose-500/20 border border-rose-500/40 px-3 py-1 rounded-lg"><ArrowRightLeft className="w-4 h-4"/> Saha Değişimi!</div>}
+                    <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+                       {isTB && <div className="px-2 sm:px-3 py-1 bg-amber-500/20 text-amber-400 text-[9px] sm:text-xs font-black uppercase rounded-lg animate-pulse border border-amber-500/30">{chairSetup.tbType === 'coman' ? 'Coman Tie-Break' : 'Standart Tie-Break'}</div>}
+                       {isSideChangePoint && <div className="flex items-center gap-1.5 text-rose-300 font-black text-[9px] sm:text-sm uppercase animate-pulse bg-rose-500/20 border border-rose-500/40 px-2 sm:px-3 py-1 rounded-lg"><ArrowRightLeft className="w-3 h-3 sm:w-4 sm:h-4"/> Saha Değişimi!</div>}
                     </div>
                   </div>
 
                   {activeTimer && (
-                    <div className="bg-amber-500/10 border border-amber-500/30 p-3 sm:p-4 rounded-2xl flex items-center justify-between shadow-lg shrink-0">
-                      <span className="text-amber-400 font-black text-sm sm:text-base flex items-center gap-2"><Timer className="w-5 h-5" />{activeTimer.label}</span>
-                      <div className="flex items-center gap-4">
-                        <span className={`font-mono font-black text-3xl sm:text-4xl ${activeTimer.seconds === 0 ? 'text-rose-400 animate-pulse' : 'text-amber-300'}`}>
+                    <div className="bg-amber-500/10 border border-amber-500/30 p-2 sm:p-4 rounded-2xl flex items-center justify-between shadow-lg shrink-0">
+                      <span className="text-amber-400 font-black text-sm sm:text-base flex items-center gap-2"><Timer className="w-4 h-4 sm:w-5 sm:h-5" />{activeTimer.label}</span>
+                      <div className="flex items-center gap-3 sm:gap-4">
+                        <span className={`font-mono font-black text-2xl sm:text-4xl ${activeTimer.seconds === 0 ? 'text-rose-400 animate-pulse' : 'text-amber-300'}`}>
                           {Math.floor(activeTimer.seconds / 60)}:{(activeTimer.seconds % 60).toString().padStart(2, '0')}
                         </span>
-                        <button type="button" onClick={(e) => { e.stopPropagation(); setActiveTimer(null); }} className="text-amber-500 hover:text-amber-300 p-2 bg-amber-500/10 rounded-xl"><X className="w-6 h-6" /></button>
+                        <button type="button" onClick={(e) => { e.stopPropagation(); setActiveTimer(null); }} className="text-amber-500 hover:text-amber-300 p-2 bg-amber-500/10 rounded-xl"><X className="w-5 h-5 sm:w-6 sm:h-6" /></button>
                       </div>
                     </div>
                   )}
 
                   {/* DEV EKRAN: SOL OYUNCU vs SAĞ OYUNCU */}
-                  <div className="grid grid-cols-2 gap-3 sm:gap-6 flex-1 min-h-0">
+                  <div className="grid grid-cols-2 gap-2 sm:gap-6 flex-1 min-h-0">
                     
                     {/* SOL SAHA */}
-                    <div className={`bg-slate-900 rounded-3xl p-3 sm:p-5 border-4 flex flex-col justify-between shadow-2xl overflow-hidden ${computedServer === leftPlayerId ? 'border-amber-400 shadow-[0_0_30px_rgba(251,191,36,0.15)]' : 'border-slate-800'}`}>
-                      <div className="flex flex-col items-center justify-center min-h-[4rem] sm:min-h-[5rem] border-b border-slate-800/80 pb-3 mb-2">
-                        <div className={`flex items-start justify-center gap-1.5 w-full ${leftPlayerId === 1 ? 'text-lime-400' : 'text-cyan-400'}`}>
-                           {computedServer === leftPlayerId && <span className="text-amber-400 animate-bounce mt-1 sm:mt-1.5 shrink-0 text-base sm:text-xl">🎾</span>}
-                           <span className="font-black text-sm sm:text-xl text-center leading-tight line-clamp-2 break-words whitespace-normal">
-                             {match[`Oyuncu ${leftPlayerId}` as keyof MatchItem]}
-                           </span>
+                    <div className={`bg-slate-900 rounded-3xl p-2 sm:p-5 border-4 flex flex-col justify-between shadow-2xl overflow-hidden ${computedServerTeam === leftTeamId ? 'border-amber-400 shadow-[0_0_30px_rgba(251,191,36,0.15)]' : 'border-slate-800'}`}>
+                      {/* Çiftler Uyumlu Uzun İsim Kutusu */}
+                      <div className="flex flex-col items-center justify-center min-h-[3.5rem] sm:min-h-[5rem] border-b border-slate-800/80 pb-2 mb-2">
+                        <div className={`flex items-start justify-center gap-1 w-full ${leftTeamId === 1 ? 'text-lime-400' : 'text-cyan-400'}`}>
+                           {computedServerTeam === leftTeamId && <span className="text-amber-400 animate-bounce mt-0.5 sm:mt-1.5 shrink-0 text-sm sm:text-xl">🎾</span>}
+                           <div className="flex flex-col items-center">
+                             <span className="font-black text-xs sm:text-xl text-center leading-tight line-clamp-3 break-words whitespace-normal px-1">
+                               {isDoubles ? match[`Oyuncu ${leftTeamId}` as keyof MatchItem] : activeServerName}
+                             </span>
+                             {isDoubles && computedServerTeam === leftTeamId && (
+                               <span className="text-[9px] sm:text-xs bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded font-black mt-1 uppercase border border-amber-500/30">Servis: {activeServerName}</span>
+                             )}
+                           </div>
                         </div>
-                        <div className="text-[10px] sm:text-xs text-slate-500 uppercase font-black mt-1.5">Sol Saha</div>
+                        <div className="text-[8px] sm:text-xs text-slate-500 uppercase font-black mt-1">Sol Saha</div>
                       </div>
                       
-                      <div className="flex-1 flex justify-center items-center py-4 min-h-0">
-                         <span className="text-[5rem] sm:text-[9rem] font-mono font-black tracking-tighter text-white leading-none">
-                           {isTB ? (leftPlayerId === 1 ? state?.tiebreak_p1 : state?.tiebreak_p2) || '0' : (leftPlayerId === 1 ? state?.gamePoint_p1 : state?.gamePoint_p2) || '0'}
+                      {/* Puan Numarası */}
+                      <div className="flex-1 flex justify-center items-center py-2 sm:py-4 min-h-0">
+                         <span className="text-[4rem] sm:text-[9rem] font-mono font-black tracking-tighter text-white leading-none">
+                           {isTB ? (leftTeamId === 1 ? state?.tiebreak_p1 : state?.tiebreak_p2) || '0' : (leftTeamId === 1 ? state?.gamePoint_p1 : state?.gamePoint_p2) || '0'}
                          </span>
                       </div>
 
-                      <div className="flex flex-col gap-2 shrink-0">
-                        <button type="button" disabled={isPaused} onClick={(e) => handlePointScore(e, leftPlayerId)} className="w-full py-8 sm:py-12 bg-gradient-to-t from-emerald-600 to-emerald-400 hover:to-emerald-300 text-slate-950 font-black text-2xl sm:text-3xl rounded-2xl shadow-lg active:scale-95 transition disabled:opacity-50">
+                      <div className="flex flex-col gap-1.5 sm:gap-2 shrink-0">
+                        <button type="button" disabled={isPaused} onClick={(e) => handlePointScore(e, leftTeamId)} className="w-full py-8 sm:py-12 bg-gradient-to-t from-emerald-600 to-emerald-400 hover:to-emerald-300 text-slate-950 font-black text-xl sm:text-3xl rounded-2xl shadow-lg active:scale-95 transition disabled:opacity-50">
                           +1 PUAN
                         </button>
-                        <div className="h-12 sm:h-14 w-full">
-                           {computedServer === leftPlayerId ? (
-                             <button type="button" disabled={isPaused} onClick={(e) => handleFault(e, leftPlayerId)} className={`w-full h-full rounded-xl text-sm sm:text-base font-black transition active:scale-95 disabled:opacity-50 ${firstFault ? 'bg-rose-500 border-2 border-rose-400 text-white animate-pulse' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>
+                        {/* Simetri için Görünmez Kutu / Hata Butonu */}
+                        <div className="h-10 sm:h-14 w-full">
+                           {computedServerTeam === leftTeamId ? (
+                             <button type="button" disabled={isPaused} onClick={(e) => handleFault(e, leftTeamId)} className={`w-full h-full rounded-xl text-[10px] sm:text-base font-black transition active:scale-95 disabled:opacity-50 ${firstFault ? 'bg-rose-500 border-2 border-rose-400 text-white animate-pulse' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>
                                {firstFault ? '2. Hata (Puan Rakibe)' : '1. Servis Hatası'}
                              </button>
                            ) : (
@@ -522,30 +590,35 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                     </div>
 
                     {/* SAĞ SAHA */}
-                    <div className={`bg-slate-900 rounded-3xl p-3 sm:p-5 border-4 flex flex-col justify-between shadow-2xl overflow-hidden ${computedServer === rightPlayerId ? 'border-amber-400 shadow-[0_0_30px_rgba(251,191,36,0.15)]' : 'border-slate-800'}`}>
-                       <div className="flex flex-col items-center justify-center min-h-[4rem] sm:min-h-[5rem] border-b border-slate-800/80 pb-3 mb-2">
-                        <div className={`flex items-start justify-center gap-1.5 w-full ${rightPlayerId === 1 ? 'text-lime-400' : 'text-cyan-400'}`}>
-                           {computedServer === rightPlayerId && <span className="text-amber-400 animate-bounce mt-1 sm:mt-1.5 shrink-0 text-base sm:text-xl">🎾</span>}
-                           <span className="font-black text-sm sm:text-xl text-center leading-tight line-clamp-2 break-words whitespace-normal">
-                             {match[`Oyuncu ${rightPlayerId}` as keyof MatchItem]}
-                           </span>
+                    <div className={`bg-slate-900 rounded-3xl p-2 sm:p-5 border-4 flex flex-col justify-between shadow-2xl overflow-hidden ${computedServerTeam === rightTeamId ? 'border-amber-400 shadow-[0_0_30px_rgba(251,191,36,0.15)]' : 'border-slate-800'}`}>
+                      <div className="flex flex-col items-center justify-center min-h-[3.5rem] sm:min-h-[5rem] border-b border-slate-800/80 pb-2 mb-2">
+                        <div className={`flex items-start justify-center gap-1 w-full ${rightTeamId === 1 ? 'text-lime-400' : 'text-cyan-400'}`}>
+                           {computedServerTeam === rightTeamId && <span className="text-amber-400 animate-bounce mt-0.5 sm:mt-1.5 shrink-0 text-sm sm:text-xl">🎾</span>}
+                           <div className="flex flex-col items-center">
+                             <span className="font-black text-xs sm:text-xl text-center leading-tight line-clamp-3 break-words whitespace-normal px-1">
+                               {isDoubles ? match[`Oyuncu ${rightTeamId}` as keyof MatchItem] : activeServerName}
+                             </span>
+                             {isDoubles && computedServerTeam === rightTeamId && (
+                               <span className="text-[9px] sm:text-xs bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded font-black mt-1 uppercase border border-amber-500/30">Servis: {activeServerName}</span>
+                             )}
+                           </div>
                         </div>
-                        <div className="text-[10px] sm:text-xs text-slate-500 uppercase font-black mt-1.5">Sağ Saha</div>
+                        <div className="text-[8px] sm:text-xs text-slate-500 uppercase font-black mt-1">Sağ Saha</div>
                       </div>
                       
-                      <div className="flex-1 flex justify-center items-center py-4 min-h-0">
-                         <span className="text-[5rem] sm:text-[9rem] font-mono font-black tracking-tighter text-white leading-none">
-                           {isTB ? (rightPlayerId === 1 ? state?.tiebreak_p1 : state?.tiebreak_p2) || '0' : (rightPlayerId === 1 ? state?.gamePoint_p1 : state?.gamePoint_p2) || '0'}
+                      <div className="flex-1 flex justify-center items-center py-2 sm:py-4 min-h-0">
+                         <span className="text-[4rem] sm:text-[9rem] font-mono font-black tracking-tighter text-white leading-none">
+                           {isTB ? (rightTeamId === 1 ? state?.tiebreak_p1 : state?.tiebreak_p2) || '0' : (rightTeamId === 1 ? state?.gamePoint_p1 : state?.gamePoint_p2) || '0'}
                          </span>
                       </div>
 
-                      <div className="flex flex-col gap-2 shrink-0">
-                        <button type="button" disabled={isPaused} onClick={(e) => handlePointScore(e, rightPlayerId)} className="w-full py-8 sm:py-12 bg-gradient-to-t from-emerald-600 to-emerald-400 hover:to-emerald-300 text-slate-950 font-black text-2xl sm:text-3xl rounded-2xl shadow-lg active:scale-95 transition disabled:opacity-50">
+                      <div className="flex flex-col gap-1.5 sm:gap-2 shrink-0">
+                        <button type="button" disabled={isPaused} onClick={(e) => handlePointScore(e, rightTeamId)} className="w-full py-8 sm:py-12 bg-gradient-to-t from-emerald-600 to-emerald-400 hover:to-emerald-300 text-slate-950 font-black text-xl sm:text-3xl rounded-2xl shadow-lg active:scale-95 transition disabled:opacity-50">
                           +1 PUAN
                         </button>
-                        <div className="h-12 sm:h-14 w-full">
-                           {computedServer === rightPlayerId ? (
-                             <button type="button" disabled={isPaused} onClick={(e) => handleFault(e, rightPlayerId)} className={`w-full h-full rounded-xl text-sm sm:text-base font-black transition active:scale-95 disabled:opacity-50 ${firstFault ? 'bg-rose-500 border-2 border-rose-400 text-white animate-pulse' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>
+                        <div className="h-10 sm:h-14 w-full">
+                           {computedServerTeam === rightTeamId ? (
+                             <button type="button" disabled={isPaused} onClick={(e) => handleFault(e, rightTeamId)} className={`w-full h-full rounded-xl text-[10px] sm:text-base font-black transition active:scale-95 disabled:opacity-50 ${firstFault ? 'bg-rose-500 border-2 border-rose-400 text-white animate-pulse' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>
                                {firstFault ? '2. Hata (Puan Rakibe)' : '1. Servis Hatası'}
                              </button>
                            ) : (
@@ -558,19 +631,19 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                   </div>
 
                   {/* ALT AKSİYON ÇUBUĞU */}
-                  <div className="pt-2 border-t border-slate-800 flex flex-col gap-3 shrink-0">
-                    <div className="flex gap-3">
-                      <button type="button" onClick={(e) => startTimer(e, 'Saha Değişimi', 90)} className="flex-1 py-3 sm:py-4 bg-slate-900 border border-slate-700 text-slate-300 hover:text-white text-xs sm:text-sm font-black rounded-xl transition shadow-md">90sn Değişim</button>
-                      <button type="button" onClick={(e) => startTimer(e, 'Set Arası', 120)} className="flex-1 py-3 sm:py-4 bg-slate-900 border border-slate-700 text-slate-300 hover:text-white text-xs sm:text-sm font-black rounded-xl transition shadow-md">120sn Set Arası</button>
-                      <button type="button" onClick={(e) => startTimer(e, 'Sağlık Molası', 180)} className="flex-1 py-3 sm:py-4 bg-slate-900 border border-slate-700 text-slate-300 hover:text-white text-xs sm:text-sm font-black rounded-xl transition shadow-md">3dk MTO</button>
+                  <div className="pt-2 border-t border-slate-800 flex flex-col gap-2 sm:gap-3 shrink-0 pb-4">
+                    <div className="flex gap-2 sm:gap-3">
+                      <button type="button" onClick={(e) => startTimer(e, 'Saha Değişimi', 90)} className="flex-1 py-3 sm:py-4 bg-slate-900 border border-slate-700 text-slate-300 hover:text-white text-[10px] sm:text-sm font-black rounded-xl transition shadow-md">90s Değişim</button>
+                      <button type="button" onClick={(e) => startTimer(e, 'Set Arası', 120)} className="flex-1 py-3 sm:py-4 bg-slate-900 border border-slate-700 text-slate-300 hover:text-white text-[10px] sm:text-sm font-black rounded-xl transition shadow-md">120s Set</button>
+                      <button type="button" onClick={(e) => startTimer(e, 'Sağlık Molası', 180)} className="flex-1 py-3 sm:py-4 bg-slate-900 border border-slate-700 text-slate-300 hover:text-white text-[10px] sm:text-sm font-black rounded-xl transition shadow-md">3dk MTO</button>
                     </div>
 
-                    <div className="flex gap-3">
-                      <button type="button" onClick={handleUndo} className="flex-1 flex items-center justify-center gap-2 py-4 bg-rose-500/10 border border-rose-500/20 hover:bg-rose-500/20 text-rose-400 text-sm sm:text-base font-black rounded-2xl transition active:scale-95 shadow-sm">
-                        <RotateCcw className="w-5 h-5" /> Son Puanı Geri Al
+                    <div className="flex gap-2 sm:gap-3">
+                      <button type="button" onClick={handleUndo} className="flex-1 flex items-center justify-center gap-1.5 py-3 sm:py-4 bg-rose-500/10 border border-rose-500/20 hover:bg-rose-500/20 text-rose-400 text-[11px] sm:text-base font-black rounded-xl transition active:scale-95 shadow-sm">
+                        <RotateCcw className="w-4 h-4 sm:w-5 sm:h-5" /> Geri Al
                       </button>
-                      <button type="button" onClick={toggleSuspend} className={`flex-1 flex items-center justify-center gap-2 py-4 text-sm sm:text-base font-black rounded-2xl transition active:scale-95 shadow-sm ${isPaused ? 'bg-emerald-500/20 border border-emerald-500/30 text-emerald-400' : 'bg-amber-500/10 border border-amber-500/20 text-amber-400'}`}>
-                        {isPaused ? <><PlayCircle className="w-5 h-5" /> Oyuna Devam Et</> : <><PauseCircle className="w-5 h-5" /> Oyunu Askıya Al</>}
+                      <button type="button" onClick={toggleSuspend} className={`flex-1 flex items-center justify-center gap-1.5 py-3 sm:py-4 text-[11px] sm:text-base font-black rounded-xl transition active:scale-95 shadow-sm ${isPaused ? 'bg-emerald-500/20 border border-emerald-500/30 text-emerald-400' : 'bg-amber-500/10 border border-amber-500/20 text-amber-400'}`}>
+                        {isPaused ? <><PlayCircle className="w-4 h-4 sm:w-5 sm:h-5" /> Devam Et</> : <><PauseCircle className="w-4 h-4 sm:w-5 sm:h-5" /> Askıya Al</>}
                       </button>
                     </div>
                   </div>
