@@ -91,6 +91,7 @@ interface TennisDataContextType {
   pullFromCloudNow: () => Promise<boolean>;
   forcePushAllToCloud: () => Promise<void>;
   clearLocalCacheAndResetFromCloud: () => Promise<boolean>;
+  wipeAllMatchesForTournament: () => Promise<boolean>;
   tournamentId: string;
   setTournamentId: (id: string) => void;
   purgeOrphanMatches: () => Promise<number>;
@@ -188,7 +189,6 @@ interface TennisDataContextType {
 
 const TennisDataContext = createContext<TennisDataContextType | null>(null);
 
-// DİNAMİK STORAGE ANAHTARLARI İÇİN TABAN İSİMLER
 const BASE_STORAGE_KEYS = {
   MATCHES: 'courtonline_matches_v2',
   REFEREES: 'courtonline_referees_v2',
@@ -200,11 +200,9 @@ const BASE_STORAGE_KEYS = {
   ACTIVE_TOURNAMENT: 'courtonline_active_tournament_id',
 };
 
-// Aktif turnuvaya göre dinamik anahtar üreten yardımcı fonksiyon
 const getStorageKey = (key: string, tId: string) => (tId ? `${key}_${tId}` : key);
 
 export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // İlk yüklemede aktif turnuva ID'sini al
   const initialTournamentId = typeof window !== 'undefined' ? (localStorage.getItem(BASE_STORAGE_KEYS.ACTIVE_TOURNAMENT) || '') : '';
   const [tournamentId, setTournamentIdState] = useState<string>(initialTournamentId);
 
@@ -253,7 +251,6 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     pushDeskPinToCloud(newPin.trim(), tournamentId);
   };
 
-  // State'leri turnuva ID'sine göre dinamik başlat
   const [matches, setMatches] = useState<MatchItem[]>(() => {
     if (!initialTournamentId) return [];
     const saved = localStorage.getItem(getStorageKey(BASE_STORAGE_KEYS.MATCHES, initialTournamentId));
@@ -285,7 +282,6 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     return localStorage.getItem(getStorageKey(BASE_STORAGE_KEYS.ACTIVE_MATCH_ID, initialTournamentId)) || 'm-9';
   });
 
-  // TURNUVA DEĞİŞTİĞİNDE VERİLERİ TEMİZLE VE YENİDEN YÜKLE
   const setTournamentId = (id: string) => {
     setTournamentIdState(id);
     localStorage.setItem(BASE_STORAGE_KEYS.ACTIVE_TOURNAMENT, id);
@@ -342,7 +338,6 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   const broadcastChannelRef = useRef<BroadcastChannel | null>(null);
 
-  // DİNAMİK KANAL: Sadece aynı turnuva içindeki sekmeler iletişim kurar
   useEffect(() => {
     if (!tournamentId) return;
 
@@ -356,7 +351,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         }
       };
     } catch {
-      // BroadcastChannel might not be supported in older webviews
+      // BroadcastChannel might not be supported
     }
 
     const handleStorageEvent = (event: StorageEvent) => {
@@ -385,7 +380,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   }, [tournamentId]);
 
   useEffect(() => {
-    if (!tournamentId) return; // turnuva seçilmemişse hiçbir şey yapma
+    if (!tournamentId) return;
 
     fetchTournamentFromCloud(tournamentId).then((remote) => {
       if (remote && Array.isArray(remote.matches) && remote.matches.length > 0) {
@@ -411,13 +406,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       tournamentId,
       (remoteMatches) => {
         setCloudSyncStatus('connected');
-        setLastCloudSync(
-          new Date().toLocaleTimeString('tr-TR', {
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit',
-          })
-        );
+        setLastCloudSync(new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
 
         if (Array.isArray(remoteMatches) && remoteMatches.length > 0) {
           setMatches((prev) => {
@@ -593,6 +582,26 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       return true;
     } catch (err) {
       console.error('Clear cache & reset from cloud error:', err);
+      setCloudSyncStatus('offline');
+      return false;
+    }
+  };
+
+  // TAMAMEN SIFIRLAMA KOMUTU EKLENDİ
+  const wipeAllMatchesForTournament = async (): Promise<boolean> => {
+    if (!tournamentId) return false;
+    setCloudSyncStatus('syncing');
+    try {
+      await deleteAllMatchesFromCloud(tournamentId);
+      setMatches([]);
+      localStorage.removeItem(getStorageKey(BASE_STORAGE_KEYS.MATCHES, tournamentId));
+      if (broadcastChannelRef.current) {
+        broadcastChannelRef.current.postMessage({ type: 'MATCHES_UPDATED', matches: [] });
+      }
+      setCloudSyncStatus('connected');
+      return true;
+    } catch (err) {
+      console.error('Tüm maçları silme hatası:', err);
       setCloudSyncStatus('offline');
       return false;
     }
@@ -1141,9 +1150,43 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   };
 
-  // BU KISIM BOŞTU, BÖYLE BIRAKTIM. "Maçı Bitir" hatasının sebebi burası olabilir!
-  const finishAndReportMatch = (matchId: string, winner: string, status?: MatchStatus, customScore?: string, startTime?: string, endTime?: string) => {};
-  
+  // MAÇI BİTİR KOMUTU DOLDURULDU - Artık skoru, saati ve kazananı veritabanına işleyecek
+  const finishAndReportMatch = (
+    matchId: string,
+    winner: string,
+    status: MatchStatus = 'Bitti',
+    customScore?: string,
+    startTime?: string,
+    endTime?: string
+  ) => {
+    if (!matchId) return;
+    setMatches((prev) => {
+      let updatedItem: MatchItem | null = null;
+      const next = prev.map((m) => {
+        if (m.id !== matchId) return m;
+
+        const endStr = endTime || new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+        const startStr = startTime || m.Baslangic_Saati;
+
+        const res: MatchItem = {
+          ...m,
+          Durum: status,
+          Kazanan: winner,
+          Skor: customScore || m.Skor,
+          Baslangic_Saati: startStr,
+          Bitis_Saati: endStr,
+          totalDurationSeconds: calculateMatchDurationSeconds({ ...m, Durum: status, Bitis_Saati: endStr }),
+          Son_Hakem: currentReferee ? currentReferee.name : m.Son_Hakem,
+        };
+        updatedItem = res;
+        return res;
+      });
+
+      if (updatedItem) broadcastAndSyncSingleMatch(updatedItem, next);
+      return next;
+    });
+  };
+
   const resetTournamentToDefault = () => {};
 
   return (
@@ -1163,6 +1206,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         pullFromCloudNow,
         forcePushAllToCloud,
         clearLocalCacheAndResetFromCloud,
+        wipeAllMatchesForTournament,
         tournamentId,
         setTournamentId,
         purgeOrphanMatches,
