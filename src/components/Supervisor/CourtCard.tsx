@@ -80,7 +80,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       if (isChairMode) {
         e.preventDefault();
-        e.returnValue = ''; // Tarayıcının varsayılan yenileme uyarısını tetikler
+        e.returnValue = ''; 
       }
     };
 
@@ -250,6 +250,22 @@ export const CourtCard: React.FC<CourtCardProps> = ({
     else if (isPaused) setMatchStatus(match.id, 'Oynaniyor');
   };
 
+  // EKSİK OLAN VE GERİ EKLENEN FONKSİYONLAR
+  const handleCardClick = () => {
+    if (isUpcoming && onOpenSetup) {
+      onOpenSetup(match);
+    }
+  };
+
+  const handleStartMatchDirect = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onOpenSetup) {
+      onOpenSetup(match);
+    } else {
+      setMatchStatus(match.id, 'Oynaniyor', undefined, undefined);
+    }
+  };
+
   // Aktif setteki oyun skorları
   const currentSetP1Games = selectedSet === 1 ? s1_p1 : selectedSet === 2 ? s2_p1 : s3_p1;
   const currentSetP2Games = selectedSet === 1 ? s1_p2 : selectedSet === 2 ? s2_p2 : s3_p2;
@@ -258,7 +274,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
     <>
       {/* 1. KORT HAKEMİ KART GÖRÜNÜMÜ */}
       <div
-        onClick={() => { if (isUpcoming && onOpenSetup) onOpenSetup(match); }}
+        onClick={handleCardClick}
         className={`rounded-3xl transition-all duration-200 overflow-hidden flex flex-col justify-between shadow-lg ${
           isLive || isPaused
             ? 'bg-slate-900/95 border-2 border-emerald-400 shadow-[0_0_25px_rgba(52,211,153,0.18)]'
