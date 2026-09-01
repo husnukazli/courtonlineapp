@@ -60,7 +60,11 @@ export const LiveScoringTab: React.FC<LiveScoringTabProps> = ({ onBackToSetup })
     lastActionMessage: '',
   };
 
-  const isDone = activeMatch.Durum === 'Bitti' || activeMatch.Durum === 'Retired' || activeMatch.Durum === 'Walkover';
+  // Akıllı ve esnek durum kontrolleri (Büyük/küçük harf duyarlılığını yoksayar)
+  const currentStatus = (activeMatch.Durum || '').toLowerCase().trim();
+  const isDone = ['bitti', 'retired', 'walkover'].includes(currentStatus);
+  const isLive = currentStatus === 'oynaniyor';
+  const isPaused = currentStatus === 'duraklatildi';
 
   return (
     <div className="max-w-2xl mx-auto space-y-4 pb-12">
@@ -81,8 +85,9 @@ export const LiveScoringTab: React.FC<LiveScoringTabProps> = ({ onBackToSetup })
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <span className="font-bold text-sm text-white">{activeMatch.Kort}</span>
-              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${
-                activeMatch.Durum === 'Oynaniyor' ? 'bg-emerald-500/20 text-emerald-400 animate-pulse'
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                isLive ? 'bg-emerald-500/20 text-emerald-400 animate-pulse'
+                : isPaused ? 'bg-amber-500/20 text-amber-400'
                 : isDone ? 'bg-rose-500/20 text-rose-400'
                 : 'bg-slate-800 text-slate-400'}`}>
                 {activeMatch.Durum}
@@ -159,13 +164,13 @@ export const LiveScoringTab: React.FC<LiveScoringTabProps> = ({ onBackToSetup })
       {/* Sayı Butonları — sadece oynaniyor ise aktif */}
       <div className="grid grid-cols-2 gap-3 sm:gap-4">
         <button type="button" onClick={() => handlePoint(1)}
-          disabled={isDone}
+          disabled={isDone || isPaused}
           className="flex flex-col items-center justify-center p-5 sm:p-7 rounded-3xl bg-gradient-to-b from-emerald-500 to-emerald-700 hover:from-emerald-400 active:scale-95 text-slate-950 font-black shadow-xl transition border-2 border-emerald-400 disabled:opacity-40 disabled:cursor-not-allowed">
           <span className="text-xs uppercase tracking-wider font-extrabold mb-1">+1 SAYI</span>
           <span className="text-base sm:text-lg font-black text-center line-clamp-2">{p1Name}</span>
         </button>
         <button type="button" onClick={() => handlePoint(2)}
-          disabled={isDone}
+          disabled={isDone || isPaused}
           className="flex flex-col items-center justify-center p-5 sm:p-7 rounded-3xl bg-gradient-to-b from-cyan-500 to-cyan-700 hover:from-cyan-400 active:scale-95 text-slate-950 font-black shadow-xl transition border-2 border-cyan-400 disabled:opacity-40 disabled:cursor-not-allowed">
           <span className="text-xs uppercase tracking-wider font-extrabold mb-1">+1 SAYI</span>
           <span className="text-base sm:text-lg font-black text-center line-clamp-2">{p2Name}</span>
