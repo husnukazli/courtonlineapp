@@ -539,6 +539,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   };
 
+  // DÜZELTME: Bu fonksiyon artık buluttaki verileri SİLMEZ, sadece yerel cihazdaki önbelleği temizleyip buluttan GÜNCEL veriyi çeker.
   const clearLocalCacheAndResetFromCloud = async (): Promise<boolean> => {
     setCloudSyncStatus('syncing');
     try {
@@ -546,9 +547,6 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       localStorage.removeItem(getStorageKey(BASE_STORAGE_KEYS.REFEREES, tournamentId));
       localStorage.removeItem(getStorageKey(BASE_STORAGE_KEYS.CATEGORY_FORMATS, tournamentId));
       localStorage.removeItem(getStorageKey(BASE_STORAGE_KEYS.DESK_PIN, tournamentId));
-      
-      await deleteAllMatchesFromCloud(tournamentId);
-      await pushRefereesToCloud([], tournamentId);
       
       setMatches([]);
       setReferees([]);
@@ -587,7 +585,6 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   };
 
-  // TAMAMEN SIFIRLAMA KOMUTU EKLENDİ
   const wipeAllMatchesForTournament = async (): Promise<boolean> => {
     if (!tournamentId) return false;
     setCloudSyncStatus('syncing');
@@ -1150,7 +1147,6 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   };
 
-  // MAÇI BİTİR KOMUTU DOLDURULDU - Artık skoru, saati ve kazananı veritabanına işleyecek
   const finishAndReportMatch = (
     matchId: string,
     winner: string,
