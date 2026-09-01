@@ -47,7 +47,11 @@ export const CourtCard: React.FC<CourtCardProps> = ({
 
   const [selectedSet, setSelectedSet] = useState<1 | 2 | 3>(1);
   const [isChairMode, setIsChairMode] = useState<boolean>(false);
-  const [chairSetup, setChairSetup] = useState<ChairSetup | null>(null);
+  
+  // YENİ: Artık her setin kurulumunu ayrı hafızada tutuyoruz (Singles için otomatik geçişi sağlayacak)
+  const [setSetups, setSetups] = useState<Record<number, ChairSetup>>({});
+  const chairSetup = setSetups[selectedSet] || null;
+  const isSetupValid = !!chairSetup;
 
   const [setupForm, setSetupForm] = useState<{
     firstServingTeam: 1 | 2 | null; 
@@ -83,11 +87,9 @@ export const CourtCard: React.FC<CourtCardProps> = ({
   const t1Players = isDoubles ? match['Oyuncu 1'].split('/').map(p => p.trim()) : [match['Oyuncu 1']];
   const t2Players = isDoubles ? match['Oyuncu 2'].split('/').map(p => p.trim()) : [match['Oyuncu 2']];
 
-  // --- LİMİT KONTROLÜ İÇİN AKTİF SET DOĞRULAMASI ---
   const val1 = validateSingleSet(s1_p1, s1_p2, 1, format);
   const val2 = validateSingleSet(s2_p1, s2_p2, 2, format);
   const val3 = validateSingleSet(s3_p1, s3_p2, 3, format);
-
   const isCurrentSetComplete = selectedSet === 1 ? val1.isComplete : selectedSet === 2 ? val2.isComplete : val3.isComplete;
 
   useEffect(() => {
@@ -133,6 +135,39 @@ export const CourtCard: React.FC<CourtCardProps> = ({
     }
   }, [match.Skor, match.detailedState, isLive, format, s1_p1, s1_p2, s2_p1, s2_p2, s3_p1, s3_p2, val1.isComplete, val2.isComplete, val1.winner]);
 
+  // --- YENİ: TEKLER MAÇI İÇİN OTOMATİK SONRAKİ SETE GEÇİŞ (Auto-Advance) ---
+  useEffect(() => {
+    if (!isDoubles && selectedSet > 1 && !setSetups[selectedSet] && setSetups[selectedSet - 1]) {
+      const prevSet = selectedSet - 1;
+      const prevSetup = setSetups[prevSet];
+      
+      const prevS1 = prevSet === 1 ? s1_p1 : prevSet === 2 ? s2_p1 : s3_p1;
+      const prevS2 = prevSet === 1 ? s1_p2 : prevSet === 2 ? s2_p2 : s3_p2;
+      const totalGamesPrevSet = prevS1 + prevS2;
+      
+      if (totalGamesPrevSet > 0) {
+        // Önceki setin toplam oyun sayısına göre yeni setin servisçisi hesaplanır
+        const nextServerTeam = totalGamesPrevSet % 2 === 0 ? prevSetup.firstServingTeam : (prevSetup.firstServingTeam === 1 ? 2 : 1);
+        
+        // Saha değişimi hesabı
+        const lastGameOpposite = ((totalGamesPrevSet - 1) % 4 === 1 || (totalGamesPrevSet - 1) % 4 === 2);
+        const changeEnds = totalGamesPrevSet % 2 !== 0; // Toplam oyun tek ise saha değişilir
+        const nextInitialOpposite = changeEnds ? !lastGameOpposite : lastGameOpposite;
+        const nextLeftTeam = nextInitialOpposite ? (prevSetup.leftTeam === 1 ? 2 : 1) : prevSetup.leftTeam;
+
+        setSetups(prev => ({
+          ...prev,
+          [selectedSet]: {
+            ...prevSetup,
+            setupSetNum: selectedSet,
+            firstServingTeam: nextServerTeam,
+            leftTeam: nextLeftTeam
+          }
+        }));
+      }
+    }
+  }, [selectedSet, isDoubles, setSetups, s1_p1, s1_p2, s2_p1, s2_p2, s3_p1, s3_p2]);
+
   const currentSetGames = selectedSet === 1 ? s1_p1 + s1_p2 : selectedSet === 2 ? s2_p1 + s2_p2 : s3_p1 + s3_p2;
   const isTB = state?.isTiebreak || false;
   const tbPoints = isTB ? (state?.tiebreak_p1 || 0) + (state?.tiebreak_p2 || 0) : 0;
@@ -142,8 +177,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
   let activeServerName = '';
   let activeReceiverName = '';
   let isSideChangePoint = false;
-
-  const isSetupValid = chairSetup && chairSetup.setupSetNum === selectedSet;
 
   if (isSetupValid) {
     const isComan = chairSetup.tbType === 'coman';
@@ -277,16 +310,19 @@ export const CourtCard: React.FC<CourtCardProps> = ({
       t2InitSrvIdx = ((setupForm.t2ServerIdx - teamServicesBeforeNowT2) % 2 + 2) % 2 as 0 | 1;
     }
 
-    setChairSetup({ 
-      setupSetNum: selectedSet,
-      firstServingTeam: initialServer, 
-      leftTeam: initialLeft, 
-      tbType: setupForm.tbType,
-      t1ServerIdx: t1InitSrvIdx,
-      t2ServerIdx: t2InitSrvIdx,
-      t1DeuceReceiverIdx: setupForm.t1RecIdx,
-      t2DeuceReceiverIdx: setupForm.t2RecIdx
-    });
+    setSetups(prev => ({
+      ...prev,
+      [selectedSet]: {
+        setupSetNum: selectedSet,
+        firstServingTeam: initialServer,
+        leftTeam: initialLeft,
+        tbType: setupForm.tbType,
+        t1ServerIdx: t1InitSrvIdx,
+        t2ServerIdx: t2InitSrvIdx,
+        t1DeuceReceiverIdx: setupForm.t1RecIdx,
+        t2DeuceReceiverIdx: setupForm.t2RecIdx
+      }
+    }));
   };
 
   useEffect(() => {
@@ -425,9 +461,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="flex flex-col gap-1.5">
-                    {/* LİMİT KONTROLÜ BURADA: Eğer set bitmişse (+1 OYUN) butonu kilitlenir */}
                     <button type="button" disabled={isPaused || isFinished || isCurrentSetComplete} onClick={(e) => handleQuickScore(e, 1, 1)} className="w-full py-3 rounded-xl bg-lime-400 hover:bg-lime-300 text-slate-950 font-black text-sm flex items-center justify-center gap-1 transition disabled:opacity-50 disabled:cursor-not-allowed"><Plus className="w-5 h-5" />+1 OYUN</button>
-                    {/* Yanlışı düzeltmek için (-1 Düş) butonu her zaman açık kalır */}
                     <button type="button" disabled={isPaused} onClick={(e) => handleQuickScore(e, 1, -1)} className="w-full py-2 rounded-xl bg-rose-500/10 text-rose-400 font-bold text-xs flex items-center justify-center gap-1 transition disabled:opacity-50"><Minus className="w-4 h-4" />-1 Düş</button>
                   </div>
                   <div className="flex flex-col gap-1.5">
@@ -478,7 +512,10 @@ export const CourtCard: React.FC<CourtCardProps> = ({
             
             <div className="flex items-center gap-2">
                {isSetupValid && (
-                  <button type="button" onClick={(e) => { e.stopPropagation(); setChairSetup(null); }} className="p-2 sm:px-3 sm:py-2 rounded-xl bg-slate-800 text-slate-400 hover:text-white border border-slate-700 transition flex items-center gap-1.5" title="Saha ve Servis Rotasyonunu Sıfırla">
+                  <button type="button" onClick={(e) => { 
+                    e.stopPropagation(); 
+                    setSetups(prev => { const next = {...prev}; delete next[selectedSet]; return next; }); 
+                  }} className="p-2 sm:px-3 sm:py-2 rounded-xl bg-slate-800 text-slate-400 hover:text-white border border-slate-700 transition flex items-center gap-1.5" title="Saha ve Servis Rotasyonunu Sıfırla">
                     <RotateCcw className="w-4 h-4" /> <span className="hidden sm:inline text-xs font-bold">Rotasyon</span>
                   </button>
                 )}
@@ -628,7 +665,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                            {computedServerTeam === leftTeamId && <span className="text-amber-400 animate-bounce mt-0.5 sm:mt-1.5 shrink-0 text-sm sm:text-xl">🎾</span>}
                            <div className="flex flex-col items-center">
                              <span className="font-black text-xs sm:text-xl text-center leading-tight line-clamp-3 break-words whitespace-normal px-1">
-                               {String(match[`Oyuncu ${leftTeamId}` as keyof MatchItem] || '')}
+                               {isDoubles ? String(match[`Oyuncu ${leftTeamId}` as keyof MatchItem] || '') : (leftTeamId === computedServerTeam ? activeServerName : String(match[`Oyuncu ${leftTeamId}` as keyof MatchItem] || ''))}
                              </span>
                              <div className="flex flex-wrap justify-center gap-1 mt-1">
                                {isDoubles && computedServerTeam === leftTeamId && (
@@ -650,13 +687,12 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                       </div>
 
                       <div className="flex flex-col gap-1.5 sm:gap-2 shrink-0">
-                        {/* LİMİT KONTROLÜ BURADA DA EKLENDİ (isFinished) */}
-                        <button type="button" disabled={isPaused || isFinished} onClick={(e) => handlePointScore(e, leftTeamId)} className="w-full py-8 sm:py-12 bg-gradient-to-t from-emerald-600 to-emerald-400 hover:to-emerald-300 text-slate-950 font-black text-xl sm:text-3xl rounded-2xl shadow-lg active:scale-95 transition disabled:opacity-50 disabled:cursor-not-allowed">
+                        <button type="button" disabled={isPaused || isFinished || isCurrentSetComplete} onClick={(e) => handlePointScore(e, leftTeamId)} className="w-full py-8 sm:py-12 bg-gradient-to-t from-emerald-600 to-emerald-400 hover:to-emerald-300 text-slate-950 font-black text-xl sm:text-3xl rounded-2xl shadow-lg active:scale-95 transition disabled:opacity-50 disabled:cursor-not-allowed">
                           +1 PUAN
                         </button>
                         <div className="h-10 sm:h-14 w-full">
                            {computedServerTeam === leftTeamId ? (
-                             <button type="button" disabled={isPaused || isFinished} onClick={(e) => handleFault(e, leftTeamId)} className={`w-full h-full rounded-xl text-[10px] sm:text-base font-black transition active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed ${firstFault ? 'bg-rose-500 border-2 border-rose-400 text-white animate-pulse' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>
+                             <button type="button" disabled={isPaused || isFinished || isCurrentSetComplete} onClick={(e) => handleFault(e, leftTeamId)} className={`w-full h-full rounded-xl text-[10px] sm:text-base font-black transition active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed ${firstFault ? 'bg-rose-500 border-2 border-rose-400 text-white animate-pulse' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>
                                {firstFault ? '2. Hata (Rakibe Puan)' : '1. Servis Hatası'}
                              </button>
                            ) : (
@@ -673,7 +709,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                            {computedServerTeam === rightTeamId && <span className="text-amber-400 animate-bounce mt-0.5 sm:mt-1.5 shrink-0 text-sm sm:text-xl">🎾</span>}
                            <div className="flex flex-col items-center">
                              <span className="font-black text-xs sm:text-xl text-center leading-tight line-clamp-3 break-words whitespace-normal px-1">
-                               {String(match[`Oyuncu ${rightTeamId}` as keyof MatchItem] || '')}
+                               {isDoubles ? String(match[`Oyuncu ${rightTeamId}` as keyof MatchItem] || '') : (rightTeamId === computedServerTeam ? activeServerName : String(match[`Oyuncu ${rightTeamId}` as keyof MatchItem] || ''))}
                              </span>
                              <div className="flex flex-wrap justify-center gap-1 mt-1">
                                {isDoubles && computedServerTeam === rightTeamId && (
@@ -695,13 +731,12 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                       </div>
 
                       <div className="flex flex-col gap-1.5 sm:gap-2 shrink-0">
-                        {/* LİMİT KONTROLÜ BURADA DA EKLENDİ (isFinished) */}
-                        <button type="button" disabled={isPaused || isFinished} onClick={(e) => handlePointScore(e, rightTeamId)} className="w-full py-8 sm:py-12 bg-gradient-to-t from-emerald-600 to-emerald-400 hover:to-emerald-300 text-slate-950 font-black text-xl sm:text-3xl rounded-2xl shadow-lg active:scale-95 transition disabled:opacity-50 disabled:cursor-not-allowed">
+                        <button type="button" disabled={isPaused || isFinished || isCurrentSetComplete} onClick={(e) => handlePointScore(e, rightTeamId)} className="w-full py-8 sm:py-12 bg-gradient-to-t from-emerald-600 to-emerald-400 hover:to-emerald-300 text-slate-950 font-black text-xl sm:text-3xl rounded-2xl shadow-lg active:scale-95 transition disabled:opacity-50 disabled:cursor-not-allowed">
                           +1 PUAN
                         </button>
                         <div className="h-10 sm:h-14 w-full">
                            {computedServerTeam === rightTeamId ? (
-                             <button type="button" disabled={isPaused || isFinished} onClick={(e) => handleFault(e, rightTeamId)} className={`w-full h-full rounded-xl text-[10px] sm:text-base font-black transition active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed ${firstFault ? 'bg-rose-500 border-2 border-rose-400 text-white animate-pulse' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>
+                             <button type="button" disabled={isPaused || isFinished || isCurrentSetComplete} onClick={(e) => handleFault(e, rightTeamId)} className={`w-full h-full rounded-xl text-[10px] sm:text-base font-black transition active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed ${firstFault ? 'bg-rose-500 border-2 border-rose-400 text-white animate-pulse' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>
                                {firstFault ? '2. Hata (Rakibe Puan)' : '1. Servis Hatası'}
                              </button>
                            ) : (
@@ -722,7 +757,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                     </div>
 
                     <div className="flex gap-2 sm:gap-3">
-                      {/* Geri Al Butonu limit veya bitti durumuna bakmaksızın düzeltebilmen için açık kalır */}
                       <button type="button" onClick={handleUndo} disabled={isPaused} className="flex-1 flex items-center justify-center gap-1.5 py-3 sm:py-4 bg-rose-500/10 border border-rose-500/20 hover:bg-rose-500/20 text-rose-400 text-[11px] sm:text-base font-black rounded-xl transition active:scale-95 shadow-sm disabled:opacity-50">
                         <RotateCcw className="w-4 h-4 sm:w-5 sm:h-5" /> Geri Al
                       </button>
