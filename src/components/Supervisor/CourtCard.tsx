@@ -9,8 +9,11 @@ import {
   PlayCircle,
   Plus,
   Minus,
-  RotateCcw, // Geri al butonu için eklendi
-  Swords, // Kule hakemi ikonu için eklendi
+  RotateCcw,
+  Swords,
+  PauseCircle,
+  Timer,
+  X
 } from 'lucide-react';
 
 interface CourtCardProps {
@@ -25,15 +28,18 @@ export const CourtCard: React.FC<CourtCardProps> = ({
   onFinishMatch,
   onOpenSetup,
 }) => {
-  // YENİ: awardPointToMatch ve undoLastPoint fonksiyonları context'ten çekildi
   const { updateGameScore, setMatchStatus, awardPointToMatch, undoLastPoint } = useTennisData();
   const lastScoreClickRef = useRef<number>(0);
 
-  // Set Selector State (Kort Hakemi Hızlı Mod İçin)
+  // Kort Hakemi Modu için Set Seçici
   const [selectedSet, setSelectedSet] = useState<1 | 2 | 3>(1);
   
-  // YENİ: Kule Hakemi (Detaylı Puan) Modu Anahtarı
+  // Kule Hakemi Modu Anahtarı
   const [isChairMode, setIsChairMode] = useState<boolean>(false);
+
+  // Kule Hakemi Modu - Servis Hatası & Sayaç Hafızası
+  const [firstFault, setFirstFault] = useState<boolean>(false);
+  const [activeTimer, setActiveTimer] = useState<{ label: string; seconds: number } | null>(null);
 
   const parsed = parseScoreString(match.Skor);
   const state = match.detailedState;
@@ -46,11 +52,12 @@ export const CourtCard: React.FC<CourtCardProps> = ({
 
   const isLive = match.Durum === 'Oynaniyor';
   const isFinished = match.Durum === 'Bitti' || match.Durum === 'Retired' || match.Durum === 'Walkover';
+  const isPaused = match.Durum === 'Duraklatildi';
   const isUpcoming = match.Durum === 'Baslamadi';
 
   const format = match.Skor_Formati || '3 Normal Set';
 
-  // Auto-select the active set when component mounts or updates
+  // Otomatik aktif seti bul
   useEffect(() => {
     if (isLive) {
       const val1 = validateSingleSet(s1_p1, s1_p2, 1, format);
@@ -70,6 +77,20 @@ export const CourtCard: React.FC<CourtCardProps> = ({
     }
   }, [match.Skor, match.detailedState, isLive, format, s1_p1, s1_p2, s2_p1, s2_p2, s3_p1, s3_p2]);
 
+  // Kule Hakemi: Sayaç Geri Sayım Motoru
+  useEffect(() => {
+    let interval: any;
+    if (activeTimer && activeTimer.seconds > 0) {
+      interval = setInterval(() => {
+        setActiveTimer((prev) => prev ? { ...prev, seconds: prev.seconds - 1 } : null);
+      }, 1000);
+    } else if (activeTimer && activeTimer.seconds <= 0) {
+      // Süre bittiğinde sayacı ekranda sıfırda bırakmak yerine otomatik kaldırabiliriz
+      // setActiveTimer(null); // Otomatik kapanması istenmiyorsa yorumda kalabilir
+    }
+    return () => clearInterval(interval);
+  }, [activeTimer]);
+
   // Kort Hakemi: Hızlı Oyun (+1/-1) Ekleme
   const handleQuickScore = (e: React.MouseEvent, player: 1 | 2, delta: number) => {
     e.stopPropagation();
@@ -80,19 +101,48 @@ export const CourtCard: React.FC<CourtCardProps> = ({
     updateGameScore(match.id, selectedSet, player, delta);
   };
 
-  // Kule Hakemi: Detaylı Puan Verme (15, 30, Ace, Winner vb.)
-  const handlePointScore = (e: React.MouseEvent, player: 1 | 2, type: any = 'NORMAL') => {
+  // Kule Hakemi: Puan Verme
+  const handlePointScore = (e: React.MouseEvent, player: 1 | 2) => {
     e.stopPropagation();
     const now = Date.now();
     if (now - lastScoreClickRef.current < 400) return; 
     lastScoreClickRef.current = now;
     
-    awardPointToMatch(match.id, player, type);
+    setFirstFault(false); // Normal puan verildiğinde servis hatasını sıfırla
+    awardPointToMatch(match.id, player, 'NORMAL');
   };
 
+  // Kule Hakemi: Servis Hatası
+  const handleFault = (e: React.MouseEvent, serverPlayer: 1 | 2) => {
+    e.stopPropagation();
+    if (!firstFault) {
+      setFirstFault(true); // 1. Hata
+    } else {
+      // 2. Hata (Çifte Hata) -> Puan Rakibe Gider
+      const receiver = serverPlayer === 1 ? 2 : 1;
+      setFirstFault(false);
+      awardPointToMatch(match.id, receiver, 'NORMAL');
+    }
+  };
+
+  // Kule Hakemi: Geri Al
   const handleUndo = (e: React.MouseEvent) => {
     e.stopPropagation();
+    setFirstFault(false); // Geri almada da hata durumunu sıfırla
     undoLastPoint(match.id);
+  };
+
+  // Kule Hakemi: Sayaç Başlat
+  const startTimer = (e: React.MouseEvent, label: string, seconds: number) => {
+    e.stopPropagation();
+    setActiveTimer({ label, seconds });
+  };
+
+  // Askıya Al / Devam Et
+  const toggleSuspend = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isLive) setMatchStatus(match.id, 'Duraklatildi');
+    else if (isPaused) setMatchStatus(match.id, 'Oynaniyor');
   };
 
   const handleCardClick = () => {
@@ -114,7 +164,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
     <div
       onClick={handleCardClick}
       className={`rounded-3xl transition-all duration-200 overflow-hidden flex flex-col justify-between cursor-pointer group shadow-lg ${
-        isLive
+        isLive || isPaused
           ? 'bg-slate-900/95 border-2 border-emerald-400 shadow-[0_0_25px_rgba(52,211,153,0.18)] ring-1 ring-emerald-400/30 hover:border-emerald-300'
           : isUpcoming
           ? 'bg-gradient-to-b from-slate-900 via-slate-900 to-amber-950/20 border-2 border-amber-500/50 hover:border-amber-400/90 shadow-md shadow-amber-950/20'
@@ -126,6 +176,8 @@ export const CourtCard: React.FC<CourtCardProps> = ({
         className={`h-1.5 w-full ${
           isLive
             ? 'bg-gradient-to-r from-emerald-400 via-lime-400 to-emerald-500 animate-pulse'
+            : isPaused
+            ? 'bg-gradient-to-r from-amber-400 to-amber-600'
             : isUpcoming
             ? 'bg-gradient-to-r from-amber-400 to-yellow-500'
             : 'bg-gradient-to-r from-rose-500 to-rose-700'
@@ -137,7 +189,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
         <div className="flex items-center gap-2.5">
           <span
             className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-xs ${
-              isLive
+              isLive || isPaused
                 ? 'bg-emerald-400 text-slate-950 shadow-md shadow-emerald-400/30'
                 : isUpcoming
                 ? 'bg-amber-400/20 text-amber-300 border border-amber-400/30'
@@ -167,12 +219,14 @@ export const CourtCard: React.FC<CourtCardProps> = ({
             className={`px-2.5 py-1 rounded-xl text-xs font-black tracking-wide uppercase ${
               isLive
                 ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                : isPaused
+                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
                 : isUpcoming
                 ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
                 : 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
             }`}
           >
-            {match.Durum === 'Retired' ? '✕ RET' : match.Durum === 'Walkover' ? '✕ W/O' : match.Durum === 'Bitti' ? '✕ BİTTİ' : match.Durum}
+            {match.Durum === 'Retired' ? '✕ RET' : match.Durum === 'Walkover' ? '✕ W/O' : match.Durum === 'Bitti' ? '✕ BİTTİ' : match.Durum === 'Duraklatildi' ? 'ASKIYA ALINDI' : match.Durum}
           </span>
         </div>
       </div>
@@ -214,9 +268,9 @@ export const CourtCard: React.FC<CourtCardProps> = ({
           {/* Header */}
           <div className="grid grid-cols-12 bg-slate-900/80 text-[10px] font-extrabold uppercase tracking-wider text-slate-400 py-1.5 px-3 border-b border-slate-800">
             <div className="col-span-6">Oyuncu</div>
-            <div className={`col-span-2 text-center transition-colors ${selectedSet === 1 && isLive && !isChairMode ? 'text-lime-400' : ''}`}>1. Set</div>
-            <div className={`col-span-2 text-center transition-colors ${selectedSet === 2 && isLive && !isChairMode ? 'text-lime-400' : ''}`}>2. Set</div>
-            <div className={`col-span-2 text-center transition-colors ${selectedSet === 3 && isLive && !isChairMode ? 'text-lime-400' : ''}`}>3. Set</div>
+            <div className={`col-span-2 text-center transition-colors ${selectedSet === 1 && (isLive || isPaused) && !isChairMode ? 'text-lime-400' : ''}`}>1. Set</div>
+            <div className={`col-span-2 text-center transition-colors ${selectedSet === 2 && (isLive || isPaused) && !isChairMode ? 'text-lime-400' : ''}`}>2. Set</div>
+            <div className={`col-span-2 text-center transition-colors ${selectedSet === 3 && (isLive || isPaused) && !isChairMode ? 'text-lime-400' : ''}`}>3. Set</div>
           </div>
 
           {/* Player 1 Row */}
@@ -228,20 +282,20 @@ export const CourtCard: React.FC<CourtCardProps> = ({
             <div className="col-span-6 flex items-center gap-2 pr-2">
               <span className="w-2.5 h-2.5 rounded-full bg-lime-400 shrink-0"></span>
               <span className="text-xs sm:text-sm font-bold text-white truncate flex items-center gap-1.5">
-                {state?.currentServer === 1 && isLive && <span className="text-lime-400 text-[10px]">🎾</span>}
+                {state?.currentServer === 1 && (isLive || isPaused) && <span className="text-lime-400 text-[10px]">🎾</span>}
                 {match['Oyuncu 1']}
               </span>
               {match.Kazanan === match['Oyuncu 1'] && isFinished && (
                 <Trophy className="w-3.5 h-3.5 text-lime-400 shrink-0" />
               )}
             </div>
-            <div className={`col-span-2 text-center font-mono text-base font-black ${s1_p1 > 0 || (selectedSet === 1 && isLive) ? 'text-lime-300' : 'text-slate-500'}`}>
+            <div className={`col-span-2 text-center font-mono text-base font-black ${s1_p1 > 0 || (selectedSet === 1 && (isLive || isPaused)) ? 'text-lime-300' : 'text-slate-500'}`}>
               {isUpcoming ? '-' : s1_p1}
             </div>
-            <div className={`col-span-2 text-center font-mono text-base font-black ${s2_p1 > 0 || (selectedSet === 2 && isLive) ? 'text-lime-300' : 'text-slate-500'}`}>
+            <div className={`col-span-2 text-center font-mono text-base font-black ${s2_p1 > 0 || (selectedSet === 2 && (isLive || isPaused)) ? 'text-lime-300' : 'text-slate-500'}`}>
               {isUpcoming ? '-' : s2_p1}
             </div>
-            <div className={`col-span-2 text-center font-mono text-base font-black ${s3_p1 > 0 || (selectedSet === 3 && isLive) ? 'text-lime-300' : 'text-slate-500'}`}>
+            <div className={`col-span-2 text-center font-mono text-base font-black ${s3_p1 > 0 || (selectedSet === 3 && (isLive || isPaused)) ? 'text-lime-300' : 'text-slate-500'}`}>
               {isUpcoming ? '-' : s3_p1}
             </div>
           </div>
@@ -255,34 +309,34 @@ export const CourtCard: React.FC<CourtCardProps> = ({
             <div className="col-span-6 flex items-center gap-2 pr-2">
               <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 shrink-0"></span>
               <span className="text-xs sm:text-sm font-bold text-white truncate flex items-center gap-1.5">
-                {state?.currentServer === 2 && isLive && <span className="text-cyan-400 text-[10px]">🎾</span>}
+                {state?.currentServer === 2 && (isLive || isPaused) && <span className="text-cyan-400 text-[10px]">🎾</span>}
                 {match['Oyuncu 2']}
               </span>
               {match.Kazanan === match['Oyuncu 2'] && isFinished && (
                 <Trophy className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
               )}
             </div>
-            <div className={`col-span-2 text-center font-mono text-base font-black ${s1_p2 > 0 || (selectedSet === 1 && isLive) ? 'text-cyan-300' : 'text-slate-500'}`}>
+            <div className={`col-span-2 text-center font-mono text-base font-black ${s1_p2 > 0 || (selectedSet === 1 && (isLive || isPaused)) ? 'text-cyan-300' : 'text-slate-500'}`}>
               {isUpcoming ? '-' : s1_p2}
             </div>
-            <div className={`col-span-2 text-center font-mono text-base font-black ${s2_p2 > 0 || (selectedSet === 2 && isLive) ? 'text-cyan-300' : 'text-slate-500'}`}>
+            <div className={`col-span-2 text-center font-mono text-base font-black ${s2_p2 > 0 || (selectedSet === 2 && (isLive || isPaused)) ? 'text-cyan-300' : 'text-slate-500'}`}>
               {isUpcoming ? '-' : s2_p2}
             </div>
-            <div className={`col-span-2 text-center font-mono text-base font-black ${s3_p2 > 0 || (selectedSet === 3 && isLive) ? 'text-cyan-300' : 'text-slate-500'}`}>
+            <div className={`col-span-2 text-center font-mono text-base font-black ${s3_p2 > 0 || (selectedSet === 3 && (isLive || isPaused)) ? 'text-cyan-300' : 'text-slate-500'}`}>
               {isUpcoming ? '-' : s3_p2}
             </div>
           </div>
         </div>
 
         {/* Live Match Controls Box */}
-        {isLive && (
+        {(isLive || isPaused) && (
           <div className="bg-slate-900 border border-slate-700/80 rounded-2xl p-3 mt-2 shadow-inner">
             
             {/* Mod Seçici (Toggle) */}
             <div className="flex items-center justify-between mb-3 bg-slate-950 p-1 rounded-xl border border-slate-800">
               <div className="flex items-center gap-1.5 pl-2 text-slate-400 text-[10px] font-bold uppercase tracking-wider">
                 <Swords className="w-3.5 h-3.5" />
-                <span>Hakem Modu:</span>
+                <span>Kullanım Modu:</span>
               </div>
               <button
                 type="button"
@@ -293,17 +347,18 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                   : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
                 }`}
               >
-                {isChairMode ? 'Kule (Puanlı)' : 'Kort (Oyunlu)'}
+                {isChairMode ? 'Kule Hakemi' : 'Kort Hakemi'}
               </button>
             </div>
 
-            {/* MOD 1: KULE HAKEMİ (Detaylı Puan Modu) */}
+            {/* MOD 1: KULE HAKEMİ (Sadeleştirilmiş Detaylı Puan Modu) */}
             {isChairMode ? (
               <div className="space-y-3 animate-in fade-in zoom-in-95 duration-200">
-                {/* Mevcut Oyunun Puan Durumu Ekranı (15, 30, 40 vb) */}
+                
+                {/* 1) Mevcut Puan Ekranı */}
                 <div className="bg-slate-950 rounded-xl p-3 border border-slate-800 flex flex-col items-center justify-center relative overflow-hidden">
                   <div className="absolute inset-0 bg-gradient-to-b from-transparent to-cyan-500/5"></div>
-                  <div className="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-1 z-10">Mevcut Oyun</div>
+                  <div className="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-1 z-10">Mevcut Puan Durumu</div>
                   <div className="text-3xl font-black text-white font-mono tracking-tight z-10 flex items-center gap-3">
                     <span className="text-lime-400">{state?.isTiebreak ? state.tiebreak_p1 : state?.gamePoint_p1 ?? '0'}</span>
                     <span className="text-slate-600">-</span>
@@ -312,49 +367,110 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                   {state?.isTiebreak && <div className="text-[9px] text-amber-400 font-bold uppercase mt-1 z-10 bg-amber-500/10 px-2 py-0.5 rounded">Tie-Break</div>}
                 </div>
 
-                {/* Detaylı Puan Butonları */}
+                {/* 2) Aktif Sayaç Ekranı (Eğer çalışıyorsa) */}
+                {activeTimer && (
+                  <div className="bg-amber-500/10 border border-amber-500/30 p-2.5 rounded-xl flex items-center justify-between">
+                    <span className="text-amber-400 font-bold text-xs flex items-center gap-1.5"><Timer className="w-3.5 h-3.5" />{activeTimer.label}</span>
+                    <div className="flex items-center gap-3">
+                      <span className={`font-mono font-black text-lg ${activeTimer.seconds === 0 ? 'text-rose-400 animate-pulse' : 'text-amber-300'}`}>
+                        {Math.floor(activeTimer.seconds / 60)}:{(activeTimer.seconds % 60).toString().padStart(2, '0')}
+                      </span>
+                      <button type="button" onClick={(e) => { e.stopPropagation(); setActiveTimer(null); }} className="text-amber-500 hover:text-amber-300 p-1">
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* 3) Puan & Servis Hatası Butonları */}
                 <div className="grid grid-cols-2 gap-3">
-                  {/* Oyuncu 1 Sütunu */}
+                  {/* Oyuncu 1 */}
                   <div className="flex flex-col gap-1.5">
                     <button
                       type="button"
-                      onClick={(e) => handlePointScore(e, 1, 'NORMAL')}
-                      className="w-full py-4 bg-lime-500 hover:bg-lime-400 text-slate-950 font-black text-sm rounded-xl shadow-lg active:scale-95 transition"
+                      disabled={isPaused}
+                      onClick={(e) => handlePointScore(e, 1)}
+                      className="w-full py-4 bg-lime-500 hover:bg-lime-400 text-slate-950 font-black text-sm rounded-xl shadow-lg active:scale-95 transition disabled:opacity-50"
                     >
-                      P1 PUAN (+1)
+                      PUAN VER (+1)
                     </button>
-                    <div className="grid grid-cols-2 gap-1.5">
-                      <button type="button" onClick={(e) => handlePointScore(e, 1, 'ACE')} className="py-2 bg-slate-950 border border-lime-500/30 text-lime-400 text-[10px] font-bold rounded-lg hover:bg-lime-500/10 active:scale-95 transition">ACE</button>
-                      <button type="button" onClick={(e) => handlePointScore(e, 1, 'WINNER')} className="py-2 bg-slate-950 border border-lime-500/30 text-lime-400 text-[10px] font-bold rounded-lg hover:bg-lime-500/10 active:scale-95 transition">WNNR</button>
-                    </div>
+                    {state?.currentServer === 1 && (
+                      <button
+                        type="button"
+                        disabled={isPaused}
+                        onClick={(e) => handleFault(e, 1)}
+                        className={`w-full py-2.5 rounded-xl text-[10px] font-bold transition active:scale-95 disabled:opacity-50 ${
+                          firstFault 
+                          ? 'bg-rose-500 border border-rose-400 text-white animate-pulse shadow-md shadow-rose-500/30' 
+                          : 'bg-slate-800 border border-slate-600 text-slate-300 hover:bg-slate-700'
+                        }`}
+                      >
+                        {firstFault ? '2. Hata (Puan Rakibe)' : '1. Servis Hatası'}
+                      </button>
+                    )}
                   </div>
 
-                  {/* Oyuncu 2 Sütunu */}
+                  {/* Oyuncu 2 */}
                   <div className="flex flex-col gap-1.5">
                     <button
                       type="button"
-                      onClick={(e) => handlePointScore(e, 2, 'NORMAL')}
-                      className="w-full py-4 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black text-sm rounded-xl shadow-lg active:scale-95 transition"
+                      disabled={isPaused}
+                      onClick={(e) => handlePointScore(e, 2)}
+                      className="w-full py-4 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black text-sm rounded-xl shadow-lg active:scale-95 transition disabled:opacity-50"
                     >
-                      P2 PUAN (+1)
+                      PUAN VER (+1)
                     </button>
-                    <div className="grid grid-cols-2 gap-1.5">
-                      <button type="button" onClick={(e) => handlePointScore(e, 2, 'ACE')} className="py-2 bg-slate-950 border border-cyan-500/30 text-cyan-400 text-[10px] font-bold rounded-lg hover:bg-cyan-500/10 active:scale-95 transition">ACE</button>
-                      <button type="button" onClick={(e) => handlePointScore(e, 2, 'WINNER')} className="py-2 bg-slate-950 border border-cyan-500/30 text-cyan-400 text-[10px] font-bold rounded-lg hover:bg-cyan-500/10 active:scale-95 transition">WNNR</button>
-                    </div>
+                    {state?.currentServer === 2 && (
+                      <button
+                        type="button"
+                        disabled={isPaused}
+                        onClick={(e) => handleFault(e, 2)}
+                        className={`w-full py-2.5 rounded-xl text-[10px] font-bold transition active:scale-95 disabled:opacity-50 ${
+                          firstFault 
+                          ? 'bg-rose-500 border border-rose-400 text-white animate-pulse shadow-md shadow-rose-500/30' 
+                          : 'bg-slate-800 border border-slate-600 text-slate-300 hover:bg-slate-700'
+                        }`}
+                      >
+                        {firstFault ? '2. Hata (Puan Rakibe)' : '1. Servis Hatası'}
+                      </button>
+                    )}
                   </div>
                 </div>
 
-                {/* Geri Al Butonu */}
-                <div className="pt-2 flex justify-center">
-                  <button
-                    type="button"
-                    onClick={handleUndo}
-                    className="flex items-center gap-1.5 px-4 py-2 bg-rose-500/10 border border-rose-500/20 hover:bg-rose-500/20 text-rose-400 text-xs font-bold rounded-xl transition active:scale-95"
-                  >
-                    <RotateCcw className="w-3.5 h-3.5" /> Geri Al (Undo)
-                  </button>
+                {/* 4) Alt Aksiyon Çubuğu (Geri Al & Süreler & Askıya Al) */}
+                <div className="pt-2 border-t border-slate-800/80 flex flex-col gap-2">
+                  
+                  {/* Sayaç Başlatıcılar */}
+                  <div className="flex gap-2">
+                    <button type="button" onClick={(e) => startTimer(e, 'Saha Değişimi', 90)} className="flex-1 py-2 bg-slate-950 border border-slate-700 text-slate-400 hover:text-white text-[10px] font-bold rounded-lg transition">Saha Değiş. (90sn)</button>
+                    <button type="button" onClick={(e) => startTimer(e, 'Set Arası', 120)} className="flex-1 py-2 bg-slate-950 border border-slate-700 text-slate-400 hover:text-white text-[10px] font-bold rounded-lg transition">Set Arası (120sn)</button>
+                    <button type="button" onClick={(e) => startTimer(e, 'Sağlık Molası', 180)} className="flex-1 py-2 bg-slate-950 border border-slate-700 text-slate-400 hover:text-white text-[10px] font-bold rounded-lg transition">MTO (3dk)</button>
+                  </div>
+
+                  {/* Güvenlik & Yönetim */}
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={handleUndo}
+                      className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-rose-500/10 border border-rose-500/20 hover:bg-rose-500/20 text-rose-400 text-[11px] font-bold rounded-xl transition active:scale-95"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" /> Son Puanı Geri Al
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={toggleSuspend}
+                      className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-[11px] font-bold rounded-xl transition active:scale-95 ${
+                        isPaused 
+                        ? 'bg-emerald-500/20 border border-emerald-500/30 text-emerald-400' 
+                        : 'bg-amber-500/10 border border-amber-500/20 text-amber-400'
+                      }`}
+                    >
+                      {isPaused ? <><PlayCircle className="w-3.5 h-3.5" /> Oyuna Devam Et</> : <><PauseCircle className="w-3.5 h-3.5" /> Oyunu Askıya Al</>}
+                    </button>
+                  </div>
                 </div>
+
               </div>
             ) : (
               /* MOD 2: KORT HAKEMİ (Mevcut Hızlı Oyun Modu) */
@@ -465,7 +581,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
               <span>Maçı Başlat</span>
             </button>
           </div>
-        ) : isLive ? (
+        ) : isLive || isPaused ? (
           <div className="flex items-center gap-2 w-full">
             <button
               type="button"
