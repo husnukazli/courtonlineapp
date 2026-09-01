@@ -52,15 +52,12 @@ export const MatchSetupTab: React.FC<MatchSetupTabProps> = ({ onStartScoring }) 
   const [isCoinTossOpen, setIsCoinTossOpen] = useState<boolean>(false);
   const [successMsg, setSuccessMsg] = useState<string>('');
 
-  // KRİTİK DÜZELTME: Sadece Match ID'yi değil, tüm activeMatch objesini dinliyoruz
-  // Böylece masadan format veya saat değiştiğinde kort hakeminin ekranı anında güncellenecek
   useEffect(() => {
     if (activeMatch) {
       setDurum(activeMatch.Durum === 'Baslamadi' ? 'Oynaniyor' : activeMatch.Durum);
       setKuraKazanan(activeMatch.Kura_Kazanan || 'Secilmedi');
       setKuraTercih(activeMatch.Kura_Tercih || 'Servis');
       setSahaTarafi(activeMatch.Saha_Tarafi || 'Sandalyenin Sağı');
-      // Masadan gelen formatı okuyoruz, yoksa varsayılanı atıyoruz
       setSkorFormati(activeMatch.Skor_Formati || '3 Normal Set');
 
       if (activeMatch.Baslangic_Saati && activeMatch.Baslangic_Saati !== 'Secilmedi') {
@@ -74,7 +71,7 @@ export const MatchSetupTab: React.FC<MatchSetupTabProps> = ({ onStartScoring }) 
       }
       setBitisSaati(activeMatch.Bitis_Saati || '');
     }
-  }, [activeMatch]); // <-- Düzeltme burada: activeMatch?.id yerine activeMatch'in tamamını dinliyor.
+  }, [activeMatch]);
 
   const handleCourtChange = (court: string) => {
     setSelectedCourt(court);
@@ -96,7 +93,7 @@ export const MatchSetupTab: React.FC<MatchSetupTabProps> = ({ onStartScoring }) 
       sahaTarafi,
       baslangicSaati,
       bitisSaati,
-      skorFormati, // Hakem değiştirdiyse yeni formatı, değiştirmediyse masadan geleni kaydeder
+      skorFormati,
       ilkServisOyuncusu:
         kuraKazanan === activeMatch['Oyuncu 1']
           ? kuraTercih === 'Servis' ? 1 : 2
@@ -142,17 +139,50 @@ export const MatchSetupTab: React.FC<MatchSetupTabProps> = ({ onStartScoring }) 
         <div>
           <label className="block text-xs font-bold text-amber-400/70 uppercase tracking-wider mb-2">2. Bu Korttaki Maçlar</label>
           <div className="grid grid-cols-1 gap-2 mb-3">
-            {courtMatches.map((m) => (
-              <button key={m.id} type="button" onClick={() => { setSelectedMatchId(m.id); setActiveMatchId(m.id); }} className={`p-3 rounded-2xl border text-left transition flex items-center justify-between gap-3 ${m.id === selectedMatchId ? 'bg-slate-800/90 border-lime-400 ring-2 ring-lime-400/30' : m.Durum === 'Oynaniyor' ? 'bg-emerald-950/20 border-emerald-500/40 hover:bg-emerald-950/30' : m.Durum === 'Baslamadi' ? 'bg-amber-950/15 border-amber-500/30 hover:bg-amber-950/25' : 'bg-slate-950 border-slate-800/80 hover:bg-slate-800/40'}`}>
-                <div className="flex items-center gap-3 min-w-0">
-                  <span className="font-mono text-xs font-bold text-amber-300 shrink-0 bg-amber-950/60 px-2 py-1 rounded-lg border border-amber-700/40">{m.Saat || '10:00'}</span>
-                  <div className="min-w-0">
-                    <div className="font-black text-sm text-white truncate">{m['Oyuncu 1']} <span className="text-slate-500 font-normal">vs</span> {m['Oyuncu 2']}</div>
-                    <div className="text-[11px] text-amber-300/60 flex items-center gap-2"><span>{m.Kategori}</span>{m.Skor && <span className="font-mono font-bold text-lime-400">({m.Skor})</span>}</div>
+            {courtMatches.map((m) => {
+              // Durum esnekleştirmesi: büyük/küçük harf bağımsız
+              const stat = (m.Durum || '').toLowerCase();
+              const isDone = ['bitti', 'retired', 'walkover'].includes(stat);
+              const isLive = stat === 'oynaniyor';
+              const isPaused = stat === 'duraklatildi';
+              const isUpcoming = stat === 'baslamadi';
+
+              // Buton Rengi Belirleme
+              let btnClass = 'bg-slate-950 border-slate-800/80 hover:bg-slate-800/40';
+              if (m.id === selectedMatchId) {
+                btnClass = 'bg-slate-800/90 border-lime-400 ring-2 ring-lime-400/30';
+              } else if (isLive) {
+                btnClass = 'bg-emerald-950/20 border-emerald-500/40 hover:bg-emerald-950/30';
+              } else if (isPaused) {
+                btnClass = 'bg-amber-950/20 border-amber-500/40 hover:bg-amber-950/30';
+              } else if (isUpcoming) {
+                btnClass = 'bg-amber-950/15 border-amber-500/30 hover:bg-amber-950/25';
+              } else if (isDone) {
+                btnClass = 'bg-slate-900/60 border-slate-700/50 hover:bg-slate-900/80 opacity-75';
+              }
+
+              return (
+                <button key={m.id} type="button" onClick={() => { setSelectedMatchId(m.id); setActiveMatchId(m.id); }} className={`p-3 rounded-2xl border text-left transition flex items-center justify-between gap-3 ${btnClass}`}>
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className={`font-mono text-[10px] sm:text-xs font-bold shrink-0 px-2 py-1 rounded-lg border ${isDone ? 'bg-slate-800 text-slate-400 border-slate-700' : 'bg-amber-950/60 text-amber-300 border-amber-700/40'}`}>
+                      {m.Saat || '10:00'}
+                    </span>
+                    <div className="min-w-0">
+                      <div className={`font-black text-sm truncate ${isDone ? 'text-slate-300' : 'text-white'}`}>
+                        {m['Oyuncu 1']} <span className="text-slate-500 font-normal">vs</span> {m['Oyuncu 2']}
+                      </div>
+                      <div className="text-[10px] sm:text-[11px] text-amber-300/60 flex items-center gap-2">
+                        <span>{m.Kategori}</span>
+                        {m.Skor && <span className={`font-mono font-bold ${isDone ? 'text-slate-400' : 'text-lime-400'}`}>({m.Skor})</span>}
+                        {/* Askıda veya Hükmen bittiyse ufak bir etiket */}
+                        {isPaused && <span className="text-[9px] uppercase bg-amber-500/20 text-amber-400 px-1.5 rounded">Askıda</span>}
+                        {(stat === 'retired' || stat === 'walkover') && <span className="text-[9px] uppercase bg-rose-500/20 text-rose-400 px-1.5 rounded">{m.Durum}</span>}
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </button>
-            ))}
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>
@@ -200,11 +230,15 @@ export const MatchSetupTab: React.FC<MatchSetupTabProps> = ({ onStartScoring }) 
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div><label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Maç Formatı</label><select value={skorFormati} onChange={(e) => setSkorFormati(e.target.value)} className="w-full px-3 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-lime-300 font-bold focus:border-lime-400">{SCORE_FORMATS.map((fmt) => (<option key={fmt} value={fmt}>{fmt}</option>))}</select></div>
-          <div><label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Maç Durumu</label><select value={durum} onChange={(e) => setDurum(e.target.value as any)} className="w-full px-3 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white font-bold focus:border-lime-400"><option value="Baslamadi">Başlamadı</option><option value="Oynaniyor">Oynanıyor (Devam)</option><option value="Bitti">Bitti</option><option value="Retired">Retired (Çekildi)</option><option value="Walkover">Walkover (Hükmen)</option></select></div>
+          <div><label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Maç Durumu</label><select value={durum} onChange={(e) => setDurum(e.target.value as any)} className="w-full px-3 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white font-bold focus:border-lime-400"><option value="Baslamadi">Başlamadı</option><option value="Oynaniyor">Oynanıyor (Devam)</option><option value="Bitti">Bitti</option><option value="Duraklatildi">Askıya Alındı</option><option value="Retired">Retired (Çekildi)</option><option value="Walkover">Walkover (Hükmen)</option></select></div>
         </div>
 
+        {successMsg && (
+          <div className="text-center font-bold text-lime-400 text-sm animate-pulse">{successMsg}</div>
+        )}
+
         <button type="button" onClick={handleSaveSetup} className="w-full py-4 bg-lime-400 hover:bg-lime-300 text-slate-950 font-black rounded-2xl shadow-xl shadow-lime-400/20 text-sm sm:text-base transition flex items-center justify-center gap-2 active:scale-98">
-          <Play className="w-5 h-5 fill-slate-950" /><span>Maçı Başlat / Skor Tablosuna Geç</span>
+          <Play className="w-5 h-5 fill-slate-950" /><span>Kurulumu Kaydet / Skor Tablosuna Geç</span>
         </button>
       </div>
 
