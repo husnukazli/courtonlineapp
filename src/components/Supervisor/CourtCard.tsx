@@ -9,12 +9,14 @@ import {
   PlayCircle,
   Plus,
   Minus,
+  RotateCcw, // Geri al butonu için eklendi
+  Swords, // Kule hakemi ikonu için eklendi
 } from 'lucide-react';
 
 interface CourtCardProps {
   match: MatchItem;
   onFinishMatch: (match: MatchItem) => void;
-  onEditScore?: (match: MatchItem) => void; // Artık kullanılmayacak ama prop hatası vermemesi için bıraktık
+  onEditScore?: (match: MatchItem) => void; 
   onOpenSetup?: (match: MatchItem) => void;
 }
 
@@ -23,19 +25,24 @@ export const CourtCard: React.FC<CourtCardProps> = ({
   onFinishMatch,
   onOpenSetup,
 }) => {
-  const { updateGameScore, setMatchStatus } = useTennisData();
+  // YENİ: awardPointToMatch ve undoLastPoint fonksiyonları context'ten çekildi
+  const { updateGameScore, setMatchStatus, awardPointToMatch, undoLastPoint } = useTennisData();
   const lastScoreClickRef = useRef<number>(0);
 
-  // Set Selector State
+  // Set Selector State (Kort Hakemi Hızlı Mod İçin)
   const [selectedSet, setSelectedSet] = useState<1 | 2 | 3>(1);
+  
+  // YENİ: Kule Hakemi (Detaylı Puan) Modu Anahtarı
+  const [isChairMode, setIsChairMode] = useState<boolean>(false);
 
   const parsed = parseScoreString(match.Skor);
-  const s1_p1 = match.detailedState?.set1_p1 ?? parsed.s1_p1;
-  const s1_p2 = match.detailedState?.set1_p2 ?? parsed.s1_p2;
-  const s2_p1 = match.detailedState?.set2_p1 ?? parsed.s2_p1;
-  const s2_p2 = match.detailedState?.set2_p2 ?? parsed.s2_p2;
-  const s3_p1 = match.detailedState?.set3_p1 ?? parsed.s3_p1;
-  const s3_p2 = match.detailedState?.set3_p2 ?? parsed.s3_p2;
+  const state = match.detailedState;
+  const s1_p1 = state?.set1_p1 ?? parsed.s1_p1;
+  const s1_p2 = state?.set1_p2 ?? parsed.s1_p2;
+  const s2_p1 = state?.set2_p1 ?? parsed.s2_p1;
+  const s2_p2 = state?.set2_p2 ?? parsed.s2_p2;
+  const s3_p1 = state?.set3_p1 ?? parsed.s3_p1;
+  const s3_p2 = state?.set3_p2 ?? parsed.s3_p2;
 
   const isLive = match.Durum === 'Oynaniyor';
   const isFinished = match.Durum === 'Bitti' || match.Durum === 'Retired' || match.Durum === 'Walkover';
@@ -63,15 +70,29 @@ export const CourtCard: React.FC<CourtCardProps> = ({
     }
   }, [match.Skor, match.detailedState, isLive, format, s1_p1, s1_p2, s2_p1, s2_p2, s3_p1, s3_p2]);
 
-
+  // Kort Hakemi: Hızlı Oyun (+1/-1) Ekleme
   const handleQuickScore = (e: React.MouseEvent, player: 1 | 2, delta: number) => {
     e.stopPropagation();
     const now = Date.now();
-    if (now - lastScoreClickRef.current < 400) return; // Prevent double-tap
+    if (now - lastScoreClickRef.current < 400) return; 
     lastScoreClickRef.current = now;
     
-    // updateGameScore will automatically check if the format limit is reached when incrementing!
     updateGameScore(match.id, selectedSet, player, delta);
+  };
+
+  // Kule Hakemi: Detaylı Puan Verme (15, 30, Ace, Winner vb.)
+  const handlePointScore = (e: React.MouseEvent, player: 1 | 2, type: any = 'NORMAL') => {
+    e.stopPropagation();
+    const now = Date.now();
+    if (now - lastScoreClickRef.current < 400) return; 
+    lastScoreClickRef.current = now;
+    
+    awardPointToMatch(match.id, player, type);
+  };
+
+  const handleUndo = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    undoLastPoint(match.id);
   };
 
   const handleCardClick = () => {
@@ -193,9 +214,9 @@ export const CourtCard: React.FC<CourtCardProps> = ({
           {/* Header */}
           <div className="grid grid-cols-12 bg-slate-900/80 text-[10px] font-extrabold uppercase tracking-wider text-slate-400 py-1.5 px-3 border-b border-slate-800">
             <div className="col-span-6">Oyuncu</div>
-            <div className={`col-span-2 text-center transition-colors ${selectedSet === 1 && isLive ? 'text-lime-400' : ''}`}>1. Set</div>
-            <div className={`col-span-2 text-center transition-colors ${selectedSet === 2 && isLive ? 'text-lime-400' : ''}`}>2. Set</div>
-            <div className={`col-span-2 text-center transition-colors ${selectedSet === 3 && isLive ? 'text-lime-400' : ''}`}>3. Set</div>
+            <div className={`col-span-2 text-center transition-colors ${selectedSet === 1 && isLive && !isChairMode ? 'text-lime-400' : ''}`}>1. Set</div>
+            <div className={`col-span-2 text-center transition-colors ${selectedSet === 2 && isLive && !isChairMode ? 'text-lime-400' : ''}`}>2. Set</div>
+            <div className={`col-span-2 text-center transition-colors ${selectedSet === 3 && isLive && !isChairMode ? 'text-lime-400' : ''}`}>3. Set</div>
           </div>
 
           {/* Player 1 Row */}
@@ -206,7 +227,8 @@ export const CourtCard: React.FC<CourtCardProps> = ({
           >
             <div className="col-span-6 flex items-center gap-2 pr-2">
               <span className="w-2.5 h-2.5 rounded-full bg-lime-400 shrink-0"></span>
-              <span className="text-xs sm:text-sm font-bold text-white truncate">
+              <span className="text-xs sm:text-sm font-bold text-white truncate flex items-center gap-1.5">
+                {state?.currentServer === 1 && isLive && <span className="text-lime-400 text-[10px]">🎾</span>}
                 {match['Oyuncu 1']}
               </span>
               {match.Kazanan === match['Oyuncu 1'] && isFinished && (
@@ -232,7 +254,8 @@ export const CourtCard: React.FC<CourtCardProps> = ({
           >
             <div className="col-span-6 flex items-center gap-2 pr-2">
               <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 shrink-0"></span>
-              <span className="text-xs sm:text-sm font-bold text-white truncate">
+              <span className="text-xs sm:text-sm font-bold text-white truncate flex items-center gap-1.5">
+                {state?.currentServer === 2 && isLive && <span className="text-cyan-400 text-[10px]">🎾</span>}
                 {match['Oyuncu 2']}
               </span>
               {match.Kazanan === match['Oyuncu 2'] && isFinished && (
@@ -251,83 +274,166 @@ export const CourtCard: React.FC<CourtCardProps> = ({
           </div>
         </div>
 
-        {/* Live Match Quick Buttons with Set Selector */}
+        {/* Live Match Controls Box */}
         {isLive && (
           <div className="bg-slate-900 border border-slate-700/80 rounded-2xl p-3 mt-2 shadow-inner">
             
-            {/* Set Selector Tabs */}
-            <div className="flex bg-slate-950 p-1 rounded-xl mb-3 border border-slate-800">
-              <button 
-                type="button" 
-                onClick={(e) => { e.stopPropagation(); setSelectedSet(1); }} 
-                className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-colors ${selectedSet === 1 ? 'bg-slate-800 text-white shadow' : 'text-slate-400 hover:text-slate-300'}`}
+            {/* Mod Seçici (Toggle) */}
+            <div className="flex items-center justify-between mb-3 bg-slate-950 p-1 rounded-xl border border-slate-800">
+              <div className="flex items-center gap-1.5 pl-2 text-slate-400 text-[10px] font-bold uppercase tracking-wider">
+                <Swords className="w-3.5 h-3.5" />
+                <span>Hakem Modu:</span>
+              </div>
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setIsChairMode(!isChairMode); }}
+                className={`px-3 py-1.5 rounded-lg text-[11px] font-black transition-all ${
+                  isChairMode 
+                  ? 'bg-cyan-500 text-slate-950 shadow-md' 
+                  : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                }`}
               >
-                1. SET
-              </button>
-              <button 
-                type="button" 
-                onClick={(e) => { e.stopPropagation(); setSelectedSet(2); }} 
-                className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-colors ${selectedSet === 2 ? 'bg-slate-800 text-white shadow' : 'text-slate-400 hover:text-slate-300'}`}
-              >
-                2. SET
-              </button>
-              <button 
-                type="button" 
-                onClick={(e) => { e.stopPropagation(); setSelectedSet(3); }} 
-                className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-colors ${selectedSet === 3 ? 'bg-slate-800 text-white shadow' : 'text-slate-400 hover:text-slate-300'}`}
-              >
-                3. SET
+                {isChairMode ? 'Kule (Puanlı)' : 'Kort (Oyunlu)'}
               </button>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              {/* Player 1 (+1 / -1) */}
-              <div className="flex flex-col gap-1.5">
-                <button
-                  type="button"
-                  onClick={(e) => handleQuickScore(e, 1, 1)}
-                  className="w-full py-3 rounded-xl bg-lime-400 hover:bg-lime-300 text-slate-950 font-black text-sm flex items-center justify-center gap-1 shadow-md shadow-lime-400/20 active:scale-95 transition"
-                  title={`${selectedSet}. Set: ${match['Oyuncu 1'].split(' ')[0]} +1`}
-                >
-                  <Plus className="w-5 h-5" />
-                  <span>+1 OYUN</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={(e) => handleQuickScore(e, 1, -1)}
-                  className="w-full py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-400 font-bold text-xs flex items-center justify-center gap-1 active:scale-95 transition"
-                  title={`${selectedSet}. Set: ${match['Oyuncu 1'].split(' ')[0]} -1`}
-                >
-                  <Minus className="w-4 h-4" />
-                  <span>-1 Düş</span>
-                </button>
-              </div>
+            {/* MOD 1: KULE HAKEMİ (Detaylı Puan Modu) */}
+            {isChairMode ? (
+              <div className="space-y-3 animate-in fade-in zoom-in-95 duration-200">
+                {/* Mevcut Oyunun Puan Durumu Ekranı (15, 30, 40 vb) */}
+                <div className="bg-slate-950 rounded-xl p-3 border border-slate-800 flex flex-col items-center justify-center relative overflow-hidden">
+                  <div className="absolute inset-0 bg-gradient-to-b from-transparent to-cyan-500/5"></div>
+                  <div className="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-1 z-10">Mevcut Oyun</div>
+                  <div className="text-3xl font-black text-white font-mono tracking-tight z-10 flex items-center gap-3">
+                    <span className="text-lime-400">{state?.isTiebreak ? state.tiebreak_p1 : state?.gamePoint_p1 ?? '0'}</span>
+                    <span className="text-slate-600">-</span>
+                    <span className="text-cyan-400">{state?.isTiebreak ? state.tiebreak_p2 : state?.gamePoint_p2 ?? '0'}</span>
+                  </div>
+                  {state?.isTiebreak && <div className="text-[9px] text-amber-400 font-bold uppercase mt-1 z-10 bg-amber-500/10 px-2 py-0.5 rounded">Tie-Break</div>}
+                </div>
 
-              {/* Player 2 (+1 / -1) */}
-              <div className="flex flex-col gap-1.5">
-                <button
-                  type="button"
-                  onClick={(e) => handleQuickScore(e, 2, 1)}
-                  className="w-full py-3 rounded-xl bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-black text-sm flex items-center justify-center gap-1 shadow-md shadow-cyan-400/20 active:scale-95 transition"
-                  title={`${selectedSet}. Set: ${match['Oyuncu 2'].split(' ')[0]} +1`}
-                >
-                  <Plus className="w-5 h-5" />
-                  <span>+1 OYUN</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={(e) => handleQuickScore(e, 2, -1)}
-                  className="w-full py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-cyan-400 font-bold text-xs flex items-center justify-center gap-1 active:scale-95 transition"
-                  title={`${selectedSet}. Set: ${match['Oyuncu 2'].split(' ')[0]} -1`}
-                >
-                  <Minus className="w-4 h-4" />
-                  <span>-1 Düş</span>
-                </button>
+                {/* Detaylı Puan Butonları */}
+                <div className="grid grid-cols-2 gap-3">
+                  {/* Oyuncu 1 Sütunu */}
+                  <div className="flex flex-col gap-1.5">
+                    <button
+                      type="button"
+                      onClick={(e) => handlePointScore(e, 1, 'NORMAL')}
+                      className="w-full py-4 bg-lime-500 hover:bg-lime-400 text-slate-950 font-black text-sm rounded-xl shadow-lg active:scale-95 transition"
+                    >
+                      P1 PUAN (+1)
+                    </button>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <button type="button" onClick={(e) => handlePointScore(e, 1, 'ACE')} className="py-2 bg-slate-950 border border-lime-500/30 text-lime-400 text-[10px] font-bold rounded-lg hover:bg-lime-500/10 active:scale-95 transition">ACE</button>
+                      <button type="button" onClick={(e) => handlePointScore(e, 1, 'WINNER')} className="py-2 bg-slate-950 border border-lime-500/30 text-lime-400 text-[10px] font-bold rounded-lg hover:bg-lime-500/10 active:scale-95 transition">WNNR</button>
+                    </div>
+                  </div>
+
+                  {/* Oyuncu 2 Sütunu */}
+                  <div className="flex flex-col gap-1.5">
+                    <button
+                      type="button"
+                      onClick={(e) => handlePointScore(e, 2, 'NORMAL')}
+                      className="w-full py-4 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black text-sm rounded-xl shadow-lg active:scale-95 transition"
+                    >
+                      P2 PUAN (+1)
+                    </button>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <button type="button" onClick={(e) => handlePointScore(e, 2, 'ACE')} className="py-2 bg-slate-950 border border-cyan-500/30 text-cyan-400 text-[10px] font-bold rounded-lg hover:bg-cyan-500/10 active:scale-95 transition">ACE</button>
+                      <button type="button" onClick={(e) => handlePointScore(e, 2, 'WINNER')} className="py-2 bg-slate-950 border border-cyan-500/30 text-cyan-400 text-[10px] font-bold rounded-lg hover:bg-cyan-500/10 active:scale-95 transition">WNNR</button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Geri Al Butonu */}
+                <div className="pt-2 flex justify-center">
+                  <button
+                    type="button"
+                    onClick={handleUndo}
+                    className="flex items-center gap-1.5 px-4 py-2 bg-rose-500/10 border border-rose-500/20 hover:bg-rose-500/20 text-rose-400 text-xs font-bold rounded-xl transition active:scale-95"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" /> Geri Al (Undo)
+                  </button>
+                </div>
               </div>
-            </div>
-            <div className="text-center mt-2">
-               <span className="text-[10px] font-medium text-slate-500">Düzenlenen Set: {selectedSet}. Set</span>
-            </div>
+            ) : (
+              /* MOD 2: KORT HAKEMİ (Mevcut Hızlı Oyun Modu) */
+              <div className="animate-in fade-in zoom-in-95 duration-200">
+                {/* Set Selector Tabs */}
+                <div className="flex bg-slate-950 p-1 rounded-xl mb-3 border border-slate-800">
+                  <button 
+                    type="button" 
+                    onClick={(e) => { e.stopPropagation(); setSelectedSet(1); }} 
+                    className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-colors ${selectedSet === 1 ? 'bg-slate-800 text-white shadow' : 'text-slate-400 hover:text-slate-300'}`}
+                  >
+                    1. SET
+                  </button>
+                  <button 
+                    type="button" 
+                    onClick={(e) => { e.stopPropagation(); setSelectedSet(2); }} 
+                    className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-colors ${selectedSet === 2 ? 'bg-slate-800 text-white shadow' : 'text-slate-400 hover:text-slate-300'}`}
+                  >
+                    2. SET
+                  </button>
+                  <button 
+                    type="button" 
+                    onClick={(e) => { e.stopPropagation(); setSelectedSet(3); }} 
+                    className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-colors ${selectedSet === 3 ? 'bg-slate-800 text-white shadow' : 'text-slate-400 hover:text-slate-300'}`}
+                  >
+                    3. SET
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  {/* Player 1 (+1 / -1) */}
+                  <div className="flex flex-col gap-1.5">
+                    <button
+                      type="button"
+                      onClick={(e) => handleQuickScore(e, 1, 1)}
+                      className="w-full py-3 rounded-xl bg-lime-400 hover:bg-lime-300 text-slate-950 font-black text-sm flex items-center justify-center gap-1 shadow-md shadow-lime-400/20 active:scale-95 transition"
+                      title={`${selectedSet}. Set: ${match['Oyuncu 1'].split(' ')[0]} +1`}
+                    >
+                      <Plus className="w-5 h-5" />
+                      <span>+1 OYUN</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => handleQuickScore(e, 1, -1)}
+                      className="w-full py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-400 font-bold text-xs flex items-center justify-center gap-1 active:scale-95 transition"
+                      title={`${selectedSet}. Set: ${match['Oyuncu 1'].split(' ')[0]} -1`}
+                    >
+                      <Minus className="w-4 h-4" />
+                      <span>-1 Düş</span>
+                    </button>
+                  </div>
+
+                  {/* Player 2 (+1 / -1) */}
+                  <div className="flex flex-col gap-1.5">
+                    <button
+                      type="button"
+                      onClick={(e) => handleQuickScore(e, 2, 1)}
+                      className="w-full py-3 rounded-xl bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-black text-sm flex items-center justify-center gap-1 shadow-md shadow-cyan-400/20 active:scale-95 transition"
+                      title={`${selectedSet}. Set: ${match['Oyuncu 2'].split(' ')[0]} +1`}
+                    >
+                      <Plus className="w-5 h-5" />
+                      <span>+1 OYUN</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => handleQuickScore(e, 2, -1)}
+                      className="w-full py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-cyan-400 font-bold text-xs flex items-center justify-center gap-1 active:scale-95 transition"
+                      title={`${selectedSet}. Set: ${match['Oyuncu 2'].split(' ')[0]} -1`}
+                    >
+                      <Minus className="w-4 h-4" />
+                      <span>-1 Düş</span>
+                    </button>
+                  </div>
+                </div>
+                <div className="text-center mt-2">
+                   <span className="text-[10px] font-medium text-slate-500">Düzenlenen Set: {selectedSet}. Set</span>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -361,12 +467,11 @@ export const CourtCard: React.FC<CourtCardProps> = ({
           </div>
         ) : isLive ? (
           <div className="flex items-center gap-2 w-full">
-             {/* Skor Düzenle butonu kaldırıldı, dış kart yetiyor. */}
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                onFinishMatch(match); // Direkt olarak FinishMatchModal'ı tetikler
+                onFinishMatch(match); 
               }}
               className="w-full py-3 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-sm flex justify-center items-center gap-2 transition"
             >
