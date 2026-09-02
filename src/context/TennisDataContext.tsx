@@ -801,7 +801,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     });
   };
 
-  // YEPYENİ: Hızlı butonlardan (-1, +1) müdahale edildiğinde Hayalet Bayrakları kökten temizleyen motor
+  // YENİ EKLENEN ANA ZEKÂ: Gizli Pusula (currentSet) ve Kazanan Bayraklarını Sıfırlama Motoru
   const updateGameScore = (matchId: string, setIndex: 1 | 2 | 3, player: 1 | 2, delta: number) => {
     if (!matchId) return;
     setMatches((prev) => {
@@ -809,11 +809,8 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       const next = prev.map((m) => {
         if (m.id !== matchId) return m;
         const format = m.Skor_Formati || '3 Normal Set';
-        
-        // Güvenlik: Eski state'i bozmamak için derin kopya alıyoruz
         const dState = JSON.parse(JSON.stringify(m.detailedState || createInitialMatchState(1, format)));
         
-        // 1. Oyun sayılarını güncelle
         if (setIndex === 1) {
           if (player === 1) dState.set1_p1 = Math.max(0, dState.set1_p1 + delta);
           else dState.set1_p2 = Math.max(0, dState.set1_p2 + delta);
@@ -825,42 +822,51 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           else dState.set3_p2 = Math.max(0, dState.set3_p2 + delta);
         }
 
-        // 2. HAYALET BAYRAKLARI TEMİZLEME MOTORU
+        // --- HAYALET BAYRAKLARI VE YANLIŞ PUSULAYI (CURRENT_SET) SIFIRLAMA ---
         const v1 = validateSingleSet(dState.set1_p1, dState.set1_p2, 1, format);
         if (v1.isComplete) {
           dState.set1_winner = v1.winner;
+          const v2 = validateSingleSet(dState.set2_p1, dState.set2_p2, 2, format);
+          if (v2.isComplete) {
+            dState.set2_winner = v2.winner;
+            
+            // Eğer 3 setlik maçta eşitlik varsa 3. sete geç
+            if (v1.winner !== v2.winner) {
+                dState.currentSet = 3;
+                dState.currentSetNum = 3; // Çift güvenlik
+                const v3 = validateSingleSet(dState.set3_p1, dState.set3_p2, 3, format);
+                dState.set3_winner = v3.isComplete ? v3.winner : undefined;
+            } else {
+                // Oyuncu 2-0 kazandıysa pusula 2'de kalır, 3. seti sıfırla
+                dState.currentSet = 2;
+                dState.currentSetNum = 2;
+                dState.set3_p1 = 0; dState.set3_p2 = 0;
+                dState.set3_winner = undefined;
+            }
+          } else {
+            // 2. set bitmediyse pusulayı zorla 2'ye çek, 3. setin hafızasını çöpe at
+            dState.set2_winner = undefined;
+            dState.set3_p1 = 0; dState.set3_p2 = 0;
+            dState.set3_winner = undefined;
+            dState.currentSet = 2;
+            dState.currentSetNum = 2;
+          }
         } else {
-          // Eğer 1. set bitmediyse, 2. ve 3. setlerin tüm sayılarını ve kazanan bayraklarını sil
+          // 1. set bitmediyse pusulayı zorla 1'e çek, 2. ve 3. setin tüm geçmişini çöpe at
           dState.set1_winner = undefined;
           dState.set2_p1 = 0; dState.set2_p2 = 0;
           dState.set2_winner = undefined;
           dState.set3_p1 = 0; dState.set3_p2 = 0;
           dState.set3_winner = undefined;
+          dState.currentSet = 1;
+          dState.currentSetNum = 1;
         }
 
-        const v2 = validateSingleSet(dState.set2_p1, dState.set2_p2, 2, format);
-        if (v2.isComplete) {
-          dState.set2_winner = v2.winner;
-        } else {
-           // Eğer 2. set bitmediyse, 3. setin tüm sayılarını ve kazanan bayrağını sil
-          dState.set2_winner = undefined;
-          dState.set3_p1 = 0; dState.set3_p2 = 0;
-          dState.set3_winner = undefined;
-        }
-
-        const v3 = validateSingleSet(dState.set3_p1, dState.set3_p2, 3, format);
-        if (v3.isComplete) {
-          dState.set3_winner = v3.winner;
-        } else {
-          dState.set3_winner = undefined;
-        }
-
-        // 3. Maçın Genel Bitiş Durumunu Yeniden Değerlendir
         const matchSafetyCheck = checkMatchWinner(dState, format);
         dState.matchEnded = matchSafetyCheck.matchEnded;
         dState.matchWinner = matchSafetyCheck.matchWinner;
 
-        // 4. Kule Hakemi için İçerideki Tie-Break ve Puan Hafızasını Sıfırla
+        // Dışarıdan elle skorla oynandığı için 15-30 gibi mikro puanları her zaman sıfırla
         dState.gamePoint_p1 = '0';
         dState.gamePoint_p2 = '0';
         dState.tiebreak_p1 = 0;
@@ -869,7 +875,6 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
         let newDurum = m.Durum;
         let newKazanan = m.Kazanan;
-        // Eğer maç artık bitik değilse ama önceden Bitti olarak işaretlendiyse, maçı tekrar "Oynanıyor"a çek
         if (!dState.matchEnded && (m.Durum === 'Bitti' || m.Durum === 'Walkover' || m.Durum === 'Retired')) {
             newDurum = 'Oynaniyor';
             newKazanan = 'Secilmedi';
@@ -892,7 +897,6 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     });
   };
 
-  // YEPYENİ: Düzenleme modundan manuel set girildiğinde Hayalet Bayrakları kökten temizleyen motor
   const setDirectSetScores = (matchId: string, s1_p1: number, s1_p2: number, s2_p1: number, s2_p2: number, s3_p1: number, s3_p2: number) => {
     if (!matchId) return;
     setMatches((prev) => {
@@ -912,13 +916,24 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           
           if (v2.isComplete) {
             dState.set2_winner = v2.winner;
-            dState.set3_p1 = s3_p1; dState.set3_p2 = s3_p2;
-            const v3 = validateSingleSet(dState.set3_p1, dState.set3_p2, 3, format);
-            dState.set3_winner = v3.isComplete ? v3.winner : undefined;
+            if (v1.winner !== v2.winner) {
+                dState.currentSet = 3;
+                dState.currentSetNum = 3;
+                dState.set3_p1 = s3_p1; dState.set3_p2 = s3_p2;
+                const v3 = validateSingleSet(dState.set3_p1, dState.set3_p2, 3, format);
+                dState.set3_winner = v3.isComplete ? v3.winner : undefined;
+            } else {
+                dState.currentSet = 2;
+                dState.currentSetNum = 2;
+                dState.set3_p1 = 0; dState.set3_p2 = 0;
+                dState.set3_winner = undefined;
+            }
           } else {
             dState.set2_winner = undefined;
             dState.set3_p1 = 0; dState.set3_p2 = 0;
             dState.set3_winner = undefined;
+            dState.currentSet = 2;
+            dState.currentSetNum = 2;
           }
         } else {
           dState.set1_winner = undefined;
@@ -926,6 +941,8 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           dState.set2_winner = undefined;
           dState.set3_p1 = 0; dState.set3_p2 = 0;
           dState.set3_winner = undefined;
+          dState.currentSet = 1;
+          dState.currentSetNum = 1;
         }
 
         const matchSafetyCheck = checkMatchWinner(dState, format);
@@ -962,7 +979,6 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     });
   };
 
-  // YEPYENİ: Ana ayarlar pop-up'ından Skor kaydedildiğinde Hayalet Bayrakları kökten temizleyen motor
   const saveDirectScoreAndStatus = (matchId: string, data: any) => {
     if (!matchId) return;
     setMatches((prev) => {
@@ -982,13 +998,24 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           
           if (v2.isComplete) {
             dState.set2_winner = v2.winner;
-            dState.set3_p1 = data.s3_p1; dState.set3_p2 = data.s3_p2;
-            const v3 = validateSingleSet(dState.set3_p1, dState.set3_p2, 3, format);
-            dState.set3_winner = v3.isComplete ? v3.winner : undefined;
+            if (v1.winner !== v2.winner) {
+                dState.currentSet = 3;
+                dState.currentSetNum = 3;
+                dState.set3_p1 = data.s3_p1; dState.set3_p2 = data.s3_p2;
+                const v3 = validateSingleSet(dState.set3_p1, dState.set3_p2, 3, format);
+                dState.set3_winner = v3.isComplete ? v3.winner : undefined;
+            } else {
+                dState.currentSet = 2;
+                dState.currentSetNum = 2;
+                dState.set3_p1 = 0; dState.set3_p2 = 0;
+                dState.set3_winner = undefined;
+            }
           } else {
             dState.set2_winner = undefined;
             dState.set3_p1 = 0; dState.set3_p2 = 0;
             dState.set3_winner = undefined;
+            dState.currentSet = 2;
+            dState.currentSetNum = 2;
           }
         } else {
           dState.set1_winner = undefined;
@@ -996,6 +1023,8 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           dState.set2_winner = undefined;
           dState.set3_p1 = 0; dState.set3_p2 = 0;
           dState.set3_winner = undefined;
+          dState.currentSet = 1;
+          dState.currentSetNum = 1;
         }
         
         const matchSafetyCheck = checkMatchWinner(dState, format);
