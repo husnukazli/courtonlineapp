@@ -721,7 +721,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const loginDesk = (pin: string): boolean => {
     const cleanPin = pin.trim();
     if (!cleanPin) return false;
-    return cleanPin === deskPin || cleanPin === '2026' || cleanPin === '1923';
+    return cleanPin === deskPin;
   };
 
   const logoutReferee = () => {
@@ -1342,7 +1342,8 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     if (!tournamentId) return 0;
     setCloudSyncStatus('syncing');
     try {
-      const deletedCount = await purgeOrphanMatchesFromCloud(tournamentId);
+      const activeIds = matches.map((m) => m.id).filter(Boolean) as string[];
+      const deletedCount = await purgeOrphanMatchesFromCloud(activeIds, tournamentId);
       await pullFromCloudNow();
       return deletedCount;
     } catch (e) {
