@@ -221,6 +221,9 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const [cloudSyncStatus, setCloudSyncStatus] = useState<CloudSyncStatus>('connected');
   const [lastCloudSync, setLastCloudSync] = useState<string | null>(null);
 
+  // YENİDEN EKLENEN: Firebase yığılmalarını önlemek için 2 saniyelik zamanlayıcı referansı
+  const cloudSyncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   useEffect(() => {
     if (typeof document !== 'undefined') {
       if (authRole === 'supervisor') {
@@ -457,9 +460,12 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     };
   }, [deskPin, tournamentId]);
 
+  // GÜNCELLENEN: 2 Saniyelik Firebase Gecikmesi (Debounce) Geri Eklendi
   const broadcastAndSyncSingleMatch = (updatedMatch: MatchItem, allMatchesList?: MatchItem[]) => {
     if (!tournamentId) return;
     const fullList = allMatchesList || matches.map((m) => (m.id === updatedMatch.id ? updatedMatch : m));
+    
+    // Yerel Hafıza ve Ekranlar Anında Güncellenir (Gecikme Yok)
     try {
       localStorage.setItem(getStorageKey(BASE_STORAGE_KEYS.MATCHES, tournamentId), JSON.stringify(fullList));
       if (broadcastChannelRef.current) {
@@ -470,20 +476,32 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
 
     setCloudSyncStatus('syncing');
-    pushSingleMatchToCloud(updatedMatch, currentReferee?.name || 'Turnuva Masası', fullList, tournamentId)
-      .then(() => {
-        setCloudSyncStatus('connected');
-        setLastCloudSync(new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
-      })
-      .catch((err) => {
-        console.warn('Sync match note:', err);
-        setCloudSyncStatus('connected');
-        setLastCloudSync(new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
-      });
+
+    // Varsa önceki zamanlayıcıyı iptal et
+    if (cloudSyncTimeoutRef.current) {
+      clearTimeout(cloudSyncTimeoutRef.current);
+    }
+
+    // 2 saniye bekle, hakem tuşa basmayı bitirdiğinde buluta tek seferde gönder
+    cloudSyncTimeoutRef.current = setTimeout(() => {
+      pushSingleMatchToCloud(updatedMatch, currentReferee?.name || 'Turnuva Masası', fullList, tournamentId)
+        .then(() => {
+          setCloudSyncStatus('connected');
+          setLastCloudSync(new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+        })
+        .catch((err) => {
+          console.warn('Sync match note:', err);
+          setCloudSyncStatus('connected');
+          setLastCloudSync(new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+        });
+    }, 2000); // 2 saniyelik bekleme (debounce) süresi
   };
 
+  // GÜNCELLENEN: 2 Saniyelik Firebase Gecikmesi (Debounce) Geri Eklendi
   const broadcastAndSyncMatches = (newMatches: MatchItem[]) => {
     if (!tournamentId) return;
+    
+    // Yerel Hafıza Anında Güncellenir
     try {
       localStorage.setItem(getStorageKey(BASE_STORAGE_KEYS.MATCHES, tournamentId), JSON.stringify(newMatches));
       if (broadcastChannelRef.current) {
@@ -494,15 +512,24 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
 
     setCloudSyncStatus('syncing');
-    pushAllMatchesToCloud(newMatches, currentReferee?.name || 'Turnuva Masası', tournamentId)
-      .then(() => {
-        setCloudSyncStatus('connected');
-        setLastCloudSync(new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
-      })
-      .catch(() => {
-        setCloudSyncStatus('connected');
-        setLastCloudSync(new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
-      });
+
+    // Varsa önceki zamanlayıcıyı iptal et
+    if (cloudSyncTimeoutRef.current) {
+      clearTimeout(cloudSyncTimeoutRef.current);
+    }
+
+    // 2 saniye bekle
+    cloudSyncTimeoutRef.current = setTimeout(() => {
+      pushAllMatchesToCloud(newMatches, currentReferee?.name || 'Turnuva Masası', tournamentId)
+        .then(() => {
+          setCloudSyncStatus('connected');
+          setLastCloudSync(new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+        })
+        .catch(() => {
+          setCloudSyncStatus('connected');
+          setLastCloudSync(new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+        });
+    }, 2000); // 2 saniyelik bekleme (debounce) süresi
   };
 
   const pullFromCloudNow = async (): Promise<boolean> => {
@@ -801,7 +828,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     });
   };
 
-  // YENİ EKLENEN ANA ZEKÂ: Gizli Pusula (currentSet) ve Kazanan Bayraklarını Sıfırlama Motoru
+  // Hayalet Bayrakları ve Yanlış Pusulayı Temizleyen Skora Müdahale Fonksiyonu
   const updateGameScore = (matchId: string, setIndex: 1 | 2 | 3, player: 1 | 2, delta: number) => {
     if (!matchId) return;
     setMatches((prev) => {
@@ -809,6 +836,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       const next = prev.map((m) => {
         if (m.id !== matchId) return m;
         const format = m.Skor_Formati || '3 Normal Set';
+        
         const dState = JSON.parse(JSON.stringify(m.detailedState || createInitialMatchState(1, format)));
         
         if (setIndex === 1) {
@@ -822,7 +850,6 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           else dState.set3_p2 = Math.max(0, dState.set3_p2 + delta);
         }
 
-        // --- HAYALET BAYRAKLARI VE YANLIŞ PUSULAYI (CURRENT_SET) SIFIRLAMA ---
         const v1 = validateSingleSet(dState.set1_p1, dState.set1_p2, 1, format);
         if (v1.isComplete) {
           dState.set1_winner = v1.winner;
@@ -830,21 +857,18 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           if (v2.isComplete) {
             dState.set2_winner = v2.winner;
             
-            // Eğer 3 setlik maçta eşitlik varsa 3. sete geç
             if (v1.winner !== v2.winner) {
                 dState.currentSet = 3;
-                dState.currentSetNum = 3; // Çift güvenlik
+                dState.currentSetNum = 3;
                 const v3 = validateSingleSet(dState.set3_p1, dState.set3_p2, 3, format);
                 dState.set3_winner = v3.isComplete ? v3.winner : undefined;
             } else {
-                // Oyuncu 2-0 kazandıysa pusula 2'de kalır, 3. seti sıfırla
                 dState.currentSet = 2;
                 dState.currentSetNum = 2;
                 dState.set3_p1 = 0; dState.set3_p2 = 0;
                 dState.set3_winner = undefined;
             }
           } else {
-            // 2. set bitmediyse pusulayı zorla 2'ye çek, 3. setin hafızasını çöpe at
             dState.set2_winner = undefined;
             dState.set3_p1 = 0; dState.set3_p2 = 0;
             dState.set3_winner = undefined;
@@ -852,7 +876,6 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             dState.currentSetNum = 2;
           }
         } else {
-          // 1. set bitmediyse pusulayı zorla 1'e çek, 2. ve 3. setin tüm geçmişini çöpe at
           dState.set1_winner = undefined;
           dState.set2_p1 = 0; dState.set2_p2 = 0;
           dState.set2_winner = undefined;
@@ -866,7 +889,6 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         dState.matchEnded = matchSafetyCheck.matchEnded;
         dState.matchWinner = matchSafetyCheck.matchWinner;
 
-        // Dışarıdan elle skorla oynandığı için 15-30 gibi mikro puanları her zaman sıfırla
         dState.gamePoint_p1 = '0';
         dState.gamePoint_p2 = '0';
         dState.tiebreak_p1 = 0;
@@ -1342,7 +1364,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setMatches((prev) => {
       let updatedItem: MatchItem | null = null;
       const next = prev.map((m) => {
-        if (m.id !== matchId) return m;
+        if (!m.id !== matchId) return m;
 
         const endStr = endTime || new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
         const startStr = startTime || m.Baslangic_Saati;
