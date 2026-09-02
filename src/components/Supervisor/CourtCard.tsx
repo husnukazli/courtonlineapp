@@ -69,12 +69,14 @@ export const CourtCard: React.FC<CourtCardProps> = ({
 
   const parsed = parseScoreString(match.Skor);
   const state = match.detailedState;
-  const s1_p1 = state?.set1_p1 ?? parsed.s1_p1;
-  const s1_p2 = state?.set1_p2 ?? parsed.s1_p2;
-  const s2_p1 = state?.set2_p1 ?? parsed.s2_p1;
-  const s2_p2 = state?.set2_p2 ?? parsed.s2_p2;
-  const s3_p1 = state?.set3_p1 ?? parsed.s3_p1;
-  const s3_p2 = state?.set3_p2 ?? parsed.s3_p2;
+  
+  // GÜNCELLEME: Tüm string concat hatalarını önlemek için değişkenler zorla Number yapıldı.
+  const s1_p1 = Number(state?.set1_p1 ?? parsed.s1_p1 ?? 0);
+  const s1_p2 = Number(state?.set1_p2 ?? parsed.s1_p2 ?? 0);
+  const s2_p1 = Number(state?.set2_p1 ?? parsed.s2_p1 ?? 0);
+  const s2_p2 = Number(state?.set2_p2 ?? parsed.s2_p2 ?? 0);
+  const s3_p1 = Number(state?.set3_p1 ?? parsed.s3_p1 ?? 0);
+  const s3_p2 = Number(state?.set3_p2 ?? parsed.s3_p2 ?? 0);
 
   const isLive = match.Durum === 'Oynaniyor';
   const isFinished = match.Durum === 'Bitti' || match.Durum === 'Retired' || match.Durum === 'Walkover';
@@ -118,11 +120,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
     };
   }, [isChairMode]);
 
-  const handleExitChairMode = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (window.confirm('Kule hakemi modundan çıkıp genel maç ekranına dönmek istiyor musunuz?')) setIsChairMode(false);
-  };
-
   useEffect(() => {
     if (isLive) {
       let activeSet: 1 | 2 | 3 = 1;
@@ -141,7 +138,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
       
       const prevS1 = prevSet === 1 ? s1_p1 : prevSet === 2 ? s2_p1 : s3_p1;
       const prevS2 = prevSet === 1 ? s1_p2 : prevSet === 2 ? s2_p2 : s3_p2;
-      const totalGamesPrevSet = prevS1 + prevS2;
+      const totalGamesPrevSet = prevS1 + prevS2; // Artık matematiksel olarak kesin doğru
       
       if (totalGamesPrevSet > 0) {
         const nextServerTeam = totalGamesPrevSet % 2 === 0 ? prevSetup.firstServingTeam : (prevSetup.firstServingTeam === 1 ? 2 : 1);
@@ -165,7 +162,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
 
   const currentSetGames = selectedSet === 1 ? s1_p1 + s1_p2 : selectedSet === 2 ? s2_p1 + s2_p2 : s3_p1 + s3_p2;
   const isTB = state?.isTiebreak || false;
-  const tbPoints = isTB ? (state?.tiebreak_p1 || 0) + (state?.tiebreak_p2 || 0) : 0;
+  const tbPoints = isTB ? Number(state?.tiebreak_p1 || 0) + Number(state?.tiebreak_p2 || 0) : 0;
   
   let computedServerTeam: 1 | 2 = 1;
   let computedLeftTeam: 1 | 2 = 1;
@@ -383,73 +380,44 @@ export const CourtCard: React.FC<CourtCardProps> = ({
   const currentSetP1Games = selectedSet === 1 ? s1_p1 : selectedSet === 2 ? s2_p1 : s3_p1;
   const currentSetP2Games = selectedSet === 1 ? s1_p2 : selectedSet === 2 ? s2_p2 : s3_p2;
 
-  // --- KARTIN DURUMA GÖRE GÖRSEL HİYERARŞİSİ (AÇIK/SEÇİK RENK KODLAMASI) ---
-  const cardClass = isLive ? 'bg-gradient-to-br from-emerald-950/60 to-slate-900 border-2 border-emerald-500 shadow-[0_0_30px_rgba(16,185,129,0.15)]'
-    : isPaused ? 'bg-gradient-to-br from-amber-950/60 to-slate-900 border-2 border-amber-500 shadow-[0_0_30px_rgba(245,158,11,0.15)]'
-    : isUpcoming ? 'bg-slate-900 border-2 border-slate-600 border-dashed opacity-80 hover:opacity-100 cursor-pointer'
-    : 'bg-gradient-to-br from-rose-950/30 to-slate-900 border-2 border-rose-800/80 opacity-90';
-
-  const topBarClass = isLive ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.8)] animate-pulse' 
-    : isPaused ? 'bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.8)]' 
-    : isUpcoming ? 'bg-slate-600' 
-    : 'bg-rose-600';
-
-  const headerBgClass = isLive ? 'border-emerald-500/30 bg-emerald-950/20' 
-    : isPaused ? 'border-amber-500/30 bg-amber-950/20' 
-    : isUpcoming ? 'border-slate-800/80 bg-slate-900/50' 
-    : 'border-rose-800/30 bg-rose-950/20';
-
-  const courtBadgeClass = isLive ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-lg shadow-emerald-500/30' 
-    : isPaused ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-lg shadow-amber-500/30' 
-    : isUpcoming ? 'bg-slate-800 text-slate-300 border-slate-600' 
-    : 'bg-rose-950 text-rose-400 border-rose-800';
-
-  const statusBadgeClass = isLive ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50' 
-    : isPaused ? 'bg-amber-500/20 text-amber-400 border-amber-500/50' 
-    : isUpcoming ? 'bg-slate-800 text-slate-400 border-slate-600' 
-    : 'bg-rose-500/20 text-rose-400 border-rose-500/50';
-
-  const timeBarClass = isLive ? 'border-emerald-500/20 bg-emerald-950/10' 
-    : isPaused ? 'border-amber-500/20 bg-amber-950/10' 
-    : isUpcoming ? 'border-slate-800/80 bg-slate-950/50' 
-    : 'border-rose-800/20 bg-rose-950/10';
-
   return (
     <>
       {/* 1. KORT HAKEMİ KART GÖRÜNÜMÜ */}
-      <div onClick={handleCardClick} className={`rounded-3xl transition-all duration-200 overflow-hidden flex flex-col justify-between ${cardClass}`}>
-        
-        {/* Üst Şerit */}
-        <div className={`h-2 w-full ${topBarClass}`} />
+      <div
+        onClick={handleCardClick}
+        className={`rounded-3xl transition-all duration-200 overflow-hidden flex flex-col justify-between shadow-lg ${
+          isLive || isPaused ? 'bg-slate-900/95 border-2 border-emerald-400 shadow-[0_0_25px_rgba(52,211,153,0.18)]'
+          : isUpcoming ? 'bg-gradient-to-b from-slate-900 to-amber-950/20 border-2 border-amber-500/50 cursor-pointer'
+          : 'bg-rose-950/20 border border-rose-800/50'
+        }`}
+      >
+        <div className={`h-1.5 w-full ${isLive ? 'bg-gradient-to-r from-emerald-400 to-emerald-500 animate-pulse' : isPaused ? 'bg-gradient-to-r from-amber-400 to-amber-600' : isUpcoming ? 'bg-gradient-to-r from-amber-400 to-yellow-500' : 'bg-gradient-to-r from-rose-500 to-rose-700'}`} />
 
-        {/* Header Alanı */}
-        <div className={`px-4 sm:px-5 pt-4 pb-3 flex items-center justify-between border-b ${headerBgClass}`}>
-          <div className="flex items-center gap-3">
-            <span className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm border shrink-0 ${courtBadgeClass}`}>
+        <div className="px-4 sm:px-5 pt-4 pb-2 flex items-center justify-between border-b border-slate-800/80">
+          <div className="flex items-center gap-2.5">
+            <span className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-xs ${isLive || isPaused ? 'bg-emerald-400 text-slate-950 shadow-emerald-400/30' : isUpcoming ? 'bg-amber-400/20 text-amber-300 border-amber-400/30' : 'bg-rose-500/20 text-rose-300'}`}>
               {match.Kort.replace('KORT', 'K').trim()}
             </span>
             <div className="min-w-0">
-              <h3 className={`font-extrabold text-base sm:text-lg flex items-center gap-1.5 truncate ${isLive ? 'text-white' : 'text-slate-300'}`}>
+              <h3 className="font-extrabold text-white text-base sm:text-lg flex items-center gap-1.5 truncate">
                 <span>{match.Kort}</span>
-                {isLive && <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-emerald-500 text-slate-950 animate-pulse shrink-0">CANLI</span>}
+                {isLive && <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-400 animate-pulse shrink-0">CANLI</span>}
               </h3>
               <p className="text-xs text-slate-400 font-medium truncate max-w-[180px]">{match.Kategori}</p>
             </div>
           </div>
-          <span className={`px-3 py-1.5 rounded-xl text-xs font-black tracking-widest uppercase border shrink-0 ${statusBadgeClass}`}>
+          <span className={`px-2.5 py-1 rounded-xl text-xs font-black tracking-wide uppercase shrink-0 ${isLive ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' : isPaused ? 'bg-amber-500/20 text-amber-300' : isUpcoming ? 'bg-amber-500/20 text-amber-300' : 'bg-rose-500/20 text-rose-300'}`}>
             {match.Durum === 'Retired' ? '✕ RET' : match.Durum === 'Walkover' ? '✕ W/O' : match.Durum === 'Bitti' ? '✕ BİTTİ' : match.Durum === 'Duraklatildi' ? 'ASKIYA' : match.Durum}
           </span>
         </div>
 
-        {/* Saat ve Format */}
-        <div className={`px-4 sm:px-5 py-2 border-b flex items-center justify-between text-xs font-mono ${timeBarClass}`}>
+        <div className="px-4 sm:px-5 py-2 bg-slate-950/80 border-b border-slate-800/80 flex items-center justify-between text-xs font-mono">
           <div className="flex items-center gap-3">
             <span className="text-slate-400 flex items-center gap-1"><Clock className="w-3.5 h-3.5 text-lime-400" />{match.Saat && <span className="text-slate-500 text-[10px]">{match.Saat}</span>} <strong className="text-white font-bold ml-1">{match.Baslangic_Saati && match.Baslangic_Saati !== 'Secilmedi' ? match.Baslangic_Saati : '--:--'}</strong></span>
           </div>
           <div className="text-slate-400 font-sans text-[11px] truncate pl-2 max-w-[110px]">{match.Skor_Formati}</div>
         </div>
 
-        {/* Skor Alanı */}
         <div className="p-4 sm:p-5 space-y-3">
           <div className="bg-slate-950 rounded-2xl border border-slate-800/90 overflow-hidden">
             <div className="grid grid-cols-12 bg-slate-900/80 text-[10px] font-extrabold uppercase text-slate-400 py-1.5 px-3 border-b border-slate-800">
@@ -457,15 +425,15 @@ export const CourtCard: React.FC<CourtCardProps> = ({
             </div>
             <div className={`grid grid-cols-12 items-center py-2 px-3 border-b border-slate-800/50 ${match.Kazanan === match['Oyuncu 1'] && isFinished ? 'bg-lime-500/10' : ''}`}>
               <div className="col-span-6 flex items-center gap-2 pr-2 min-w-0">
-                <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${isFinished && match.Kazanan !== match['Oyuncu 1'] ? 'bg-slate-700' : 'bg-lime-400'}`}></span>
-                <span className={`text-xs sm:text-sm font-bold truncate leading-tight ${isFinished && match.Kazanan !== match['Oyuncu 1'] ? 'text-slate-500 line-through' : 'text-white'}`}>{match['Oyuncu 1']}</span>
+                <span className="w-2.5 h-2.5 rounded-full bg-lime-400 shrink-0"></span>
+                <span className="text-xs sm:text-sm font-bold text-white truncate leading-tight">{match['Oyuncu 1']}</span>
               </div>
               <div className="col-span-2 text-center font-mono font-black text-lime-300">{isUpcoming ? '-' : s1_p1}</div><div className="col-span-2 text-center font-mono font-black text-lime-300">{isUpcoming ? '-' : s2_p1}</div><div className="col-span-2 text-center font-mono font-black text-lime-300">{isUpcoming ? '-' : s3_p1}</div>
             </div>
             <div className={`grid grid-cols-12 items-center py-2 px-3 ${match.Kazanan === match['Oyuncu 2'] && isFinished ? 'bg-cyan-500/10' : ''}`}>
               <div className="col-span-6 flex items-center gap-2 pr-2 min-w-0">
-                <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${isFinished && match.Kazanan !== match['Oyuncu 2'] ? 'bg-slate-700' : 'bg-cyan-400'}`}></span>
-                <span className={`text-xs sm:text-sm font-bold truncate leading-tight ${isFinished && match.Kazanan !== match['Oyuncu 2'] ? 'text-slate-500 line-through' : 'text-white'}`}>{match['Oyuncu 2']}</span>
+                <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 shrink-0"></span>
+                <span className="text-xs sm:text-sm font-bold text-white truncate leading-tight">{match['Oyuncu 2']}</span>
               </div>
               <div className="col-span-2 text-center font-mono font-black text-cyan-300">{isUpcoming ? '-' : s1_p2}</div><div className="col-span-2 text-center font-mono font-black text-cyan-300">{isUpcoming ? '-' : s2_p2}</div><div className="col-span-2 text-center font-mono font-black text-cyan-300">{isUpcoming ? '-' : s3_p2}</div>
             </div>
