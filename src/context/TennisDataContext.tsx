@@ -801,6 +801,144 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     });
   };
 
+  // YENİ VE KRİTİK GÜNCELLEME: Hızlı Butonlardan Oyun Değiştirildiğinde Hayalet Puanları ve Gelecek Setleri Temizleme
+  const updateGameScore = (matchId: string, setIndex: 1 | 2 | 3, player: 1 | 2, delta: number) => {
+    if (!matchId) return;
+    setMatches((prev) => {
+      const next = prev.map((m) => {
+        if (m.id !== matchId) return m;
+        const dState = m.detailedState || createInitialMatchState(1, m.Skor_Formati || '3 Normal Set');
+        const format = m.Skor_Formati || '3 Normal Set';
+
+        if (setIndex === 1) {
+          if (player === 1) dState.set1_p1 = Math.max(0, dState.set1_p1 + delta);
+          else dState.set1_p2 = Math.max(0, dState.set1_p2 + delta);
+          
+          // Güvenlik: 1. Set artık bitmemişse, ileriki setleri tamamen SIFIRLA
+          const v1 = validateSingleSet(dState.set1_p1, dState.set1_p2, 1, format);
+          if (!v1.isComplete) {
+            dState.set2_p1 = 0; dState.set2_p2 = 0;
+            dState.set3_p1 = 0; dState.set3_p2 = 0;
+          }
+        } else if (setIndex === 2) {
+          if (player === 1) dState.set2_p1 = Math.max(0, dState.set2_p1 + delta);
+          else dState.set2_p2 = Math.max(0, dState.set2_p2 + delta);
+          
+          // Güvenlik: 2. Set artık bitmemişse, 3. Seti tamamen SIFIRLA
+          const v2 = validateSingleSet(dState.set2_p1, dState.set2_p2, 2, format);
+          if (!v2.isComplete) {
+            dState.set3_p1 = 0; dState.set3_p2 = 0;
+          }
+        } else if (setIndex === 3) {
+          if (player === 1) dState.set3_p1 = Math.max(0, dState.set3_p1 + delta);
+          else dState.set3_p2 = Math.max(0, dState.set3_p2 + delta);
+        }
+
+        // Skor Geri/İleri alındığı için Mikro Hafızayı (Puanları) Sıfırla
+        dState.gamePoint_p1 = '0';
+        dState.gamePoint_p2 = '0';
+        dState.tiebreak_p1 = 0;
+        dState.tiebreak_p2 = 0;
+
+        return {
+          ...m,
+          detailedState: dState,
+          Skor: buildScoreString(dState.set1_p1, dState.set1_p2, dState.set2_p1, dState.set2_p2, dState.set3_p1, dState.set3_p2),
+        };
+      });
+      broadcastAndSyncMatches(next);
+      return next;
+    });
+  };
+
+  // YENİ VE KRİTİK GÜNCELLEME: Doğrudan manuel skor girildiğinde Hayalet Puanları Temizleme
+  const setDirectSetScores = (matchId: string, s1_p1: number, s1_p2: number, s2_p1: number, s2_p2: number, s3_p1: number, s3_p2: number) => {
+    if (!matchId) return;
+    setMatches((prev) => {
+      const next = prev.map((m) => {
+        if (m.id !== matchId) return m;
+        const dState = m.detailedState || createInitialMatchState(1, m.Skor_Formati || '3 Normal Set');
+        const format = m.Skor_Formati || '3 Normal Set';
+
+        dState.set1_p1 = s1_p1; dState.set1_p2 = s1_p2;
+        const v1 = validateSingleSet(dState.set1_p1, dState.set1_p2, 1, format);
+
+        if (v1.isComplete) {
+          dState.set2_p1 = s2_p1; dState.set2_p2 = s2_p2;
+          const v2 = validateSingleSet(dState.set2_p1, dState.set2_p2, 2, format);
+          if (v2.isComplete) {
+            dState.set3_p1 = s3_p1; dState.set3_p2 = s3_p2;
+          } else {
+            dState.set3_p1 = 0; dState.set3_p2 = 0;
+          }
+        } else {
+          dState.set2_p1 = 0; dState.set2_p2 = 0;
+          dState.set3_p1 = 0; dState.set3_p2 = 0;
+        }
+        
+        // Puanları (Mikro Hafızayı) Sıfırla
+        dState.gamePoint_p1 = '0';
+        dState.gamePoint_p2 = '0';
+        dState.tiebreak_p1 = 0;
+        dState.tiebreak_p2 = 0;
+
+        return {
+          ...m,
+          detailedState: dState,
+          Skor: buildScoreString(dState.set1_p1, dState.set1_p2, dState.set2_p1, dState.set2_p2, dState.set3_p1, dState.set3_p2),
+        };
+      });
+      broadcastAndSyncMatches(next);
+      return next;
+    });
+  };
+
+  // YENİ VE KRİTİK GÜNCELLEME: Düzenleme (Edit) Penceresinden kaydedildiğinde Hayalet Puanları Temizleme
+  const saveDirectScoreAndStatus = (matchId: string, data: any) => {
+    if (!matchId) return;
+    setMatches((prev) => {
+      const next = prev.map((m) => {
+        if (m.id !== matchId) return m;
+        const dState = m.detailedState || createInitialMatchState(1, m.Skor_Formati || '3 Normal Set');
+        const format = m.Skor_Formati || '3 Normal Set';
+
+        dState.set1_p1 = data.s1_p1; dState.set1_p2 = data.s1_p2;
+        const v1 = validateSingleSet(dState.set1_p1, dState.set1_p2, 1, format);
+
+        if (v1.isComplete) {
+          dState.set2_p1 = data.s2_p1; dState.set2_p2 = data.s2_p2;
+          const v2 = validateSingleSet(dState.set2_p1, dState.set2_p2, 2, format);
+          if (v2.isComplete) {
+            dState.set3_p1 = data.s3_p1; dState.set3_p2 = data.s3_p2;
+          } else {
+            dState.set3_p1 = 0; dState.set3_p2 = 0;
+          }
+        } else {
+          dState.set2_p1 = 0; dState.set2_p2 = 0;
+          dState.set3_p1 = 0; dState.set3_p2 = 0;
+        }
+        
+        // Puanları (Mikro Hafızayı) Sıfırla
+        dState.gamePoint_p1 = '0';
+        dState.gamePoint_p2 = '0';
+        dState.tiebreak_p1 = 0;
+        dState.tiebreak_p2 = 0;
+
+        return {
+          ...m,
+          Durum: data.status,
+          Kazanan: data.winner || m.Kazanan,
+          Baslangic_Saati: data.startTime || m.Baslangic_Saati,
+          Bitis_Saati: data.endTime || m.Bitis_Saati,
+          detailedState: dState,
+          Skor: buildScoreString(dState.set1_p1, dState.set1_p2, dState.set2_p1, dState.set2_p2, dState.set3_p1, dState.set3_p2),
+        };
+      });
+      broadcastAndSyncMatches(next);
+      return next;
+    });
+  };
+
   const awardPointToMatch = (
     matchId: string,
     playerWon: 1 | 2,
@@ -1059,102 +1197,6 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     replaceAllMatchesInCloud(sanitized, currentReferee?.name || 'Turnuva Masası', tournamentId)
       .then(() => setCloudSyncStatus('connected'))
       .catch(e => console.error("JSON cloud import error:", e));
-  };
-
-  // YENİ DÜZELTME: Dışarıdan makro skor (Oyun/Set) güncellendiğinde, içerideki puanlar SIFIRLANIR.
-  const updateGameScore = (matchId: string, setIndex: 1 | 2 | 3, player: 1 | 2, delta: number) => {
-    if (!matchId) return;
-    setMatches((prev) => {
-      const next = prev.map((m) => {
-        if (m.id !== matchId) return m;
-        const dState = m.detailedState || createInitialMatchState(1, m.Skor_Formati || '3 Normal Set');
-        
-        if (setIndex === 1) {
-          if (player === 1) dState.set1_p1 = Math.max(0, dState.set1_p1 + delta);
-          else dState.set1_p2 = Math.max(0, dState.set1_p2 + delta);
-        } else if (setIndex === 2) {
-          if (player === 1) dState.set2_p1 = Math.max(0, dState.set2_p1 + delta);
-          else dState.set2_p2 = Math.max(0, dState.set2_p2 + delta);
-        } else if (setIndex === 3) {
-          if (player === 1) dState.set3_p1 = Math.max(0, dState.set3_p1 + delta);
-          else dState.set3_p2 = Math.max(0, dState.set3_p2 + delta);
-        }
-
-        // Puanları (Mikro Hafızayı) Sıfırla
-        dState.gamePoint_p1 = '0';
-        dState.gamePoint_p2 = '0';
-        dState.tiebreak_p1 = 0;
-        dState.tiebreak_p2 = 0;
-
-        return {
-          ...m,
-          detailedState: dState,
-          Skor: buildScoreString(dState.set1_p1, dState.set1_p2, dState.set2_p1, dState.set2_p2, dState.set3_p1, dState.set3_p2),
-        };
-      });
-      broadcastAndSyncMatches(next);
-      return next;
-    });
-  };
-
-  // YENİ DÜZELTME: Doğrudan manuel skor girildiğinde puanlar SIFIRLANIR.
-  const setDirectSetScores = (matchId: string, s1_p1: number, s1_p2: number, s2_p1: number, s2_p2: number, s3_p1: number, s3_p2: number) => {
-    if (!matchId) return;
-    setMatches((prev) => {
-      const next = prev.map((m) => {
-        if (m.id !== matchId) return m;
-        const dState = m.detailedState || createInitialMatchState(1, m.Skor_Formati || '3 Normal Set');
-        dState.set1_p1 = s1_p1; dState.set1_p2 = s1_p2;
-        dState.set2_p1 = s2_p1; dState.set2_p2 = s2_p2; // Burada eski kodda küçük bir yazım hatası (s1_p2) varmış, onu da düzelttim.
-        dState.set3_p1 = s3_p1; dState.set3_p2 = s3_p2;
-        
-        // Puanları (Mikro Hafızayı) Sıfırla
-        dState.gamePoint_p1 = '0';
-        dState.gamePoint_p2 = '0';
-        dState.tiebreak_p1 = 0;
-        dState.tiebreak_p2 = 0;
-
-        return {
-          ...m,
-          detailedState: dState,
-          Skor: buildScoreString(s1_p1, s1_p2, s2_p1, s2_p2, s3_p1, s3_p2),
-        };
-      });
-      broadcastAndSyncMatches(next);
-      return next;
-    });
-  };
-
-  // YENİ DÜZELTME: Düzenleme penceresinden kaydedildiğinde puanlar SIFIRLANIR.
-  const saveDirectScoreAndStatus = (matchId: string, data: any) => {
-    if (!matchId) return;
-    setMatches((prev) => {
-      const next = prev.map((m) => {
-        if (m.id !== matchId) return m;
-        const dState = m.detailedState || createInitialMatchState(1, m.Skor_Formati || '3 Normal Set');
-        dState.set1_p1 = data.s1_p1; dState.set1_p2 = data.s1_p2;
-        dState.set2_p1 = data.s2_p1; dState.set2_p2 = data.s2_p2;
-        dState.set3_p1 = data.s3_p1; dState.set3_p2 = data.s3_p2;
-        
-        // Puanları (Mikro Hafızayı) Sıfırla
-        dState.gamePoint_p1 = '0';
-        dState.gamePoint_p2 = '0';
-        dState.tiebreak_p1 = 0;
-        dState.tiebreak_p2 = 0;
-
-        return {
-          ...m,
-          Durum: data.status,
-          Kazanan: data.winner || m.Kazanan,
-          Baslangic_Saati: data.startTime || m.Baslangic_Saati,
-          Bitis_Saati: data.endTime || m.Bitis_Saati,
-          detailedState: dState,
-          Skor: buildScoreString(data.s1_p1, data.s1_p2, data.s2_p1, data.s2_p2, data.s3_p1, data.s3_p2),
-        };
-      });
-      broadcastAndSyncMatches(next);
-      return next;
-    });
   };
 
   const purgeOrphanMatches = async (): Promise<number> => {
