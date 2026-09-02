@@ -167,7 +167,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
     }
   }, [selectedSet, isDoubles, setupsBySet, s1_p1, s1_p2, s2_p1, s2_p2, s3_p1, s3_p2]);
 
-  // YENİ: Maça ortadan girildiğinde (örn 3-2) buluttaki güncel veriye bakıp servisçiyi otomatik seçer
   useEffect(() => {
     if (showSetupOverlay && !isEditingSetup && setupForm.firstServingTeam === null) {
       if (state?.currentServer === 1 || state?.currentServer === 2) {
@@ -275,6 +274,23 @@ export const CourtCard: React.FC<CourtCardProps> = ({
 
   const leftTeamId = computedLeftTeam;
   const rightTeamId = computedLeftTeam === 1 ? 2 : 1;
+
+  // YENİ EKLENEN FONKSİYON: Kurulumu İptal Et / Kapat
+  const handleCancelSetup = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isSetupValid) {
+      // Sadece rotasyonu görüntülüyorduk/düzenliyorduk, ayarı kapat.
+      setIsEditingSetup(false);
+    } else {
+      // Geçersiz bir set ekranındayız (örn. yanlışlıkla 2. Sete basılmış).
+      // Eğer bir önceki setin kurulumu geçerliyse ona geri dön. Değilse Kule Hakeminden çık.
+      if (selectedSet > 1 && setupsBySet[selectedSet - 1]) {
+        setSelectedSet((selectedSet - 1) as 1 | 2 | 3);
+      } else {
+        setIsChairMode(false);
+      }
+    }
+  };
 
   const handleSaveSetup = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -528,7 +544,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                   <button type="button" onClick={(e) => { 
                     e.stopPropagation(); 
                     if (chairSetup) {
-                      // GÜNCELLEME: Rotasyon butonuna basıldığında BAŞLANGIÇ değil ŞU ANKİ doğru kişiler hesaplanıp forma doldurulur
                       setSetupForm({
                         firstServingTeam: computedServerTeam,
                         leftTeam: computedLeftTeam,
@@ -564,14 +579,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                   {/* SAĞ ÜST İPTAL / KAPAT (X) BUTONU */}
                   <button 
                     type="button" 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (isSetupValid) {
-                        setIsEditingSetup(false);
-                      } else {
-                        setIsChairMode(false);
-                      }
-                    }} 
+                    onClick={handleCancelSetup} 
                     className="absolute top-4 right-4 p-2.5 rounded-xl bg-slate-800 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 border border-slate-700/80 transition active:scale-95 flex items-center justify-center"
                     title="İptal Et / Kapat"
                   >
@@ -661,8 +669,10 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                     </div>
                   </div>
 
-                  <div className="pt-4">
-                    <button type="button" disabled={!setupForm.firstServingTeam || !setupForm.leftTeam || (isDoubles && (setupForm.t1ServerIdx === undefined || setupForm.t2ServerIdx === undefined))} onClick={handleSaveSetup} className="w-full py-4 sm:py-5 bg-gradient-to-r from-emerald-500 to-emerald-400 hover:from-emerald-400 text-slate-950 font-black text-sm sm:text-lg rounded-xl disabled:opacity-50 transition active:scale-95 shadow-xl">Kaydet ve {selectedSet}. Sete Devam Et</button>
+                  <div className="pt-4 flex gap-3">
+                    {/* MOBİL İÇİN BÜYÜK İPTAL BUTONU */}
+                    <button type="button" onClick={handleCancelSetup} className="px-5 py-4 sm:py-5 bg-slate-800 hover:bg-rose-500/20 text-slate-300 hover:text-rose-400 font-black text-sm sm:text-lg rounded-xl transition active:scale-95 shadow-md border border-slate-700">İptal</button>
+                    <button type="button" disabled={!setupForm.firstServingTeam || !setupForm.leftTeam || (isDoubles && (setupForm.t1ServerIdx === undefined || setupForm.t2ServerIdx === undefined))} onClick={handleSaveSetup} className="flex-1 py-4 sm:py-5 bg-gradient-to-r from-emerald-500 to-emerald-400 hover:from-emerald-400 text-slate-950 font-black text-sm sm:text-lg rounded-xl disabled:opacity-50 transition active:scale-95 shadow-xl">Kaydet ve Devam Et</button>
                   </div>
                 </div>
               ) : (
@@ -672,7 +682,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                   <div className="flex flex-col sm:flex-row justify-between items-center bg-slate-900 rounded-2xl px-3 sm:px-4 py-2 sm:py-3 border border-slate-800 shadow-md gap-2 shrink-0">
                     <div className="flex flex-col items-center sm:flex-row gap-2 sm:gap-3 text-[10px] sm:text-sm font-bold w-full sm:w-auto">
                       
-                      {/* MOBİL UYUMLU, GÖZ YORMAYAN ÖNCEKİ SETLER KUTUSU */}
                       <div className="flex flex-col items-center justify-center bg-slate-950 px-3.5 py-1.5 rounded-xl border border-slate-700/80 shadow-inner">
                         <span className="text-amber-400 font-extrabold text-xs sm:text-sm tracking-wider uppercase">{selectedSet}. SET</span>
                         {selectedSet > 1 && (
