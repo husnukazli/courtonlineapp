@@ -539,7 +539,6 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   };
 
-  // DÜZELTME: Bu fonksiyon artık buluttaki verileri SİLMEZ, sadece yerel cihazdaki önbelleği temizleyip buluttan GÜNCEL veriyi çeker.
   const clearLocalCacheAndResetFromCloud = async (): Promise<boolean> => {
     setCloudSyncStatus('syncing');
     try {
@@ -1062,12 +1061,14 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       .catch(e => console.error("JSON cloud import error:", e));
   };
 
+  // YENİ DÜZELTME: Dışarıdan makro skor (Oyun/Set) güncellendiğinde, içerideki puanlar SIFIRLANIR.
   const updateGameScore = (matchId: string, setIndex: 1 | 2 | 3, player: 1 | 2, delta: number) => {
     if (!matchId) return;
     setMatches((prev) => {
       const next = prev.map((m) => {
         if (m.id !== matchId) return m;
         const dState = m.detailedState || createInitialMatchState(1, m.Skor_Formati || '3 Normal Set');
+        
         if (setIndex === 1) {
           if (player === 1) dState.set1_p1 = Math.max(0, dState.set1_p1 + delta);
           else dState.set1_p2 = Math.max(0, dState.set1_p2 + delta);
@@ -1078,6 +1079,13 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           if (player === 1) dState.set3_p1 = Math.max(0, dState.set3_p1 + delta);
           else dState.set3_p2 = Math.max(0, dState.set3_p2 + delta);
         }
+
+        // Puanları (Mikro Hafızayı) Sıfırla
+        dState.gamePoint_p1 = '0';
+        dState.gamePoint_p2 = '0';
+        dState.tiebreak_p1 = 0;
+        dState.tiebreak_p2 = 0;
+
         return {
           ...m,
           detailedState: dState,
@@ -1089,6 +1097,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     });
   };
 
+  // YENİ DÜZELTME: Doğrudan manuel skor girildiğinde puanlar SIFIRLANIR.
   const setDirectSetScores = (matchId: string, s1_p1: number, s1_p2: number, s2_p1: number, s2_p2: number, s3_p1: number, s3_p2: number) => {
     if (!matchId) return;
     setMatches((prev) => {
@@ -1096,8 +1105,15 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         if (m.id !== matchId) return m;
         const dState = m.detailedState || createInitialMatchState(1, m.Skor_Formati || '3 Normal Set');
         dState.set1_p1 = s1_p1; dState.set1_p2 = s1_p2;
-        dState.set2_p1 = s2_p1; dState.set2_p2 = s1_p2;
+        dState.set2_p1 = s2_p1; dState.set2_p2 = s2_p2; // Burada eski kodda küçük bir yazım hatası (s1_p2) varmış, onu da düzelttim.
         dState.set3_p1 = s3_p1; dState.set3_p2 = s3_p2;
+        
+        // Puanları (Mikro Hafızayı) Sıfırla
+        dState.gamePoint_p1 = '0';
+        dState.gamePoint_p2 = '0';
+        dState.tiebreak_p1 = 0;
+        dState.tiebreak_p2 = 0;
+
         return {
           ...m,
           detailedState: dState,
@@ -1109,6 +1125,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     });
   };
 
+  // YENİ DÜZELTME: Düzenleme penceresinden kaydedildiğinde puanlar SIFIRLANIR.
   const saveDirectScoreAndStatus = (matchId: string, data: any) => {
     if (!matchId) return;
     setMatches((prev) => {
@@ -1118,6 +1135,13 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         dState.set1_p1 = data.s1_p1; dState.set1_p2 = data.s1_p2;
         dState.set2_p1 = data.s2_p1; dState.set2_p2 = data.s2_p2;
         dState.set3_p1 = data.s3_p1; dState.set3_p2 = data.s3_p2;
+        
+        // Puanları (Mikro Hafızayı) Sıfırla
+        dState.gamePoint_p1 = '0';
+        dState.gamePoint_p2 = '0';
+        dState.tiebreak_p1 = 0;
+        dState.tiebreak_p2 = 0;
+
         return {
           ...m,
           Durum: data.status,
