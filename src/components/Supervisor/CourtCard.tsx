@@ -93,7 +93,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
   const val3 = validateSingleSet(s3_p1, s3_p2, 3, format);
   const isCurrentSetComplete = selectedSet === 1 ? val1.isComplete : selectedSet === 2 ? val2.isComplete : val3.isComplete;
 
-  // EKSİK OLAN VE ÇÖKMEYE SEBEP OLAN FONKSİYON GERİ EKLENDİ
   const handleExitChairMode = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (window.confirm('Kule hakemi modundan çıkıp genel maç ekranına dönmek istiyor musunuz?')) setIsChairMode(false);
@@ -626,8 +625,19 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                 /* MAÇ EKRANI (ZEN MODU) */
                 <div className="flex flex-col h-full gap-2 sm:gap-4">
                   <div className="flex flex-col sm:flex-row justify-between items-center bg-slate-900 rounded-2xl px-3 sm:px-4 py-2 sm:py-3 border border-slate-800 shadow-md gap-2 shrink-0">
-                    <div className="flex flex-col items-center sm:flex-row gap-1 sm:gap-2 text-[10px] sm:text-sm font-bold w-full sm:w-auto">
-                      <span className="text-slate-400 bg-slate-950 px-2 py-1 rounded-md">{selectedSet}. Set</span>
+                    <div className="flex flex-col items-center sm:flex-row gap-2 sm:gap-3 text-[10px] sm:text-sm font-bold w-full sm:w-auto">
+                      
+                      {/* YENİ EKLENEN ÖNCEKİ SETLER BİLGİ KUTUSU */}
+                      <div className="flex flex-col items-center justify-center bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800/80">
+                        <span className="text-slate-300 tracking-wider uppercase">{selectedSet}. Set</span>
+                        {selectedSet > 1 && (
+                          <div className="flex items-center gap-2 mt-0.5 text-[9px] sm:text-[10px] font-mono">
+                            {selectedSet >= 2 && <span className="text-slate-500">S1: <span className="text-slate-300">{s1_p1}-{s1_p2}</span></span>}
+                            {selectedSet >= 3 && <span className="text-slate-500">S2: <span className="text-slate-300">{s2_p1}-{s2_p2}</span></span>}
+                          </div>
+                        )}
+                      </div>
+
                       <div className="flex items-center gap-2 w-full justify-center">
                         <span className="text-lime-400 font-extrabold truncate max-w-[90px] sm:max-w-[150px]">{String(match['Oyuncu 1'] || '')}</span>
                         <span className="text-white font-mono text-lg sm:text-2xl font-black px-3 py-1 bg-slate-950 rounded-xl border-2 border-slate-700 shadow-inner">
