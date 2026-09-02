@@ -801,130 +801,214 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     });
   };
 
-  // YENİ VE KRİTİK GÜNCELLEME: Hızlı Butonlardan Oyun Değiştirildiğinde Hayalet Puanları ve Gelecek Setleri Temizleme
+  // YEPYENİ: Hızlı butonlardan (-1, +1) müdahale edildiğinde Hayalet Bayrakları kökten temizleyen motor
   const updateGameScore = (matchId: string, setIndex: 1 | 2 | 3, player: 1 | 2, delta: number) => {
     if (!matchId) return;
     setMatches((prev) => {
+      let updatedItem: MatchItem | null = null;
       const next = prev.map((m) => {
         if (m.id !== matchId) return m;
-        const dState = m.detailedState || createInitialMatchState(1, m.Skor_Formati || '3 Normal Set');
         const format = m.Skor_Formati || '3 Normal Set';
-
+        
+        // Güvenlik: Eski state'i bozmamak için derin kopya alıyoruz
+        const dState = JSON.parse(JSON.stringify(m.detailedState || createInitialMatchState(1, format)));
+        
+        // 1. Oyun sayılarını güncelle
         if (setIndex === 1) {
           if (player === 1) dState.set1_p1 = Math.max(0, dState.set1_p1 + delta);
           else dState.set1_p2 = Math.max(0, dState.set1_p2 + delta);
-          
-          // Güvenlik: 1. Set artık bitmemişse, ileriki setleri tamamen SIFIRLA
-          const v1 = validateSingleSet(dState.set1_p1, dState.set1_p2, 1, format);
-          if (!v1.isComplete) {
-            dState.set2_p1 = 0; dState.set2_p2 = 0;
-            dState.set3_p1 = 0; dState.set3_p2 = 0;
-          }
         } else if (setIndex === 2) {
           if (player === 1) dState.set2_p1 = Math.max(0, dState.set2_p1 + delta);
           else dState.set2_p2 = Math.max(0, dState.set2_p2 + delta);
-          
-          // Güvenlik: 2. Set artık bitmemişse, 3. Seti tamamen SIFIRLA
-          const v2 = validateSingleSet(dState.set2_p1, dState.set2_p2, 2, format);
-          if (!v2.isComplete) {
-            dState.set3_p1 = 0; dState.set3_p2 = 0;
-          }
         } else if (setIndex === 3) {
           if (player === 1) dState.set3_p1 = Math.max(0, dState.set3_p1 + delta);
           else dState.set3_p2 = Math.max(0, dState.set3_p2 + delta);
         }
 
-        // Skor Geri/İleri alındığı için Mikro Hafızayı (Puanları) Sıfırla
+        // 2. HAYALET BAYRAKLARI TEMİZLEME MOTORU
+        const v1 = validateSingleSet(dState.set1_p1, dState.set1_p2, 1, format);
+        if (v1.isComplete) {
+          dState.set1_winner = v1.winner;
+        } else {
+          // Eğer 1. set bitmediyse, 2. ve 3. setlerin tüm sayılarını ve kazanan bayraklarını sil
+          dState.set1_winner = undefined;
+          dState.set2_p1 = 0; dState.set2_p2 = 0;
+          dState.set2_winner = undefined;
+          dState.set3_p1 = 0; dState.set3_p2 = 0;
+          dState.set3_winner = undefined;
+        }
+
+        const v2 = validateSingleSet(dState.set2_p1, dState.set2_p2, 2, format);
+        if (v2.isComplete) {
+          dState.set2_winner = v2.winner;
+        } else {
+           // Eğer 2. set bitmediyse, 3. setin tüm sayılarını ve kazanan bayrağını sil
+          dState.set2_winner = undefined;
+          dState.set3_p1 = 0; dState.set3_p2 = 0;
+          dState.set3_winner = undefined;
+        }
+
+        const v3 = validateSingleSet(dState.set3_p1, dState.set3_p2, 3, format);
+        if (v3.isComplete) {
+          dState.set3_winner = v3.winner;
+        } else {
+          dState.set3_winner = undefined;
+        }
+
+        // 3. Maçın Genel Bitiş Durumunu Yeniden Değerlendir
+        const matchSafetyCheck = checkMatchWinner(dState, format);
+        dState.matchEnded = matchSafetyCheck.matchEnded;
+        dState.matchWinner = matchSafetyCheck.matchWinner;
+
+        // 4. Kule Hakemi için İçerideki Tie-Break ve Puan Hafızasını Sıfırla
         dState.gamePoint_p1 = '0';
         dState.gamePoint_p2 = '0';
         dState.tiebreak_p1 = 0;
         dState.tiebreak_p2 = 0;
+        dState.isTiebreak = false;
 
-        return {
+        let newDurum = m.Durum;
+        let newKazanan = m.Kazanan;
+        // Eğer maç artık bitik değilse ama önceden Bitti olarak işaretlendiyse, maçı tekrar "Oynanıyor"a çek
+        if (!dState.matchEnded && (m.Durum === 'Bitti' || m.Durum === 'Walkover' || m.Durum === 'Retired')) {
+            newDurum = 'Oynaniyor';
+            newKazanan = 'Secilmedi';
+        }
+
+        const res: MatchItem = {
           ...m,
+          Durum: newDurum,
+          Kazanan: newKazanan,
           detailedState: dState,
           Skor: buildScoreString(dState.set1_p1, dState.set1_p2, dState.set2_p1, dState.set2_p2, dState.set3_p1, dState.set3_p2),
         };
+        updatedItem = res;
+        return res;
       });
-      broadcastAndSyncMatches(next);
+
+      if (updatedItem) broadcastAndSyncSingleMatch(updatedItem, next);
+      else broadcastAndSyncMatches(next);
       return next;
     });
   };
 
-  // YENİ VE KRİTİK GÜNCELLEME: Doğrudan manuel skor girildiğinde Hayalet Puanları Temizleme
+  // YEPYENİ: Düzenleme modundan manuel set girildiğinde Hayalet Bayrakları kökten temizleyen motor
   const setDirectSetScores = (matchId: string, s1_p1: number, s1_p2: number, s2_p1: number, s2_p2: number, s3_p1: number, s3_p2: number) => {
     if (!matchId) return;
     setMatches((prev) => {
+      let updatedItem: MatchItem | null = null;
       const next = prev.map((m) => {
         if (m.id !== matchId) return m;
-        const dState = m.detailedState || createInitialMatchState(1, m.Skor_Formati || '3 Normal Set');
         const format = m.Skor_Formati || '3 Normal Set';
+        const dState = JSON.parse(JSON.stringify(m.detailedState || createInitialMatchState(1, format)));
 
         dState.set1_p1 = s1_p1; dState.set1_p2 = s1_p2;
         const v1 = validateSingleSet(dState.set1_p1, dState.set1_p2, 1, format);
 
         if (v1.isComplete) {
+          dState.set1_winner = v1.winner;
           dState.set2_p1 = s2_p1; dState.set2_p2 = s2_p2;
           const v2 = validateSingleSet(dState.set2_p1, dState.set2_p2, 2, format);
+          
           if (v2.isComplete) {
+            dState.set2_winner = v2.winner;
             dState.set3_p1 = s3_p1; dState.set3_p2 = s3_p2;
+            const v3 = validateSingleSet(dState.set3_p1, dState.set3_p2, 3, format);
+            dState.set3_winner = v3.isComplete ? v3.winner : undefined;
           } else {
+            dState.set2_winner = undefined;
             dState.set3_p1 = 0; dState.set3_p2 = 0;
+            dState.set3_winner = undefined;
           }
         } else {
+          dState.set1_winner = undefined;
           dState.set2_p1 = 0; dState.set2_p2 = 0;
+          dState.set2_winner = undefined;
           dState.set3_p1 = 0; dState.set3_p2 = 0;
+          dState.set3_winner = undefined;
         }
-        
-        // Puanları (Mikro Hafızayı) Sıfırla
+
+        const matchSafetyCheck = checkMatchWinner(dState, format);
+        dState.matchEnded = matchSafetyCheck.matchEnded;
+        dState.matchWinner = matchSafetyCheck.matchWinner;
+
         dState.gamePoint_p1 = '0';
         dState.gamePoint_p2 = '0';
         dState.tiebreak_p1 = 0;
         dState.tiebreak_p2 = 0;
+        dState.isTiebreak = false;
 
-        return {
+        let newDurum = m.Durum;
+        let newKazanan = m.Kazanan;
+        if (!dState.matchEnded && (m.Durum === 'Bitti' || m.Durum === 'Walkover' || m.Durum === 'Retired')) {
+            newDurum = 'Oynaniyor';
+            newKazanan = 'Secilmedi';
+        }
+
+        const res: MatchItem = {
           ...m,
+          Durum: newDurum,
+          Kazanan: newKazanan,
           detailedState: dState,
           Skor: buildScoreString(dState.set1_p1, dState.set1_p2, dState.set2_p1, dState.set2_p2, dState.set3_p1, dState.set3_p2),
         };
+        updatedItem = res;
+        return res;
       });
-      broadcastAndSyncMatches(next);
+
+      if (updatedItem) broadcastAndSyncSingleMatch(updatedItem, next);
+      else broadcastAndSyncMatches(next);
       return next;
     });
   };
 
-  // YENİ VE KRİTİK GÜNCELLEME: Düzenleme (Edit) Penceresinden kaydedildiğinde Hayalet Puanları Temizleme
+  // YEPYENİ: Ana ayarlar pop-up'ından Skor kaydedildiğinde Hayalet Bayrakları kökten temizleyen motor
   const saveDirectScoreAndStatus = (matchId: string, data: any) => {
     if (!matchId) return;
     setMatches((prev) => {
+      let updatedItem: MatchItem | null = null;
       const next = prev.map((m) => {
         if (m.id !== matchId) return m;
-        const dState = m.detailedState || createInitialMatchState(1, m.Skor_Formati || '3 Normal Set');
         const format = m.Skor_Formati || '3 Normal Set';
+        const dState = JSON.parse(JSON.stringify(m.detailedState || createInitialMatchState(1, format)));
 
         dState.set1_p1 = data.s1_p1; dState.set1_p2 = data.s1_p2;
         const v1 = validateSingleSet(dState.set1_p1, dState.set1_p2, 1, format);
 
         if (v1.isComplete) {
+          dState.set1_winner = v1.winner;
           dState.set2_p1 = data.s2_p1; dState.set2_p2 = data.s2_p2;
           const v2 = validateSingleSet(dState.set2_p1, dState.set2_p2, 2, format);
+          
           if (v2.isComplete) {
+            dState.set2_winner = v2.winner;
             dState.set3_p1 = data.s3_p1; dState.set3_p2 = data.s3_p2;
+            const v3 = validateSingleSet(dState.set3_p1, dState.set3_p2, 3, format);
+            dState.set3_winner = v3.isComplete ? v3.winner : undefined;
           } else {
+            dState.set2_winner = undefined;
             dState.set3_p1 = 0; dState.set3_p2 = 0;
+            dState.set3_winner = undefined;
           }
         } else {
+          dState.set1_winner = undefined;
           dState.set2_p1 = 0; dState.set2_p2 = 0;
+          dState.set2_winner = undefined;
           dState.set3_p1 = 0; dState.set3_p2 = 0;
+          dState.set3_winner = undefined;
         }
         
-        // Puanları (Mikro Hafızayı) Sıfırla
+        const matchSafetyCheck = checkMatchWinner(dState, format);
+        dState.matchEnded = matchSafetyCheck.matchEnded;
+        dState.matchWinner = matchSafetyCheck.matchWinner;
+
         dState.gamePoint_p1 = '0';
         dState.gamePoint_p2 = '0';
         dState.tiebreak_p1 = 0;
         dState.tiebreak_p2 = 0;
+        dState.isTiebreak = false;
 
-        return {
+        const res: MatchItem = {
           ...m,
           Durum: data.status,
           Kazanan: data.winner || m.Kazanan,
@@ -933,8 +1017,12 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           detailedState: dState,
           Skor: buildScoreString(dState.set1_p1, dState.set1_p2, dState.set2_p1, dState.set2_p2, dState.set3_p1, dState.set3_p2),
         };
+        updatedItem = res;
+        return res;
       });
-      broadcastAndSyncMatches(next);
+
+      if (updatedItem) broadcastAndSyncSingleMatch(updatedItem, next);
+      else broadcastAndSyncMatches(next);
       return next;
     });
   };
