@@ -47,10 +47,12 @@ export const CourtCard: React.FC<CourtCardProps> = ({
 
   const [selectedSet, setSelectedSet] = useState<1 | 2 | 3>(1);
   const [isChairMode, setIsChairMode] = useState<boolean>(false);
+  const [isEditingSetup, setIsEditingSetup] = useState<boolean>(false);
   
   const [setupsBySet, setSetupsBySet] = useState<Record<number, ChairSetup>>({});
   const chairSetup = setupsBySet[selectedSet] || null;
   const isSetupValid = !!chairSetup;
+  const showSetupOverlay = isEditingSetup || !isSetupValid;
 
   const [setupForm, setSetupForm] = useState<{
     firstServingTeam: 1 | 2 | null; 
@@ -70,7 +72,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
   const parsed = parseScoreString(match.Skor);
   const state = match.detailedState;
   
-  // Güvenlik: Tüm string concat hatalarını önlemek için değişkenler zorla Number yapıldı.
   const s1_p1 = Number(state?.set1_p1 ?? parsed.s1_p1 ?? 0);
   const s1_p2 = Number(state?.set1_p2 ?? parsed.s1_p2 ?? 0);
   const s2_p1 = Number(state?.set2_p1 ?? parsed.s2_p1 ?? 0);
@@ -321,6 +322,8 @@ export const CourtCard: React.FC<CourtCardProps> = ({
         t2DeuceReceiverIdx: setupForm.t2RecIdx
       }
     }));
+
+    setIsEditingSetup(false);
   };
 
   useEffect(() => {
@@ -512,8 +515,19 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                {isSetupValid && (
                   <button type="button" onClick={(e) => { 
                     e.stopPropagation(); 
-                    setSetupsBySet(prev => { const next = {...prev}; delete next[selectedSet]; return next; }); 
-                  }} className="p-2 sm:px-3 sm:py-2 rounded-xl bg-slate-800 text-slate-400 hover:text-white border border-slate-700 transition flex items-center gap-1.5" title="Saha ve Servis Rotasyonunu Sıfırla">
+                    if (chairSetup) {
+                      setSetupForm({
+                        firstServingTeam: chairSetup.firstServingTeam,
+                        leftTeam: chairSetup.leftTeam,
+                        tbType: chairSetup.tbType,
+                        t1ServerIdx: chairSetup.t1ServerIdx,
+                        t2ServerIdx: chairSetup.t2ServerIdx,
+                        t1RecIdx: chairSetup.t1DeuceReceiverIdx,
+                        t2RecIdx: chairSetup.t2DeuceReceiverIdx,
+                      });
+                    }
+                    setIsEditingSetup(true); 
+                  }} className="p-2 sm:px-3 sm:py-2 rounded-xl bg-slate-800 text-slate-400 hover:text-white border border-slate-700 transition flex items-center gap-1.5" title="Saha ve Servis Rotasyonunu Düzenle">
                     <RotateCcw className="w-4 h-4" /> <span className="hidden sm:inline text-xs font-bold">Rotasyon</span>
                   </button>
                 )}
@@ -530,9 +544,27 @@ export const CourtCard: React.FC<CourtCardProps> = ({
 
           <div className="flex-1 p-2 sm:p-6 w-full max-w-5xl mx-auto flex flex-col justify-center gap-3 overflow-y-auto">
               
-              {!isSetupValid ? (
-                /* HER YENİ SETTE KARŞIYA ÇIKAN KURULUM EKRANI */
-                <div className="bg-slate-900 p-4 sm:p-6 rounded-3xl border border-slate-800 text-center space-y-4 sm:space-y-6 shadow-2xl">
+              {showSetupOverlay ? (
+                /* HER YENİ SETTE KARŞIYA ÇIKAN VEYA ROTASYONLA AÇILAN KURULUM EKRANI */
+                <div className="bg-slate-900 p-4 sm:p-6 rounded-3xl border border-slate-800 text-center space-y-4 sm:space-y-6 shadow-2xl relative animate-in fade-in zoom-in-95 duration-150">
+                  
+                  {/* SAĞ ÜST İPTAL / KAPAT (X) BUTONU */}
+                  <button 
+                    type="button" 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (isSetupValid) {
+                        setIsEditingSetup(false);
+                      } else {
+                        setIsChairMode(false);
+                      }
+                    }} 
+                    className="absolute top-4 right-4 p-2.5 rounded-xl bg-slate-800 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 border border-slate-700/80 transition active:scale-95 flex items-center justify-center"
+                    title="İptal Et / Kapat"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+
                   <div>
                     <h4 className="text-amber-400 font-black text-base sm:text-xl mb-1 sm:mb-2 flex items-center justify-center gap-2">⚙️ {selectedSet}. Set Anlık Kurulumu</h4>
                     <p className="text-[11px] sm:text-sm text-slate-400">Lütfen sahadaki <strong>ŞU ANKİ</strong> durumu seçin. Sistem geri kalanını hesaplar.</p>
@@ -627,13 +659,13 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                   <div className="flex flex-col sm:flex-row justify-between items-center bg-slate-900 rounded-2xl px-3 sm:px-4 py-2 sm:py-3 border border-slate-800 shadow-md gap-2 shrink-0">
                     <div className="flex flex-col items-center sm:flex-row gap-2 sm:gap-3 text-[10px] sm:text-sm font-bold w-full sm:w-auto">
                       
-                      {/* YENİ EKLENEN ÖNCEKİ SETLER BİLGİ KUTUSU */}
-                      <div className="flex flex-col items-center justify-center bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800/80">
-                        <span className="text-slate-300 tracking-wider uppercase">{selectedSet}. Set</span>
+                      {/* GÜNCELLENEN MOBİL OKUNABİLİR ÖNCEKİ SETLER KUTUSU */}
+                      <div className="flex flex-col items-center justify-center bg-slate-950 px-3.5 py-1.5 rounded-xl border border-slate-700/80 shadow-inner">
+                        <span className="text-amber-400 font-extrabold text-xs sm:text-sm tracking-wider uppercase">{selectedSet}. SET</span>
                         {selectedSet > 1 && (
-                          <div className="flex items-center gap-2 mt-0.5 text-[9px] sm:text-[10px] font-mono">
-                            {selectedSet >= 2 && <span className="text-slate-500">S1: <span className="text-slate-300">{s1_p1}-{s1_p2}</span></span>}
-                            {selectedSet >= 3 && <span className="text-slate-500">S2: <span className="text-slate-300">{s2_p1}-{s2_p2}</span></span>}
+                          <div className="flex items-center gap-2.5 mt-1 text-xs sm:text-sm font-mono">
+                            {selectedSet >= 2 && <span className="text-slate-300 font-bold">S1: <strong className="text-lime-300 font-black">{s1_p1}-{s1_p2}</strong></span>}
+                            {selectedSet >= 3 && <span className="text-slate-300 font-bold">S2: <strong className="text-cyan-300 font-black">{s2_p1}-{s2_p2}</strong></span>}
                           </div>
                         )}
                       </div>
