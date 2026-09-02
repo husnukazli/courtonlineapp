@@ -29,6 +29,7 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
   const [kuraKazanan, setKuraKazanan] = useState<string>('Secilmedi');
   const [kuraTercih, setKuraTercih] = useState<string>('Servis');
   const [sahaTarafi, setSahaTarafi] = useState<string>('Sandalyenin Sağı');
+  const [ilkServisiAtan, setIlkServisiAtan] = useState<string>('Secilmedi'); // YENİ: İlk servisçi hafızası
   const [baslangicSaati, setBaslangicSaati] = useState<string>('');
   const [bitisSaati, setBitisSaati] = useState<string>('');
   const [skorFormati, setSkorFormati] = useState<string>('3 Normal Set');
@@ -44,6 +45,12 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
       setKuraTercih(match.Kura_Tercih || 'Servis');
       setSahaTarafi(match.Saha_Tarafi || 'Sandalyenin Sağı');
       setSkorFormati(match.Skor_Formati || '3 Normal Set');
+
+      // YENİ: İlk servisçi veritabanından çekiliyor
+      const savedFirstServer = (match as any).ilkServisOyuncusu;
+      if (savedFirstServer === 1) setIlkServisiAtan(match['Oyuncu 1']);
+      else if (savedFirstServer === 2) setIlkServisiAtan(match['Oyuncu 2']);
+      else setIlkServisiAtan('Secilmedi');
 
       if (match.Baslangic_Saati && match.Baslangic_Saati !== 'Secilmedi') {
         setBaslangicSaati(match.Baslangic_Saati);
@@ -113,6 +120,16 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
   };
 
   const handleSaveAndStart = () => {
+    // YENİ: Servisi atacak oyuncuyu kura kurallarına göre kesin olarak hesaplayan mantık
+    let finalFirstServer = 1;
+    if (kuraTercih === 'Saha Seçimi') {
+      finalFirstServer = ilkServisiAtan === p2Name ? 2 : 1;
+    } else if (kuraKazanan === p1Name) {
+      finalFirstServer = kuraTercih === 'Servis' ? 1 : 2;
+    } else if (kuraKazanan === p2Name) {
+      finalFirstServer = kuraTercih === 'Servis' ? 2 : 1;
+    }
+
     saveMatchSetup(match.id, {
       durum: 'Oynaniyor',
       kuraKazanan,
@@ -121,12 +138,7 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
       baslangicSaati: baslangicSaati || new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),
       bitisSaati,
       skorFormati,
-      ilkServisOyuncusu:
-        kuraKazanan === p1Name
-          ? kuraTercih === 'Servis' ? 1 : 2
-          : kuraKazanan === p2Name
-          ? kuraTercih === 'Servis' ? 2 : 1
-          : 1,
+      ilkServisOyuncusu: finalFirstServer,
     });
 
     onClose();
@@ -222,7 +234,7 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
           </div>
         </div>
 
-        {/* YENİ DEV KURA AÇMA BUTONU */}
+        {/* DEV KURA AÇMA BUTONU */}
         <div className="bg-slate-950 p-4 rounded-3xl border-2 border-amber-500/40 text-center space-y-3 shadow-xl">
           <div className="flex items-center justify-between">
             <span className="text-xs font-extrabold text-amber-300 uppercase flex items-center gap-1.5">
@@ -304,6 +316,24 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
             </select>
           </div>
         </div>
+
+        {/* YENİ EKLENEN BÖLÜM: Saha Seçimi Yapılırsa Rakibin Servis Durumu Sorulur */}
+        {kuraTercih === 'Saha Seçimi' && (
+          <div className="mt-3 pt-3 border-t border-slate-800 animate-in fade-in text-left">
+            <label className="text-[10px] font-extrabold uppercase text-lime-400 block mb-1.5">
+              Rakip Ne Seçti? (İlk Servisi Atacak Oyuncu/Takım)
+            </label>
+            <select
+              value={ilkServisiAtan}
+              onChange={(e) => setIlkServisiAtan(e.target.value)}
+              className="w-full bg-slate-900 border border-lime-500/50 rounded-xl px-3 py-2 text-xs text-white font-bold focus:border-lime-400 shadow-inner"
+            >
+              <option value="Secilmedi">Seçilmedi</option>
+              <option value={p1Name}>{p1Name} (O1)</option>
+              <option value={p2Name}>{p2Name} (O2)</option>
+            </select>
+          </div>
+        )}
 
         {/* Başlangıç Saati */}
         <div className="bg-slate-950/80 p-3.5 rounded-2xl border border-slate-800 space-y-2">
