@@ -14,6 +14,10 @@ const mDoc  = (tid: string, mid: string) => doc(db, 'tournaments', tid, 'matches
 // Süper admin koleksiyonu
 const superAdminDoc = () => doc(db, 'superAdmin', 'config');  
 
+// ─── YENİ: Geri Sarma (Bouncing) Koruması İçin Yerel Yazma Kilitleri ─────────
+// Hakem peş peşe butona bastığında, gecikmeli gelen eski bulut verisinin ekranı ezmesini engeller.
+const localWriteLocks: Record<string, number> = {};
+
 // ─── Tipler ─────────────────────────────────────────────────────────────────
 export interface CloudTournamentMetadata {  
   referees?: RefereeUser[];  
@@ -196,13 +200,29 @@ export const subscribeToCloudTournament = (
 
   const unsubMatches = onSnapshot(    
     mCol(tournamentId),    
+    { includeMetadataChanges: true }, // GÜNCELLEME: Çevrimdışı ve yerel yazma durumlarını yakalamak için açıldı
     (snap: QuerySnapshot<DocumentData>) => {      
       isApplyingRemoteChange = true;      
       const changed: MatchItem[] = [];      
+      
       snap.docChanges().forEach((change: DocumentChange<DocumentData>) => {        
         if (change.type === 'added' || change.type === 'modified') {          
-          changed.push({ id: change.doc.id, ...change.doc.data() } as MatchItem);        
-        }      });      
+          const matchId = change.doc.id;
+          // KİLİT KONTROLÜ: Eğer biz bu maça son 2 saniye içinde skor girdiysek, bu bir "yeni yazma" işlemidir.
+          const isRecentlyWrittenLocally = Date.now() - (localWriteLocks[matchId] || 0) < 2000;
+          // Verinin buluttan mı geldiği, yoksa telefondaki ara bellekten mi geldiği hasPendingWrites ile anlaşılır
+          const isRemoteData = !change.doc.metadata.hasPendingWrites;
+
+          // Eğer hakem peş peşe butona bastıysa ve bu sırada buluttan gecikmeli olarak "ESKİ" skor geldiyse
+          // o eski skoru yoksay ve ekrandaki skoru ezmesini (geri sarmasını) engelle!
+          if (isRecentlyWrittenLocally && isRemoteData) {
+            return;
+          }
+
+          changed.push({ id: matchId, ...change.doc.data() } as MatchItem);        
+        }      
+      });      
+      
       if (changed.length > 0) onMatchesUpdate(changed);      
       setTimeout(() => { isApplyingRemoteChange = false; }, 150);    },    
     (err: FirestoreError) => { if (onError) onError(err); }  
@@ -220,6 +240,9 @@ export const pushSingleMatchToCloud = async (
 ): Promise<boolean> => {  
   if (!match || !match.id) return false;  
   try {    
+    // GÜNCELLEME: Hakem butona bastığı an bu maç için 2 saniyelik bir koruma kalkanı oluşturulur.
+    localWriteLocks[match.id] = Date.now();
+
     await setDoc(mDoc(tournamentId, match.id), { ...match, Son_Guncelleme: new Date().toISOString() }, { merge: true });    
     updateDoc(tDoc(tournamentId), { lastUpdated: new Date().toISOString(), updatedBy: author }).catch(() => {});    
     return true;  
@@ -240,6 +263,10 @@ export const pushAllMatchesToCloud = async (
       const batch = writeBatch(db);      
       matches.slice(i, i + CHUNK).forEach(m => {        
         if (!m.id) return;        
+        
+        // GÜNCELLEME: Toplu yazmalarda da kilit oluşturulur
+        localWriteLocks[m.id] = Date.now();
+        
         batch.set(mDoc(tournamentId, m.id), { ...m, Son_Guncelleme: new Date().toISOString() }, { merge: true });      
       });      
       await batch.commit();    
@@ -371,4 +398,4 @@ export const purgeOrphanMatchesFromCloud = async (
     console.error('purgeOrphanMatchesFromCloud hata:', e);    
     return 0;  
   }
-};  
+};
