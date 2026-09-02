@@ -59,7 +59,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
   
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   
-  // 3. Set Uyarı Ekranı State'i ve Önceki Set Hafızası
   const prevSetRef = useRef<number>(1);
   const [thirdSetWarning, setThirdSetWarning] = useState<{show: boolean, text: string}>({show: false, text: ''});
 
@@ -145,19 +144,40 @@ export const CourtCard: React.FC<CourtCardProps> = ({
     };
   }, [isChairMode]);
 
-  // Set Geçişlerini Otomatik Algılama
+  // GÜNCELLENDİ: Set Geçişlerini Otomatik Algılama (Sadece set bittiğinde/bozulduğunda tetiklenir)
   useEffect(() => {
     if (isLive) {
       let activeSet: 1 | 2 | 3 = 1;
-      if (val1.isComplete && !val2.isComplete) activeSet = 2;
-      else if (val1.isComplete && val2.isComplete && val1.winner !== val2.winner) activeSet = 3;
-      else if (s3_p1 > 0 || s3_p2 > 0) activeSet = 3;
-      else if (s2_p1 > 0 || s2_p2 > 0) activeSet = 2;
+      if (val1.isComplete) {
+        activeSet = 2;
+        if (val2.isComplete && val1.winner !== val2.winner) {
+          activeSet = 3;
+        }
+      }
       setSelectedSet(activeSet);
     }
-  }, [match.Skor, match.detailedState, isLive, format, s1_p1, s1_p2, s2_p1, s2_p2, s3_p1, s3_p2, val1.isComplete, val2.isComplete, val1.winner]);
+  }, [val1.isComplete, val2.isComplete, val1.winner, isLive]);
 
-  // GÜNCELLENEN: 3. Sete Geçildiğinde Format Uyarısı (Tüm modlarda çalışır)
+  // YENİ EKLENDİ: Geriye dönük düzeltmelerde (Örn: -1 yapıp 1. Sete dönüldüğünde) ileriki bozuk kurulumları temizle
+  useEffect(() => {
+    setSetupsBySet(prev => {
+      const next = { ...prev };
+      let changed = false;
+      
+      // Eğer 1. Set artık bitmemiş durumdaysa, 2. ve 3. setlerin kurulum hafızasını sil
+      if (!val1.isComplete) {
+        if (next[2]) { delete next[2]; changed = true; }
+        if (next[3]) { delete next[3]; changed = true; }
+      } 
+      // Eğer 2. Set artık bitmemiş durumdaysa, 3. setin kurulum hafızasını sil
+      else if (!val2.isComplete) {
+        if (next[3]) { delete next[3]; changed = true; }
+      }
+      
+      return changed ? next : prev;
+    });
+  }, [val1.isComplete, val2.isComplete]);
+
   useEffect(() => {
     if (selectedSet === 3 && prevSetRef.current !== 3) {
       let msg = "3. Set NORMAL SET olarak planlanmıştır.";
@@ -170,9 +190,8 @@ export const CourtCard: React.FC<CourtCardProps> = ({
       }
 
       setThirdSetWarning({ show: true, text: msg });
-      vibrateDevice([100, 50, 100]); // Dikkat çekici çift titreşim
+      vibrateDevice([100, 50, 100]); 
 
-      // Uyarıyı 6 saniye sonra otomatik kapat
       const timer = setTimeout(() => {
         setThirdSetWarning(prev => ({ ...prev, show: false }));
       }, 6000);
@@ -464,7 +483,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
 
   return (
     <>
-      {/* 3. SET UYARISI - HER İKİ MOD İÇİN ORTAK (EN ÜST KATMAN) */}
+      {/* 3. SET UYARISI - HER İKİ MOD İÇİN ORTAK */}
       {thirdSetWarning.show && (
         <div className="fixed inset-0 z-[100000] bg-slate-950/95 flex flex-col items-center justify-center p-6 animate-in fade-in zoom-in duration-300" style={{ touchAction: 'none' }}>
           <div className="bg-slate-900 border-4 border-amber-500 rounded-3xl p-6 sm:p-8 w-full max-w-lg text-center shadow-[0_0_80px_rgba(245,158,11,0.2)]">
@@ -557,11 +576,11 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="flex flex-col gap-1.5">
-                    <button type="button" disabled={isPaused || isFinished || isCurrentSetComplete} onClick={(e) => handleQuickScore(e, 1, 1)} className="w-full py-3 rounded-xl bg-lime-400 hover:bg-lime-300 text-slate-950 font-black text-sm flex items-center justify-center gap-1 transition disabled:opacity-50 disabled:cursor-not-allowed"><Plus className="w-5 h-5" />+1 OYUN</button>
+                    <button type="button" disabled={isPaused || isFinished || (isCurrentSetComplete && selectedSet !== 3)} onClick={(e) => handleQuickScore(e, 1, 1)} className="w-full py-3 rounded-xl bg-lime-400 hover:bg-lime-300 text-slate-950 font-black text-sm flex items-center justify-center gap-1 transition disabled:opacity-50 disabled:cursor-not-allowed"><Plus className="w-5 h-5" />+1 OYUN</button>
                     <button type="button" disabled={isPaused} onClick={(e) => handleQuickScore(e, 1, -1)} className="w-full py-2 rounded-xl bg-rose-500/10 text-rose-400 font-bold text-xs flex items-center justify-center gap-1 transition disabled:opacity-50"><Minus className="w-4 h-4" />-1 Düş</button>
                   </div>
                   <div className="flex flex-col gap-1.5">
-                    <button type="button" disabled={isPaused || isFinished || isCurrentSetComplete} onClick={(e) => handleQuickScore(e, 2, 1)} className="w-full py-3 rounded-xl bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-black text-sm flex items-center justify-center gap-1 transition disabled:opacity-50 disabled:cursor-not-allowed"><Plus className="w-5 h-5" />+1 OYUN</button>
+                    <button type="button" disabled={isPaused || isFinished || (isCurrentSetComplete && selectedSet !== 3)} onClick={(e) => handleQuickScore(e, 2, 1)} className="w-full py-3 rounded-xl bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-black text-sm flex items-center justify-center gap-1 transition disabled:opacity-50 disabled:cursor-not-allowed"><Plus className="w-5 h-5" />+1 OYUN</button>
                     <button type="button" disabled={isPaused} onClick={(e) => handleQuickScore(e, 2, -1)} className="w-full py-2 rounded-xl bg-rose-500/10 text-cyan-400 font-bold text-xs flex items-center justify-center gap-1 transition disabled:opacity-50"><Minus className="w-4 h-4" />-1 Düş</button>
                   </div>
                 </div>
