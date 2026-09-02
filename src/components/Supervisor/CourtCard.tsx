@@ -41,7 +41,6 @@ type ChairSetup = {
 // Titreşim (Haptic Feedback) Yardımcısı
 const vibrateDevice = (pattern: number | number[] = 50) => {
   if (typeof navigator !== 'undefined' && navigator.vibrate) {
-    // Tarayıcı destekliyorsa kısa bir titreşim gönder
     navigator.vibrate(pattern);
   }
 };
@@ -58,9 +57,12 @@ export const CourtCard: React.FC<CourtCardProps> = ({
   const [isChairMode, setIsChairMode] = useState<boolean>(false);
   const [isEditingSetup, setIsEditingSetup] = useState<boolean>(false);
   
-  // YENİ: Ayarlar butonu için ekranda beliren geçici mesaj durumu
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   
+  // YENİ: 3. Set Uyarı Ekranı State'i ve Önceki Set Hafızası
+  const prevSetRef = useRef<number>(1);
+  const [thirdSetWarning, setThirdSetWarning] = useState<{show: boolean, text: string}>({show: false, text: ''});
+
   const [setupsBySet, setSetupsBySet] = useState<Record<number, ChairSetup>>({});
   const chairSetup = setupsBySet[selectedSet] || null;
   const isSetupValid = !!chairSetup;
@@ -108,9 +110,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
-    setTimeout(() => {
-      setToastMessage(null);
-    }, 3000);
+    setTimeout(() => setToastMessage(null), 3000);
   };
 
   const handleExitChairMode = (e: React.MouseEvent) => {
@@ -145,6 +145,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
     };
   }, [isChairMode]);
 
+  // Set Geçişlerini Otomatik Algılama
   useEffect(() => {
     if (isLive) {
       let activeSet: 1 | 2 | 3 = 1;
@@ -155,6 +156,32 @@ export const CourtCard: React.FC<CourtCardProps> = ({
       setSelectedSet(activeSet);
     }
   }, [match.Skor, match.detailedState, isLive, format, s1_p1, s1_p2, s2_p1, s2_p2, s3_p1, s3_p2, val1.isComplete, val2.isComplete, val1.winner]);
+
+  // YENİ: 3. Sete Geçildiğinde Format Uyarısı Çıkarma
+  useEffect(() => {
+    if (selectedSet === 3 && prevSetRef.current !== 3 && isChairMode) {
+      let msg = "3. Set NORMAL SET olarak planlanmıştır.";
+      if (format.includes('10 Puanlık')) {
+        msg = "3. Set 10 PUANLIK MAÇ TİE-BREAK olarak planlanmıştır.";
+      } else if (format.includes('7 Puanlık')) {
+        msg = "3. Set 7 PUANLIK MAÇ TİE-BREAK olarak planlanmıştır.";
+      } else if (format.includes('3 Kısa Set')) {
+        msg = "3. Set KISA SET olarak planlanmıştır.";
+      }
+
+      setThirdSetWarning({ show: true, text: msg });
+      vibrateDevice([100, 50, 100]); // Dikkat çekici çift titreşim
+
+      // Uyarıyı 6 saniye sonra otomatik kapat
+      const timer = setTimeout(() => {
+        setThirdSetWarning(prev => ({ ...prev, show: false }));
+      }, 6000);
+
+      prevSetRef.current = selectedSet;
+      return () => clearTimeout(timer);
+    }
+    prevSetRef.current = selectedSet;
+  }, [selectedSet, isChairMode, format]);
 
   useEffect(() => {
     if (!isDoubles && selectedSet > 1 && !setupsBySet[selectedSet] && setupsBySet[selectedSet - 1]) {
@@ -381,7 +408,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
     const now = Date.now();
     if (now - lastScoreClickRef.current < 400) return; 
     lastScoreClickRef.current = now;
-    vibrateDevice(40); // TITREŞİM EKLENDİ
+    vibrateDevice(40); 
     updateGameScore(match.id, selectedSet, player, delta);
   };
 
@@ -390,14 +417,14 @@ export const CourtCard: React.FC<CourtCardProps> = ({
     const now = Date.now();
     if (now - lastScoreClickRef.current < 400) return; 
     lastScoreClickRef.current = now;
-    vibrateDevice(50); // TITREŞİM EKLENDİ
+    vibrateDevice(50); 
     setFirstFault(false); 
     awardPointToMatch(match.id, teamId, 'NORMAL'); 
   };
 
   const handleFault = (e: React.MouseEvent, serverTeamId: 1 | 2) => {
     e.stopPropagation();
-    vibrateDevice(50); // TITREŞİM EKLENDİ
+    vibrateDevice(50); 
     if (!firstFault) setFirstFault(true);
     else {
       const receiverTeamId = serverTeamId === 1 ? 2 : 1;
@@ -408,7 +435,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
 
   const handleUndo = (e: React.MouseEvent) => {
     e.stopPropagation();
-    vibrateDevice(60); // TITREŞİM EKLENDİ
+    vibrateDevice(60); 
     setFirstFault(false); 
     undoLastPoint(match.id);
   };
@@ -546,9 +573,30 @@ export const CourtCard: React.FC<CourtCardProps> = ({
       {isChairMode && (
         <div className="fixed inset-0 z-[100] bg-slate-950 flex flex-col animate-in fade-in zoom-in-95 duration-200 select-none" style={{ touchAction: 'none' }}>
           
-          {/* YENİ EKLENEN: Ayarlar Butonu Bilgi Balonu (Toast) */}
+          {/* YENİ EKLENEN: 3. SET BAŞLANGIÇ UYARI EKRANI (EN ÜSTTE) */}
+          {thirdSetWarning.show && (
+            <div className="absolute inset-0 z-[100000] bg-slate-950/95 flex flex-col items-center justify-center p-6 animate-in fade-in zoom-in duration-300">
+              <div className="bg-slate-900 border-4 border-amber-500 rounded-3xl p-8 w-full max-w-lg text-center shadow-[0_0_80px_rgba(245,158,11,0.2)]">
+                <span className="text-7xl mb-4 block animate-bounce">⚠️</span>
+                <h2 className="text-3xl sm:text-4xl font-black text-amber-400 uppercase tracking-widest mb-4">3. SETE GEÇİLİYOR</h2>
+                <p className="text-lg sm:text-xl text-white font-bold mb-2">Lütfen planlanan maça formatına dikkat ediniz:</p>
+                <div className="bg-amber-500/20 border border-amber-500/50 rounded-2xl p-5 my-6 shadow-inner">
+                  <span className="text-xl sm:text-2xl font-black text-amber-300">{thirdSetWarning.text}</span>
+                </div>
+                <p className="text-sm text-slate-400 mb-8 font-medium px-4">Yanlışlık olduğunu düşünüyorsanız, sağ üstteki Ayarlar (⚙️) menüsünden formatı düzeltebilirsiniz.</p>
+                <button 
+                  onClick={(e) => { e.stopPropagation(); setThirdSetWarning({show: false, text: ''}); }}
+                  className="w-full py-5 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black text-lg sm:text-xl rounded-2xl shadow-xl transition active:scale-95"
+                >
+                  Anladım, Maça Dön
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Ayarlar Butonu Bilgi Balonu (Toast) */}
           {toastMessage && (
-            <div className="absolute top-16 left-1/2 -translate-x-1/2 z-[100000] bg-slate-800 text-white px-5 py-3 rounded-2xl border border-slate-700 shadow-2xl animate-in fade-in slide-in-from-top-4 flex items-center gap-3">
+            <div className="absolute top-16 left-1/2 -translate-x-1/2 z-[50000] bg-slate-800 text-white px-5 py-3 rounded-2xl border border-slate-700 shadow-2xl animate-in fade-in slide-in-from-top-4 flex items-center gap-3">
               <Info className="w-5 h-5 text-amber-400 shrink-0" />
               <span className="font-bold text-[11px] sm:text-sm">{toastMessage}</span>
             </div>
@@ -585,7 +633,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                     <RotateCcw className="w-4 h-4" /> <span className="hidden sm:inline text-xs font-bold">Rotasyon</span>
                   </button>
                 )}
-                {/* GÜNCELLENEN: Ayarlar Butonu (Arkada açar ve 3 saniyelik uyarı gösterir) */}
                 {onOpenSetup && (
                   <button type="button" onClick={(e) => { 
                     e.stopPropagation(); 
@@ -604,7 +651,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
           <div className="flex-1 p-2 sm:p-6 w-full max-w-5xl mx-auto flex flex-col justify-center gap-3 overflow-y-auto">
               
               {showSetupOverlay ? (
-                /* HER YENİ SETTE KARŞIYA ÇIKAN VEYA ROTASYONLA AÇILAN KURULUM EKRANI */
                 <div className="bg-slate-900 p-4 sm:p-6 rounded-3xl border border-slate-800 text-center space-y-4 sm:space-y-6 shadow-2xl relative animate-in fade-in zoom-in-95 duration-150">
                   
                   <button 
@@ -706,7 +752,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                 </div>
               ) : (
                 
-                /* MAÇ EKRANI (ZEN MODU) */
                 <div className="flex flex-col h-full gap-2 sm:gap-4">
                   <div className="flex flex-col sm:flex-row justify-between items-center bg-slate-900 rounded-2xl px-3 sm:px-4 py-2 sm:py-3 border border-slate-800 shadow-md gap-2 shrink-0">
                     <div className="flex flex-col items-center sm:flex-row gap-2 sm:gap-3 text-[10px] sm:text-sm font-bold w-full sm:w-auto">
