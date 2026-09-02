@@ -16,7 +16,8 @@ import {
   X,
   ArrowRightLeft,
   Settings,
-  LogOut
+  LogOut,
+  Info
 } from 'lucide-react';
 
 interface CourtCardProps {
@@ -37,6 +38,14 @@ type ChairSetup = {
   t2DeuceReceiverIdx: 0 | 1;
 };
 
+// Titreşim (Haptic Feedback) Yardımcısı
+const vibrateDevice = (pattern: number | number[] = 50) => {
+  if (typeof navigator !== 'undefined' && navigator.vibrate) {
+    // Tarayıcı destekliyorsa kısa bir titreşim gönder
+    navigator.vibrate(pattern);
+  }
+};
+
 export const CourtCard: React.FC<CourtCardProps> = ({
   match,
   onFinishMatch,
@@ -48,6 +57,9 @@ export const CourtCard: React.FC<CourtCardProps> = ({
   const [selectedSet, setSelectedSet] = useState<1 | 2 | 3>(1);
   const [isChairMode, setIsChairMode] = useState<boolean>(false);
   const [isEditingSetup, setIsEditingSetup] = useState<boolean>(false);
+  
+  // YENİ: Ayarlar butonu için ekranda beliren geçici mesaj durumu
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
   
   const [setupsBySet, setSetupsBySet] = useState<Record<number, ChairSetup>>({});
   const chairSetup = setupsBySet[selectedSet] || null;
@@ -94,6 +106,13 @@ export const CourtCard: React.FC<CourtCardProps> = ({
   const val3 = validateSingleSet(s3_p1, s3_p2, 3, format);
   const isCurrentSetComplete = selectedSet === 1 ? val1.isComplete : selectedSet === 2 ? val2.isComplete : val3.isComplete;
 
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => {
+      setToastMessage(null);
+    }, 3000);
+  };
+
   const handleExitChairMode = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (window.confirm('Kule hakemi modundan çıkıp genel maç ekranına dönmek istiyor musunuz?')) setIsChairMode(false);
@@ -137,7 +156,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
     }
   }, [match.Skor, match.detailedState, isLive, format, s1_p1, s1_p2, s2_p1, s2_p2, s3_p1, s3_p2, val1.isComplete, val2.isComplete, val1.winner]);
 
-  // Tekler için otomatik sonraki set kurulumu
   useEffect(() => {
     if (!isDoubles && selectedSet > 1 && !setupsBySet[selectedSet] && setupsBySet[selectedSet - 1]) {
       const prevSet = selectedSet - 1;
@@ -275,15 +293,11 @@ export const CourtCard: React.FC<CourtCardProps> = ({
   const leftTeamId = computedLeftTeam;
   const rightTeamId = computedLeftTeam === 1 ? 2 : 1;
 
-  // YENİ EKLENEN FONKSİYON: Kurulumu İptal Et / Kapat
   const handleCancelSetup = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (isSetupValid) {
-      // Sadece rotasyonu görüntülüyorduk/düzenliyorduk, ayarı kapat.
       setIsEditingSetup(false);
     } else {
-      // Geçersiz bir set ekranındayız (örn. yanlışlıkla 2. Sete basılmış).
-      // Eğer bir önceki setin kurulumu geçerliyse ona geri dön. Değilse Kule Hakeminden çık.
       if (selectedSet > 1 && setupsBySet[selectedSet - 1]) {
         setSelectedSet((selectedSet - 1) as 1 | 2 | 3);
       } else {
@@ -367,6 +381,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
     const now = Date.now();
     if (now - lastScoreClickRef.current < 400) return; 
     lastScoreClickRef.current = now;
+    vibrateDevice(40); // TITREŞİM EKLENDİ
     updateGameScore(match.id, selectedSet, player, delta);
   };
 
@@ -375,12 +390,14 @@ export const CourtCard: React.FC<CourtCardProps> = ({
     const now = Date.now();
     if (now - lastScoreClickRef.current < 400) return; 
     lastScoreClickRef.current = now;
+    vibrateDevice(50); // TITREŞİM EKLENDİ
     setFirstFault(false); 
     awardPointToMatch(match.id, teamId, 'NORMAL'); 
   };
 
   const handleFault = (e: React.MouseEvent, serverTeamId: 1 | 2) => {
     e.stopPropagation();
+    vibrateDevice(50); // TITREŞİM EKLENDİ
     if (!firstFault) setFirstFault(true);
     else {
       const receiverTeamId = serverTeamId === 1 ? 2 : 1;
@@ -391,6 +408,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
 
   const handleUndo = (e: React.MouseEvent) => {
     e.stopPropagation();
+    vibrateDevice(60); // TITREŞİM EKLENDİ
     setFirstFault(false); 
     undoLastPoint(match.id);
   };
@@ -528,6 +546,14 @@ export const CourtCard: React.FC<CourtCardProps> = ({
       {isChairMode && (
         <div className="fixed inset-0 z-[100] bg-slate-950 flex flex-col animate-in fade-in zoom-in-95 duration-200 select-none" style={{ touchAction: 'none' }}>
           
+          {/* YENİ EKLENEN: Ayarlar Butonu Bilgi Balonu (Toast) */}
+          {toastMessage && (
+            <div className="absolute top-16 left-1/2 -translate-x-1/2 z-[100000] bg-slate-800 text-white px-5 py-3 rounded-2xl border border-slate-700 shadow-2xl animate-in fade-in slide-in-from-top-4 flex items-center gap-3">
+              <Info className="w-5 h-5 text-amber-400 shrink-0" />
+              <span className="font-bold text-[11px] sm:text-sm">{toastMessage}</span>
+            </div>
+          )}
+
           <div className="bg-slate-900 border-b border-slate-800 px-3 sm:px-4 py-3 flex items-center justify-between shadow-md shrink-0">
             <div className="flex items-center gap-2 sm:gap-3">
               <span className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center font-black text-xs sm:text-sm bg-emerald-400 text-slate-950 shadow-md shadow-emerald-400/30 shrink-0">
@@ -559,8 +585,13 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                     <RotateCcw className="w-4 h-4" /> <span className="hidden sm:inline text-xs font-bold">Rotasyon</span>
                   </button>
                 )}
+                {/* GÜNCELLENEN: Ayarlar Butonu (Arkada açar ve 3 saniyelik uyarı gösterir) */}
                 {onOpenSetup && (
-                  <button type="button" onClick={(e) => { e.stopPropagation(); onOpenSetup(match); }} className="p-2 sm:px-3 sm:py-2 rounded-xl bg-amber-500/20 text-amber-400 hover:bg-amber-500 hover:text-slate-950 border border-amber-500/30 transition flex items-center gap-1.5" title="Maç Formatı ve Kura Ayarları">
+                  <button type="button" onClick={(e) => { 
+                    e.stopPropagation(); 
+                    onOpenSetup(match); 
+                    showToast('Ayarlara geçmek için lütfen Kule Hakemi modundan çıkış yapınız.');
+                  }} className="p-2 sm:px-3 sm:py-2 rounded-xl bg-amber-500/20 text-amber-400 hover:bg-amber-500 hover:text-slate-950 border border-amber-500/30 transition flex items-center gap-1.5" title="Maç Formatı ve Kura Ayarları">
                     <Settings className="w-4 h-4" /> <span className="hidden sm:inline text-xs font-bold">Kurulum</span>
                   </button>
                 )}
@@ -576,7 +607,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                 /* HER YENİ SETTE KARŞIYA ÇIKAN VEYA ROTASYONLA AÇILAN KURULUM EKRANI */
                 <div className="bg-slate-900 p-4 sm:p-6 rounded-3xl border border-slate-800 text-center space-y-4 sm:space-y-6 shadow-2xl relative animate-in fade-in zoom-in-95 duration-150">
                   
-                  {/* SAĞ ÜST İPTAL / KAPAT (X) BUTONU */}
                   <button 
                     type="button" 
                     onClick={handleCancelSetup} 
@@ -670,7 +700,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                   </div>
 
                   <div className="pt-4 flex gap-3">
-                    {/* MOBİL İÇİN BÜYÜK İPTAL BUTONU */}
                     <button type="button" onClick={handleCancelSetup} className="px-5 py-4 sm:py-5 bg-slate-800 hover:bg-rose-500/20 text-slate-300 hover:text-rose-400 font-black text-sm sm:text-lg rounded-xl transition active:scale-95 shadow-md border border-slate-700">İptal</button>
                     <button type="button" disabled={!setupForm.firstServingTeam || !setupForm.leftTeam || (isDoubles && (setupForm.t1ServerIdx === undefined || setupForm.t2ServerIdx === undefined))} onClick={handleSaveSetup} className="flex-1 py-4 sm:py-5 bg-gradient-to-r from-emerald-500 to-emerald-400 hover:from-emerald-400 text-slate-950 font-black text-sm sm:text-lg rounded-xl disabled:opacity-50 transition active:scale-95 shadow-xl">Kaydet ve Devam Et</button>
                   </div>
