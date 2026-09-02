@@ -70,7 +70,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
   const parsed = parseScoreString(match.Skor);
   const state = match.detailedState;
   
-  // GÜNCELLEME: Tüm string concat hatalarını önlemek için değişkenler zorla Number yapıldı.
+  // Güvenlik: Tüm string concat hatalarını önlemek için değişkenler zorla Number yapıldı.
   const s1_p1 = Number(state?.set1_p1 ?? parsed.s1_p1 ?? 0);
   const s1_p2 = Number(state?.set1_p2 ?? parsed.s1_p2 ?? 0);
   const s2_p1 = Number(state?.set2_p1 ?? parsed.s2_p1 ?? 0);
@@ -92,6 +92,12 @@ export const CourtCard: React.FC<CourtCardProps> = ({
   const val2 = validateSingleSet(s2_p1, s2_p2, 2, format);
   const val3 = validateSingleSet(s3_p1, s3_p2, 3, format);
   const isCurrentSetComplete = selectedSet === 1 ? val1.isComplete : selectedSet === 2 ? val2.isComplete : val3.isComplete;
+
+  // EKSİK OLAN VE ÇÖKMEYE SEBEP OLAN FONKSİYON GERİ EKLENDİ
+  const handleExitChairMode = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (window.confirm('Kule hakemi modundan çıkıp genel maç ekranına dönmek istiyor musunuz?')) setIsChairMode(false);
+  };
 
   useEffect(() => {
     const handlePopState = () => {
@@ -131,6 +137,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
     }
   }, [match.Skor, match.detailedState, isLive, format, s1_p1, s1_p2, s2_p1, s2_p2, s3_p1, s3_p2, val1.isComplete, val2.isComplete, val1.winner]);
 
+  // Tekler için otomatik sonraki set kurulumu
   useEffect(() => {
     if (!isDoubles && selectedSet > 1 && !setupsBySet[selectedSet] && setupsBySet[selectedSet - 1]) {
       const prevSet = selectedSet - 1;
@@ -138,7 +145,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
       
       const prevS1 = prevSet === 1 ? s1_p1 : prevSet === 2 ? s2_p1 : s3_p1;
       const prevS2 = prevSet === 1 ? s1_p2 : prevSet === 2 ? s2_p2 : s3_p2;
-      const totalGamesPrevSet = prevS1 + prevS2; // Artık matematiksel olarak kesin doğru
+      const totalGamesPrevSet = prevS1 + prevS2;
       
       if (totalGamesPrevSet > 0) {
         const nextServerTeam = totalGamesPrevSet % 2 === 0 ? prevSetup.firstServingTeam : (prevSetup.firstServingTeam === 1 ? 2 : 1);
@@ -181,8 +188,8 @@ export const CourtCard: React.FC<CourtCardProps> = ({
       if (str === 'A') return 4;
       return 0;
     };
-    const p1Pts = parsePoint(state?.gamePoint_p1 || '0');
-    const p2Pts = parsePoint(state?.gamePoint_p2 || '0');
+    const p1Pts = parsePoint(String(state?.gamePoint_p1 || '0'));
+    const p2Pts = parsePoint(String(state?.gamePoint_p2 || '0'));
     
     let isDeuceCourt = true;
     if (isTB) isDeuceCourt = tbPoints % 2 === 0;
