@@ -167,6 +167,15 @@ export const CourtCard: React.FC<CourtCardProps> = ({
     }
   }, [selectedSet, isDoubles, setupsBySet, s1_p1, s1_p2, s2_p1, s2_p2, s3_p1, s3_p2]);
 
+  // YENİ: Maça ortadan girildiğinde (örn 3-2) buluttaki güncel veriye bakıp servisçiyi otomatik seçer
+  useEffect(() => {
+    if (showSetupOverlay && !isEditingSetup && setupForm.firstServingTeam === null) {
+      if (state?.currentServer === 1 || state?.currentServer === 2) {
+        setSetupForm(prev => ({ ...prev, firstServingTeam: state.currentServer as 1 | 2 }));
+      }
+    }
+  }, [showSetupOverlay, isEditingSetup, state?.currentServer]);
+
   const currentSetGames = selectedSet === 1 ? s1_p1 + s1_p2 : selectedSet === 2 ? s2_p1 + s2_p2 : s3_p1 + s3_p2;
   const isTB = state?.isTiebreak || false;
   const tbPoints = isTB ? Number(state?.tiebreak_p1 || 0) + Number(state?.tiebreak_p2 || 0) : 0;
@@ -176,6 +185,8 @@ export const CourtCard: React.FC<CourtCardProps> = ({
   let activeServerName = '';
   let activeReceiverName = '';
   let isSideChangePoint = false;
+  let currentT1ServerIdx: 0 | 1 = 0;
+  let currentT2ServerIdx: 0 | 1 = 0;
 
   if (isSetupValid) {
     const isComan = chairSetup.tbType === 'coman';
@@ -202,12 +213,12 @@ export const CourtCard: React.FC<CourtCardProps> = ({
       
       if (isDoubles) {
         const teamServiceRounds = Math.floor(currentSetGames / 2);
+        currentT1ServerIdx = (chairSetup.t1ServerIdx + teamServiceRounds) % 2 as 0 | 1;
+        currentT2ServerIdx = (chairSetup.t2ServerIdx + teamServiceRounds) % 2 as 0 | 1;
         if (computedServerTeam === 1) {
-          const activeIdx = (chairSetup.t1ServerIdx + teamServiceRounds) % 2;
-          activeServerName = t1Players[activeIdx] || t1Players[0];
+          activeServerName = t1Players[currentT1ServerIdx] || t1Players[0];
         } else {
-          const activeIdx = (chairSetup.t2ServerIdx + teamServiceRounds) % 2;
-          activeServerName = t2Players[activeIdx] || t2Players[0];
+          activeServerName = t2Players[currentT2ServerIdx] || t2Players[0];
         }
       } else {
         activeServerName = match[`Oyuncu ${computedServerTeam}` as keyof MatchItem];
@@ -239,12 +250,13 @@ export const CourtCard: React.FC<CourtCardProps> = ({
         const tbTeamBlocksT1 = Math.floor((tbPoints + (tbGameServerTeam === 1 ? 3 : 1)) / 4);
         const tbTeamBlocksT2 = Math.floor((tbPoints + (tbGameServerTeam === 2 ? 3 : 1)) / 4);
         
+        currentT1ServerIdx = (chairSetup.t1ServerIdx + teamServicesBeforeTB + tbTeamBlocksT1) % 2 as 0 | 1;
+        currentT2ServerIdx = (chairSetup.t2ServerIdx + teamServicesBeforeTB + tbTeamBlocksT2) % 2 as 0 | 1;
+        
         if (computedServerTeam === 1) {
-          const activeIdx = (chairSetup.t1ServerIdx + teamServicesBeforeTB + tbTeamBlocksT1) % 2;
-          activeServerName = t1Players[activeIdx] || t1Players[0];
+          activeServerName = t1Players[currentT1ServerIdx] || t1Players[0];
         } else {
-          const activeIdx = (chairSetup.t2ServerIdx + teamServicesBeforeTB + tbTeamBlocksT2) % 2;
-          activeServerName = t2Players[activeIdx] || t2Players[0];
+          activeServerName = t2Players[currentT2ServerIdx] || t2Players[0];
         }
       } else {
         activeServerName = match[`Oyuncu ${computedServerTeam}` as keyof MatchItem];
@@ -516,12 +528,13 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                   <button type="button" onClick={(e) => { 
                     e.stopPropagation(); 
                     if (chairSetup) {
+                      // GÜNCELLEME: Rotasyon butonuna basıldığında BAŞLANGIÇ değil ŞU ANKİ doğru kişiler hesaplanıp forma doldurulur
                       setSetupForm({
-                        firstServingTeam: chairSetup.firstServingTeam,
-                        leftTeam: chairSetup.leftTeam,
+                        firstServingTeam: computedServerTeam,
+                        leftTeam: computedLeftTeam,
                         tbType: chairSetup.tbType,
-                        t1ServerIdx: chairSetup.t1ServerIdx,
-                        t2ServerIdx: chairSetup.t2ServerIdx,
+                        t1ServerIdx: isDoubles ? currentT1ServerIdx : 0,
+                        t2ServerIdx: isDoubles ? currentT2ServerIdx : 0,
                         t1RecIdx: chairSetup.t1DeuceReceiverIdx,
                         t2RecIdx: chairSetup.t2DeuceReceiverIdx,
                       });
@@ -659,7 +672,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                   <div className="flex flex-col sm:flex-row justify-between items-center bg-slate-900 rounded-2xl px-3 sm:px-4 py-2 sm:py-3 border border-slate-800 shadow-md gap-2 shrink-0">
                     <div className="flex flex-col items-center sm:flex-row gap-2 sm:gap-3 text-[10px] sm:text-sm font-bold w-full sm:w-auto">
                       
-                      {/* GÜNCELLENEN MOBİL OKUNABİLİR ÖNCEKİ SETLER KUTUSU */}
+                      {/* MOBİL UYUMLU, GÖZ YORMAYAN ÖNCEKİ SETLER KUTUSU */}
                       <div className="flex flex-col items-center justify-center bg-slate-950 px-3.5 py-1.5 rounded-xl border border-slate-700/80 shadow-inner">
                         <span className="text-amber-400 font-extrabold text-xs sm:text-sm tracking-wider uppercase">{selectedSet}. SET</span>
                         {selectedSet > 1 && (
