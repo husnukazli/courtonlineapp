@@ -46,6 +46,7 @@ export const MatchSetupTab: React.FC<MatchSetupTabProps> = ({ onStartScoring }) 
   const [kuraKazanan, setKuraKazanan] = useState<string>('Secilmedi');
   const [kuraTercih, setKuraTercih] = useState<string>('Servis');
   const [sahaTarafi, setSahaTarafi] = useState<string>('Sandalyenin Sağı');
+  const [ilkServisiAtan, setIlkServisiAtan] = useState<string>('Secilmedi');
   const [baslangicSaati, setBaslangicSaati] = useState<string>('');
   const [bitisSaati, setBitisSaati] = useState<string>('');
   const [skorFormati, setSkorFormati] = useState<string>('3 Normal Set');
@@ -59,6 +60,12 @@ export const MatchSetupTab: React.FC<MatchSetupTabProps> = ({ onStartScoring }) 
       setKuraTercih(activeMatch.Kura_Tercih || 'Servis');
       setSahaTarafi(activeMatch.Saha_Tarafi || 'Sandalyenin Sağı');
       setSkorFormati(activeMatch.Skor_Formati || '3 Normal Set');
+
+      // İlk servisçi veritabanından çekiliyor
+      const savedFirstServer = (activeMatch as any).ilkServisOyuncusu;
+      if (savedFirstServer === 1) setIlkServisiAtan(activeMatch['Oyuncu 1']);
+      else if (savedFirstServer === 2) setIlkServisiAtan(activeMatch['Oyuncu 2']);
+      else setIlkServisiAtan('Secilmedi');
 
       if (activeMatch.Baslangic_Saati && activeMatch.Baslangic_Saati !== 'Secilmedi') {
         setBaslangicSaati(activeMatch.Baslangic_Saati);
@@ -86,6 +93,16 @@ export const MatchSetupTab: React.FC<MatchSetupTabProps> = ({ onStartScoring }) 
   const handleSaveSetup = () => {
     if (!activeMatch) return;
 
+    // Servisi atacak oyuncuyu kura kurallarına göre kesin olarak hesaplayan mantık
+    let finalFirstServer = 1;
+    if (kuraTercih === 'Kort Seçimi') {
+      finalFirstServer = ilkServisiAtan === activeMatch['Oyuncu 2'] ? 2 : 1;
+    } else if (kuraKazanan === activeMatch['Oyuncu 1']) {
+      finalFirstServer = kuraTercih === 'Servis' ? 1 : 2;
+    } else if (kuraKazanan === activeMatch['Oyuncu 2']) {
+      finalFirstServer = kuraTercih === 'Servis' ? 2 : 1;
+    }
+
     saveMatchSetup(activeMatch.id, {
       durum,
       kuraKazanan,
@@ -94,12 +111,7 @@ export const MatchSetupTab: React.FC<MatchSetupTabProps> = ({ onStartScoring }) 
       baslangicSaati,
       bitisSaati,
       skorFormati,
-      ilkServisOyuncusu:
-        kuraKazanan === activeMatch['Oyuncu 1']
-          ? kuraTercih === 'Servis' ? 1 : 2
-          : kuraKazanan === activeMatch['Oyuncu 2']
-          ? kuraTercih === 'Servis' ? 2 : 1
-          : 1,
+      ilkServisOyuncusu: finalFirstServer,
     });
 
     setActiveMatchId(activeMatch.id);
@@ -140,14 +152,12 @@ export const MatchSetupTab: React.FC<MatchSetupTabProps> = ({ onStartScoring }) 
           <label className="block text-xs font-bold text-amber-400/70 uppercase tracking-wider mb-2">2. Bu Korttaki Maçlar</label>
           <div className="grid grid-cols-1 gap-2 mb-3">
             {courtMatches.map((m) => {
-              // Durum esnekleştirmesi: büyük/küçük harf bağımsız
               const stat = (m.Durum || '').toLowerCase();
               const isDone = ['bitti', 'retired', 'walkover'].includes(stat);
               const isLive = stat === 'oynaniyor';
               const isPaused = stat === 'duraklatildi';
               const isUpcoming = stat === 'baslamadi';
 
-              // Buton Rengi Belirleme
               let btnClass = 'bg-slate-950 border-slate-800/80 hover:bg-slate-800/40';
               if (m.id === selectedMatchId) {
                 btnClass = 'bg-slate-800/90 border-lime-400 ring-2 ring-lime-400/30';
@@ -174,7 +184,6 @@ export const MatchSetupTab: React.FC<MatchSetupTabProps> = ({ onStartScoring }) 
                       <div className="text-[10px] sm:text-[11px] text-amber-300/60 flex items-center gap-2">
                         <span>{m.Kategori}</span>
                         {m.Skor && <span className={`font-mono font-bold ${isDone ? 'text-slate-400' : 'text-lime-400'}`}>({m.Skor})</span>}
-                        {/* Askıda veya Hükmen bittiyse ufak bir etiket */}
                         {isPaused && <span className="text-[9px] uppercase bg-amber-500/20 text-amber-400 px-1.5 rounded">Askıda</span>}
                         {(stat === 'retired' || stat === 'walkover') && <span className="text-[9px] uppercase bg-rose-500/20 text-rose-400 px-1.5 rounded">{m.Durum}</span>}
                       </div>
@@ -225,6 +234,24 @@ export const MatchSetupTab: React.FC<MatchSetupTabProps> = ({ onStartScoring }) 
                 <option value="Secilmedi">Seçilmedi</option>
               </select>
             </div>
+            
+            {/* YENİ EKLENEN BÖLÜM: Eğer kura tercihi Kort Seçimi ise ilk servisi atacak oyuncuyu sorar */}
+            {kuraTercih === 'Kort Seçimi' && (
+              <div className="col-span-1 sm:col-span-3 pt-3 mt-1 border-t border-amber-800/30 animate-in fade-in">
+                <label className="block text-[11px] font-bold text-lime-400 uppercase mb-1">
+                  Rakip Ne Seçti? (İlk Servisi Atacak Oyuncu)
+                </label>
+                <select
+                  value={ilkServisiAtan}
+                  onChange={(e) => setIlkServisiAtan(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-900 border border-lime-500/50 rounded-xl text-xs text-white font-medium focus:border-lime-400"
+                >
+                  <option value="Secilmedi">Seçilmedi</option>
+                  <option value={p1Name}>{p1Name} (O1)</option>
+                  <option value={p2Name}>{p2Name} (O2)</option>
+                </select>
+              </div>
+            )}
           </div>
         </div>
 
