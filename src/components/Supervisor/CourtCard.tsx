@@ -59,7 +59,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
   
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   
-  // YENİ: 3. Set Uyarı Ekranı State'i ve Önceki Set Hafızası
+  // 3. Set Uyarı Ekranı State'i ve Önceki Set Hafızası
   const prevSetRef = useRef<number>(1);
   const [thirdSetWarning, setThirdSetWarning] = useState<{show: boolean, text: string}>({show: false, text: ''});
 
@@ -157,9 +157,9 @@ export const CourtCard: React.FC<CourtCardProps> = ({
     }
   }, [match.Skor, match.detailedState, isLive, format, s1_p1, s1_p2, s2_p1, s2_p2, s3_p1, s3_p2, val1.isComplete, val2.isComplete, val1.winner]);
 
-  // YENİ: 3. Sete Geçildiğinde Format Uyarısı Çıkarma
+  // GÜNCELLENEN: 3. Sete Geçildiğinde Format Uyarısı (Tüm modlarda çalışır)
   useEffect(() => {
-    if (selectedSet === 3 && prevSetRef.current !== 3 && isChairMode) {
+    if (selectedSet === 3 && prevSetRef.current !== 3) {
       let msg = "3. Set NORMAL SET olarak planlanmıştır.";
       if (format.includes('10 Puanlık')) {
         msg = "3. Set 10 PUANLIK MAÇ TİE-BREAK olarak planlanmıştır.";
@@ -181,7 +181,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
       return () => clearTimeout(timer);
     }
     prevSetRef.current = selectedSet;
-  }, [selectedSet, isChairMode, format]);
+  }, [selectedSet, format]);
 
   useEffect(() => {
     if (!isDoubles && selectedSet > 1 && !setupsBySet[selectedSet] && setupsBySet[selectedSet - 1]) {
@@ -464,10 +464,32 @@ export const CourtCard: React.FC<CourtCardProps> = ({
 
   return (
     <>
+      {/* 3. SET UYARISI - HER İKİ MOD İÇİN ORTAK (EN ÜST KATMAN) */}
+      {thirdSetWarning.show && (
+        <div className="fixed inset-0 z-[100000] bg-slate-950/95 flex flex-col items-center justify-center p-6 animate-in fade-in zoom-in duration-300" style={{ touchAction: 'none' }}>
+          <div className="bg-slate-900 border-4 border-amber-500 rounded-3xl p-6 sm:p-8 w-full max-w-lg text-center shadow-[0_0_80px_rgba(245,158,11,0.2)]">
+            <span className="text-6xl sm:text-7xl mb-3 sm:mb-4 block animate-bounce">⚠️</span>
+            <div className="text-amber-500 font-extrabold text-sm sm:text-base tracking-widest mb-1">{match.Kort}</div>
+            <h2 className="text-2xl sm:text-4xl font-black text-amber-400 uppercase tracking-widest mb-4">3. SETE GEÇİLİYOR</h2>
+            <p className="text-base sm:text-xl text-white font-bold mb-2">Lütfen planlanan maça formatına dikkat ediniz:</p>
+            <div className="bg-amber-500/20 border border-amber-500/50 rounded-2xl p-4 sm:p-5 my-4 sm:my-6 shadow-inner">
+              <span className="text-lg sm:text-2xl font-black text-amber-300">{thirdSetWarning.text}</span>
+            </div>
+            <p className="text-xs sm:text-sm text-slate-400 mb-6 sm:mb-8 font-medium px-2 sm:px-4">Yanlışlık olduğunu düşünüyorsanız, Ayarlar (⚙️) menüsünden formatı düzeltebilirsiniz.</p>
+            <button 
+              onClick={(e) => { e.stopPropagation(); setThirdSetWarning({show: false, text: ''}); }}
+              className="w-full py-4 sm:py-5 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black text-base sm:text-xl rounded-2xl shadow-xl transition active:scale-95"
+            >
+              Anladım, Maça Dön
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* 1. KORT HAKEMİ KART GÖRÜNÜMÜ */}
       <div
         onClick={handleCardClick}
-        className={`rounded-3xl transition-all duration-200 overflow-hidden flex flex-col justify-between shadow-lg ${
+        className={`rounded-3xl transition-all duration-200 overflow-hidden flex flex-col justify-between shadow-lg relative ${
           isLive || isPaused ? 'bg-slate-900/95 border-2 border-emerald-400 shadow-[0_0_25px_rgba(52,211,153,0.18)]'
           : isUpcoming ? 'bg-gradient-to-b from-slate-900 to-amber-950/20 border-2 border-amber-500/50 cursor-pointer'
           : 'bg-rose-950/20 border border-rose-800/50'
@@ -571,29 +593,8 @@ export const CourtCard: React.FC<CourtCardProps> = ({
       {/* 2. TAM EKRAN KULE HAKEMİ MODU (ZEN MODU)                       */}
       {/* ============================================================== */}
       {isChairMode && (
-        <div className="fixed inset-0 z-[100] bg-slate-950 flex flex-col animate-in fade-in zoom-in-95 duration-200 select-none" style={{ touchAction: 'none' }}>
+        <div className="fixed inset-0 z-[50000] bg-slate-950 flex flex-col animate-in fade-in zoom-in-95 duration-200 select-none" style={{ touchAction: 'none' }}>
           
-          {/* YENİ EKLENEN: 3. SET BAŞLANGIÇ UYARI EKRANI (EN ÜSTTE) */}
-          {thirdSetWarning.show && (
-            <div className="absolute inset-0 z-[100000] bg-slate-950/95 flex flex-col items-center justify-center p-6 animate-in fade-in zoom-in duration-300">
-              <div className="bg-slate-900 border-4 border-amber-500 rounded-3xl p-8 w-full max-w-lg text-center shadow-[0_0_80px_rgba(245,158,11,0.2)]">
-                <span className="text-7xl mb-4 block animate-bounce">⚠️</span>
-                <h2 className="text-3xl sm:text-4xl font-black text-amber-400 uppercase tracking-widest mb-4">3. SETE GEÇİLİYOR</h2>
-                <p className="text-lg sm:text-xl text-white font-bold mb-2">Lütfen planlanan maça formatına dikkat ediniz:</p>
-                <div className="bg-amber-500/20 border border-amber-500/50 rounded-2xl p-5 my-6 shadow-inner">
-                  <span className="text-xl sm:text-2xl font-black text-amber-300">{thirdSetWarning.text}</span>
-                </div>
-                <p className="text-sm text-slate-400 mb-8 font-medium px-4">Yanlışlık olduğunu düşünüyorsanız, sağ üstteki Ayarlar (⚙️) menüsünden formatı düzeltebilirsiniz.</p>
-                <button 
-                  onClick={(e) => { e.stopPropagation(); setThirdSetWarning({show: false, text: ''}); }}
-                  className="w-full py-5 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black text-lg sm:text-xl rounded-2xl shadow-xl transition active:scale-95"
-                >
-                  Anladım, Maça Dön
-                </button>
-              </div>
-            </div>
-          )}
-
           {/* Ayarlar Butonu Bilgi Balonu (Toast) */}
           {toastMessage && (
             <div className="absolute top-16 left-1/2 -translate-x-1/2 z-[50000] bg-slate-800 text-white px-5 py-3 rounded-2xl border border-slate-700 shadow-2xl animate-in fade-in slide-in-from-top-4 flex items-center gap-3">
