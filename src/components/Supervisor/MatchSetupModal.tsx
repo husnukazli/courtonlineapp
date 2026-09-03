@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { MatchItem, ScoreFormatType } from '../../types/tennis';
 import { useTennisData } from '../../context/TennisDataContext';
-import { Play, Clock, X, CheckCircle2 } from 'lucide-react';
+import { Play, Clock, X, CheckCircle2, Trophy, Award, Sparkles } from 'lucide-react';
 
 const SCORE_FORMAT_OPTIONS: ScoreFormatType[] = [
   '3 Normal Set',
@@ -36,7 +36,6 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
   
   const [isCoinTossFullscreenOpen, setIsCoinTossFullscreenOpen] = useState<boolean>(false);
   
-  // 3D Para Atışı İçin Yeni Durum Yönetimi (State)
   const [isFlipping, setIsFlipping] = useState<boolean>(false);
   const [rotation, setRotation] = useState<number>(0);
 
@@ -64,7 +63,6 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
       }
       setBitisSaati(match.Bitis_Saati || '');
       
-      // Modal her açıldığında paranın rotasyonunu sıfırla (Ön yüze getir)
       setRotation(0);
       setIsFlipping(false);
     }
@@ -105,7 +103,6 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
     setIsCoinTossFullscreenOpen(true);
   };
 
-  // 3D Para Atışı Motoru
   const executeCoinTossFlip = () => {
     if (isFlipping) return;
     setIsFlipping(true);
@@ -113,24 +110,18 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
     const isP1 = Math.random() > 0.5;
     const winner = isP1 ? p1Name : p2Name;
     
-    // Açıyı 360'ın katlarına yuvarla (kayma olmaması için)
     const baseRotation = Math.floor(rotation / 360) * 360;
-    
-    // 5 tam tur kendi etrafında fırıl fırıl dönecek (1800 derece)
     const spins = 5 * 360; 
     
     let finalRotation;
     if (isP1) {
-      // 1. Oyuncu kazandıysa paranın ön yüzü gelecek (0, 360, vb.)
       finalRotation = baseRotation + spins; 
     } else {
-      // 2. Oyuncu kazandıysa paranın arka yüzü gelecek (180, 540, vb.)
       finalRotation = baseRotation + spins + 180; 
     }
     
     setRotation(finalRotation);
 
-    // Animasyon (Transition) 2 saniye sürüyor, bitince kazananı yaz
     setTimeout(() => {
       setIsFlipping(false);
       setKuraKazanan(winner);
@@ -164,9 +155,9 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-4 bg-slate-950/90 backdrop-blur-md animate-in fade-in overflow-y-auto">
-      <div className="bg-slate-900 border-2 border-amber-500/50 rounded-3xl p-4 sm:p-6 w-full max-w-xl shadow-2xl space-y-4 my-auto relative">
+      <div className="bg-slate-900 border border-slate-700/50 rounded-3xl p-4 sm:p-6 w-full max-w-xl shadow-2xl space-y-4 my-auto relative">
         
-        {/* YENİ NESİL 3D TAM EKRAN KURA MODALI */}
+        {/* YENİ NESİL PREMIUM 3D KURA MODALI */}
         {isCoinTossFullscreenOpen && (
           <div className="absolute inset-0 z-[999] bg-slate-950/98 rounded-3xl flex flex-col items-center justify-center p-6 animate-in fade-in">
             <button 
@@ -176,65 +167,70 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
               <X className="w-6 h-6" />
             </button>
 
-            <h2 className="text-3xl font-black text-amber-400 tracking-widest mb-10 text-center">KURA ATIŞI</h2>
+            <h2 className="text-2xl sm:text-3xl font-black text-amber-500 tracking-[0.2em] mb-10 text-center uppercase">Kura Atışı</h2>
 
-            {/* 3D Para Konteyneri */}
             <div className="flex flex-col items-center justify-center">
               <div 
                 onClick={!isFlipping ? executeCoinTossFlip : undefined}
                 className={`relative w-48 h-48 sm:w-64 sm:h-64 ${!isFlipping ? 'cursor-pointer hover:scale-105' : ''} transition-transform`}
                 style={{ perspective: '1000px' }}
               >
-                {/* Paranın Kendisi (CSS 3D Engine) */}
+                {/* 3D Kura Parası Motoru */}
                 <div 
                   className="w-full h-full absolute top-0 left-0 transition-all ease-out"
                   style={{ 
                     transformStyle: 'preserve-3d', 
                     transitionDuration: '2000ms',
-                    // Atıldığında scale ile havaya kalkıyormuş efekti yaratıyoruz
                     transform: `rotateY(${rotation}deg) ${isFlipping ? 'scale(1.3) translateY(-40px)' : 'scale(1) translateY(0)'}`
                   }}
                 >
-                  {/* ÖN YÜZ (1. Oyuncu - Yeşil) */}
+                  {/* ÖN YÜZ (1. Oyuncu - ALTIN/OBSİDİYEN) */}
                   <div 
-                    className="w-full h-full absolute top-0 left-0 rounded-full flex flex-col items-center justify-center bg-gradient-to-br from-lime-400 to-emerald-600 border-[8px] sm:border-[12px] border-emerald-300 shadow-[inset_0_0_20px_rgba(0,0,0,0.4),0_15px_30px_rgba(0,0,0,0.6)]"
+                    className="w-full h-full absolute top-0 left-0 rounded-full flex flex-col items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950 border-[10px] sm:border-[16px] border-amber-500 shadow-[inset_0_0_50px_rgba(0,0,0,0.9),0_20px_40px_rgba(0,0,0,0.8)]"
                     style={{ backfaceVisibility: 'hidden' }}
                   >
-                    <div className="w-[85%] h-[85%] rounded-full border border-emerald-200/50 flex flex-col items-center justify-center p-4 text-center">
-                      <span className="text-4xl sm:text-6xl mb-1 drop-shadow-md">🎾</span>
-                      <span className="text-white font-black text-sm sm:text-base leading-tight drop-shadow-md line-clamp-2 px-2">{p1Name}</span>
+                    {/* Metalik İç Gravür Çerçevesi */}
+                    <div className="w-[86%] h-[86%] rounded-full border-[3px] border-dashed border-amber-500/30 flex flex-col items-center justify-center p-4 text-center relative overflow-hidden">
+                      <Award className="absolute w-32 h-32 text-amber-500/10 -z-10" strokeWidth={1} />
+                      <span className="text-amber-500 font-extrabold text-[10px] sm:text-xs tracking-[0.3em] uppercase mb-1 sm:mb-2 z-10 opacity-80">1. Oyuncu</span>
+                      <span className="text-transparent bg-clip-text bg-gradient-to-b from-white to-amber-100 font-black text-2xl sm:text-4xl leading-none drop-shadow-2xl z-10 px-1 uppercase tracking-wide break-words">
+                        {p1Name}
+                      </span>
                     </div>
                   </div>
 
-                  {/* ARKA YÜZ (2. Oyuncu - Mavi) */}
+                  {/* ARKA YÜZ (2. Oyuncu - PLATİN/OBSİDİYEN) */}
                   <div 
-                    className="w-full h-full absolute top-0 left-0 rounded-full flex flex-col items-center justify-center bg-gradient-to-br from-cyan-400 to-blue-600 border-[8px] sm:border-[12px] border-blue-300 shadow-[inset_0_0_20px_rgba(0,0,0,0.4),0_15px_30px_rgba(0,0,0,0.6)]"
+                    className="w-full h-full absolute top-0 left-0 rounded-full flex flex-col items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950 border-[10px] sm:border-[16px] border-slate-300 shadow-[inset_0_0_50px_rgba(0,0,0,0.9),0_20px_40px_rgba(0,0,0,0.8)]"
                     style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}
                   >
-                    <div className="w-[85%] h-[85%] rounded-full border border-blue-200/50 flex flex-col items-center justify-center p-4 text-center">
-                      <span className="text-4xl sm:text-6xl mb-1 drop-shadow-md">🎾</span>
-                      <span className="text-white font-black text-sm sm:text-base leading-tight drop-shadow-md line-clamp-2 px-2">{p2Name}</span>
+                    {/* Metalik İç Gravür Çerçevesi */}
+                    <div className="w-[86%] h-[86%] rounded-full border-[3px] border-dashed border-slate-300/30 flex flex-col items-center justify-center p-4 text-center relative overflow-hidden">
+                      <Award className="absolute w-32 h-32 text-slate-300/10 -z-10" strokeWidth={1} />
+                      <span className="text-slate-400 font-extrabold text-[10px] sm:text-xs tracking-[0.3em] uppercase mb-1 sm:mb-2 z-10 opacity-80">2. Oyuncu</span>
+                      <span className="text-transparent bg-clip-text bg-gradient-to-b from-white to-slate-200 font-black text-2xl sm:text-4xl leading-none drop-shadow-2xl z-10 px-1 uppercase tracking-wide break-words">
+                        {p2Name}
+                      </span>
                     </div>
                   </div>
                 </div>
               </div>
               
-              {/* Para Altı Mesajı / Kazanan Bildirimi */}
               <div className="mt-10 h-20 flex items-center justify-center">
                 {isFlipping ? (
                   <div className="bg-slate-800/80 px-8 py-3 rounded-full border border-slate-700">
-                    <span className="text-amber-400 font-black text-lg sm:text-xl tracking-widest animate-pulse">Kura Atılıyor...</span>
+                    <span className="text-amber-500 font-black text-lg sm:text-xl tracking-widest animate-pulse">Kura Atılıyor...</span>
                   </div>
                 ) : kuraKazanan !== 'Secilmedi' ? (
                   <div className="flex flex-col items-center animate-in fade-in zoom-in slide-in-from-bottom-4">
-                    <span className="text-slate-400 font-bold text-xs uppercase tracking-widest mb-2">🏆 KAZANAN</span>
+                    <span className="text-slate-400 font-bold text-xs uppercase tracking-widest mb-2 flex items-center gap-1.5"><Trophy className="w-3.5 h-3.5" /> KAZANAN</span>
                     <span className="text-2xl sm:text-3xl font-black text-white bg-gradient-to-r from-slate-800 to-slate-900 px-8 py-3 rounded-2xl border border-amber-500/50 shadow-[0_0_30px_rgba(245,158,11,0.2)] text-center line-clamp-1 max-w-[90vw]">
                       {kuraKazanan}
                     </span>
                   </div>
                 ) : (
-                  <span className="text-white font-black text-lg sm:text-xl tracking-widest bg-slate-800/60 px-8 py-3.5 rounded-full border border-slate-700 animate-bounce cursor-pointer" onClick={executeCoinTossFlip}>
-                    👆 DOKUN VE AT
+                  <span className="text-white font-black text-base sm:text-lg tracking-widest bg-slate-800/60 px-8 py-3.5 rounded-full border border-slate-700 animate-bounce cursor-pointer hover:bg-slate-800 transition" onClick={executeCoinTossFlip}>
+                    DOKUN VE AT
                   </span>
                 )}
               </div>
@@ -255,8 +251,8 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
 
         <div className="flex items-start justify-between pb-3 border-b border-slate-800">
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/40 flex items-center justify-center text-2xl shrink-0 shadow-lg">
-              🪙
+            <div className="w-11 h-11 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/40 flex items-center justify-center text-xl shrink-0 shadow-lg">
+              <Trophy className="w-6 h-6" />
             </div>
             <div>
               <h2 className="text-base sm:text-lg font-black text-white">Maç Öncesi Kura & Kurulum</h2>
@@ -272,28 +268,29 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
 
         <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 flex items-center justify-between shadow-inner">
           <div className="flex-1">
-            <div className="text-[10px] text-lime-400 font-extrabold uppercase">1. Oyuncu</div>
+            <div className="text-[10px] text-amber-500 font-extrabold uppercase">1. Oyuncu</div>
             <div className="font-black text-sm sm:text-base text-white truncate mt-0.5">{p1Name}</div>
           </div>
           <div className="px-3 text-xs font-black text-slate-600 bg-slate-900 py-1 rounded-lg border border-slate-800">VS</div>
           <div className="flex-1 text-right">
-            <div className="text-[10px] text-cyan-400 font-extrabold uppercase">2. Oyuncu</div>
+            <div className="text-[10px] text-slate-400 font-extrabold uppercase">2. Oyuncu</div>
             <div className="font-black text-sm sm:text-base text-white truncate mt-0.5">{p2Name}</div>
           </div>
         </div>
 
-        <div className="bg-slate-950 p-4 rounded-3xl border-2 border-amber-500/40 text-center space-y-3 shadow-xl">
+        <div className="bg-slate-950 p-4 rounded-3xl border border-slate-800 text-center space-y-3 shadow-lg">
           <button
             type="button"
             onClick={triggerFullscreenCoinToss}
-            className="w-full py-4 rounded-2xl bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:from-amber-300 hover:to-yellow-300 text-slate-950 font-black text-sm sm:text-base flex items-center justify-center gap-2 shadow-xl transition active:scale-95"
+            className="w-full py-4 rounded-2xl bg-gradient-to-r from-slate-800 to-slate-900 hover:from-slate-700 hover:to-slate-800 text-amber-500 border border-slate-700 font-black text-sm sm:text-base flex items-center justify-center gap-2 shadow-xl transition active:scale-95"
           >
-            <span>🪙 3D Dev Ekran Kura Atışını Aç</span>
+            <Sparkles className="w-5 h-5 text-amber-400" />
+            <span>Dev Ekran Kura Atışını Aç</span>
           </button>
 
           {kuraKazanan !== 'Secilmedi' && (
-            <div className="text-xs font-black text-emerald-400 bg-emerald-950/40 px-3 py-1.5 rounded-xl border border-emerald-500/30">
-              ✨ Kura Kazananı: <strong>{kuraKazanan}</strong>
+            <div className="text-xs font-black text-emerald-400 bg-emerald-950/40 px-3 py-1.5 rounded-xl border border-emerald-500/30 inline-block mt-2">
+              ✨ Kura Kazananı: <strong className="text-white">{kuraKazanan}</strong>
             </div>
           )}
         </div>
@@ -307,22 +304,22 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
               type="button"
               onClick={() => setKuraKazanan(p1Name)}
               className={`p-3 rounded-2xl border text-left transition flex items-center justify-between ${
-                kuraKazanan === p1Name ? 'bg-lime-400/20 border-lime-400 text-lime-300 ring-2 ring-lime-400/30' : 'bg-slate-950 border-slate-800 text-slate-400'
+                kuraKazanan === p1Name ? 'bg-amber-500/10 border-amber-500 text-amber-400 ring-2 ring-amber-500/20' : 'bg-slate-950 border-slate-800 text-slate-400 hover:bg-slate-900'
               }`}
             >
               <div className="truncate text-xs sm:text-sm font-bold text-white">{p1Name}</div>
-              {kuraKazanan === p1Name && <CheckCircle2 className="w-5 h-5 text-lime-400 shrink-0" />}
+              {kuraKazanan === p1Name && <CheckCircle2 className="w-5 h-5 text-amber-400 shrink-0" />}
             </button>
 
             <button
               type="button"
               onClick={() => setKuraKazanan(p2Name)}
               className={`p-3 rounded-2xl border text-left transition flex items-center justify-between ${
-                kuraKazanan === p2Name ? 'bg-cyan-400/20 border-cyan-400 text-cyan-300 ring-2 ring-cyan-400/30' : 'bg-slate-950 border-slate-800 text-slate-400'
+                kuraKazanan === p2Name ? 'bg-slate-800 border-slate-400 text-slate-200 ring-2 ring-slate-400/30' : 'bg-slate-950 border-slate-800 text-slate-400 hover:bg-slate-900'
               }`}
             >
               <div className="truncate text-xs sm:text-sm font-bold text-white">{p2Name}</div>
-              {kuraKazanan === p2Name && <CheckCircle2 className="w-5 h-5 text-cyan-400 shrink-0" />}
+              {kuraKazanan === p2Name && <CheckCircle2 className="w-5 h-5 text-slate-300 shrink-0" />}
             </button>
           </div>
         </div>
@@ -356,13 +353,13 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
 
         {kuraTercih === 'Saha Seçimi' && (
           <div className="mt-3 pt-3 border-t border-slate-800 animate-in fade-in text-left">
-            <label className="text-[10px] font-extrabold uppercase text-lime-400 block mb-1.5">
+            <label className="text-[10px] font-extrabold uppercase text-amber-500 block mb-1.5">
               Rakip Ne Seçti? (İlk Servisi Atacak Oyuncu/Takım)
             </label>
             <select
               value={ilkServisiAtan}
               onChange={(e) => setIlkServisiAtan(e.target.value)}
-              className="w-full bg-slate-900 border border-lime-500/50 rounded-xl px-3 py-2 text-xs text-white font-bold focus:border-lime-400 shadow-inner"
+              className="w-full bg-slate-900 border border-amber-500/50 rounded-xl px-3 py-2 text-xs text-white font-bold focus:border-amber-400 shadow-inner"
             >
               <option value="Secilmedi">Seçilmedi</option>
               <option value={p1Name}>{p1Name} (O1)</option>
@@ -373,7 +370,7 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
 
         <div className="bg-slate-950/80 p-3.5 rounded-2xl border border-slate-800 space-y-2">
           <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-            <Clock className="w-3.5 h-3.5 text-lime-400" />
+            <Clock className="w-3.5 h-3.5 text-amber-500" />
             <span>Maç Başlangıç Saati</span>
           </label>
           <div className="flex items-center gap-2">
@@ -383,9 +380,9 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
               onChange={(e) => setBaslangicSaati(e.target.value)}
               className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm font-mono font-bold text-white shrink-0 w-28 text-center"
             />
-            <button type="button" onClick={() => handleSetTimeNow('start')} className="px-3 py-2 rounded-lg bg-lime-400 text-slate-950 text-xs font-black">Şimdi</button>
-            <button type="button" onClick={() => handleAdjustTime('start', -5)} className="px-2 py-2 rounded-lg bg-slate-800 text-slate-300 text-xs font-bold">-5 dk</button>
-            <button type="button" onClick={() => handleAdjustTime('start', +5)} className="px-2 py-2 rounded-lg bg-slate-800 text-slate-300 text-xs font-bold">+5 dk</button>
+            <button type="button" onClick={() => handleSetTimeNow('start')} className="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-white text-xs font-black transition">Şimdi</button>
+            <button type="button" onClick={() => handleAdjustTime('start', -5)} className="px-2 py-2 rounded-lg bg-slate-800 text-slate-300 text-xs font-bold transition hover:bg-slate-700">-5 dk</button>
+            <button type="button" onClick={() => handleAdjustTime('start', +5)} className="px-2 py-2 rounded-lg bg-slate-800 text-slate-300 text-xs font-bold transition hover:bg-slate-700">+5 dk</button>
           </div>
         </div>
 
@@ -394,17 +391,17 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
           <select
             value={skorFormati}
             onChange={(e) => setSkorFormati(e.target.value)}
-            className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-lime-400 font-bold"
+            className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-bold"
           >
             {SCORE_FORMAT_OPTIONS.map((fmt) => (
-              <option key={fmt} value={fmt} className="text-white">{fmt}</option>
+              <option key={fmt} value={fmt} className="text-slate-300">{fmt}</option>
             ))}
           </select>
         </div>
 
         <div className="flex items-center gap-3 pt-2">
-          <button type="button" onClick={onClose} className="flex-1 py-3 px-4 rounded-2xl bg-slate-800 text-slate-300 font-bold text-xs">İptal</button>
-          <button type="button" onClick={handleSaveAndStart} className="flex-2 py-3 px-5 rounded-2xl bg-lime-400 hover:bg-lime-300 text-slate-950 font-black text-sm flex items-center justify-center gap-2 shadow-xl">
+          <button type="button" onClick={onClose} className="flex-1 py-3 px-4 rounded-2xl bg-slate-800 hover:bg-rose-500/20 text-slate-300 hover:text-rose-400 font-bold text-xs transition border border-transparent hover:border-rose-500/30">İptal</button>
+          <button type="button" onClick={handleSaveAndStart} className="flex-2 py-3 px-5 rounded-2xl bg-gradient-to-r from-emerald-500 to-emerald-400 hover:from-emerald-400 hover:to-emerald-300 text-slate-950 font-black text-sm flex items-center justify-center gap-2 shadow-xl transition active:scale-95">
             <Play className="w-4 h-4 fill-slate-950" />
             <span>Maçı Başlat & Canlı Skora Geç</span>
           </button>
