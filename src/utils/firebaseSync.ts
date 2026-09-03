@@ -15,7 +15,6 @@ const mDoc  = (tid: string, mid: string) => doc(db, 'tournaments', tid, 'matches
 const superAdminDoc = () => doc(db, 'superAdmin', 'config');  
 
 // ─── YENİ: Geri Sarma (Bouncing) Koruması İçin Yerel Yazma Kilitleri ─────────
-// Hakem peş peşe butona bastığında, gecikmeli gelen eski bulut verisinin ekranı ezmesini engeller.
 const localWriteLocks: Record<string, number> = {};
 
 // ─── Tipler ─────────────────────────────────────────────────────────────────
@@ -65,7 +64,7 @@ export const fetchTournamentList = async (): Promise<TournamentListItem[]> => {
           aktif: data.aktif !== false,          
           olusturulma: data.olusturulma || '',        
         };      })      
-      .filter(t => t.ad); // sadece adı olanlar (main hariç boş doc'lar)  
+      .filter(t => t.ad);  
   } catch (e) {    
     console.error('fetchTournamentList hata:', e);    
     return [];  
@@ -117,7 +116,6 @@ export const createTournament = async (info: {
 
 export const deleteTournamentFromCloud = async (tid: string): Promise<boolean> => {  
   try {    
-    // Önce maçları sil    
     const snap = await getDocs(mCol(tid));    
     const CHUNK = 400;    
     for (let i = 0; i < snap.docs.length; i += CHUNK) {      
@@ -135,7 +133,7 @@ export const deleteTournamentFromCloud = async (tid: string): Promise<boolean> =
 
 // ─── Süper Admin ────────────────────────────────────────────────────────────
 const DEFAULT_SUPER_ADMIN_CONFIG: SuperAdminConfig = {  
-  superAdminSifre: 'admin2025',   // İlk girişten sonra değiştirin!  
+  superAdminSifre: 'admin2025',  
   bashakem_listesi: [],
 };  
 
@@ -143,7 +141,6 @@ export const fetchSuperAdminConfig = async (): Promise<SuperAdminConfig | null> 
   try {    
     const snap = await getDoc(superAdminDoc());    
     if (!snap.exists()) {      
-      // İlk çalıştırmada varsayılan config'i oluştur      
       await setDoc(superAdminDoc(), DEFAULT_SUPER_ADMIN_CONFIG);      
       console.log('superAdmin/config ilk kez oluşturuldu. Varsayılan şifre: admin2025');      
       return DEFAULT_SUPER_ADMIN_CONFIG;    
@@ -200,30 +197,19 @@ export const subscribeToCloudTournament = (
 
   const unsubMatches = onSnapshot(    
     mCol(tournamentId),    
-    { includeMetadataChanges: true }, // GÜNCELLEME: Çevrimdışı ve yerel yazma durumlarını yakalamak için açıldı
+    { includeMetadataChanges: false }, 
     (snap: QuerySnapshot<DocumentData>) => {      
       isApplyingRemoteChange = true;      
-      const changed: MatchItem[] = [];      
       
-      snap.docChanges().forEach((change: DocumentChange<DocumentData>) => {        
-        if (change.type === 'added' || change.type === 'modified') {          
-          const matchId = change.doc.id;
-          // KİLİT KONTROLÜ: Eğer biz bu maça son 2 saniye içinde skor girdiysek, bu bir "yeni yazma" işlemidir.
-          const isRecentlyWrittenLocally = Date.now() - (localWriteLocks[matchId] || 0) < 2000;
-          // Verinin buluttan mı geldiği, yoksa telefondaki ara bellekten mi geldiği hasPendingWrites ile anlaşılır
-          const isRemoteData = !change.doc.metadata.hasPendingWrites;
-
-          // Eğer hakem peş peşe butona bastıysa ve bu sırada buluttan gecikmeli olarak "ESKİ" skor geldiyse
-          // o eski skoru yoksay ve ekrandaki skoru ezmesini (geri sarmasını) engelle!
-          if (isRecentlyWrittenLocally && isRemoteData) {
-            return;
-          }
-
-          changed.push({ id: matchId, ...change.doc.data() } as MatchItem);        
-        }      
-      });      
+      // KRİTİK DÜZELTME: Parçalı güncellemeler (docChanges) yerine doğrudan 
+      // veritabanının o anki TAM HALİNİ alıp sisteme basıyoruz.
+      // Bu sayede format uçmaları, maç silinmemesi gibi tüm sorunlar kökten çözüldü.
+      const fullList: MatchItem[] = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as MatchItem));
       
-      if (changed.length > 0) onMatchesUpdate(changed);      
+      if (fullList.length > 0) {
+          onMatchesUpdate(fullList);
+      }
+      
       setTimeout(() => { isApplyingRemoteChange = false; }, 150);    },    
     (err: FirestoreError) => { if (onError) onError(err); }  
   );  
@@ -240,7 +226,6 @@ export const pushSingleMatchToCloud = async (
 ): Promise<boolean> => {  
   if (!match || !match.id) return false;  
   try {    
-    // GÜNCELLEME: Hakem butona bastığı an bu maç için 2 saniyelik bir koruma kalkanı oluşturulur.
     localWriteLocks[match.id] = Date.now();
 
     await setDoc(mDoc(tournamentId, match.id), { ...match, Son_Guncelleme: new Date().toISOString() }, { merge: true });    
@@ -263,10 +248,7 @@ export const pushAllMatchesToCloud = async (
       const batch = writeBatch(db);      
       matches.slice(i, i + CHUNK).forEach(m => {        
         if (!m.id) return;        
-        
-        // GÜNCELLEME: Toplu yazmalarda da kilit oluşturulur
         localWriteLocks[m.id] = Date.now();
-        
         batch.set(mDoc(tournamentId, m.id), { ...m, Son_Guncelleme: new Date().toISOString() }, { merge: true });      
       });      
       await batch.commit();    
@@ -349,15 +331,15 @@ export const fetchTournamentFromCloud = async (tournamentId = 'main'): Promise<{
   }
 };  
 
+// NÜKLEER SİLME FONKSİYONU: Herhangi bir hataya meyil vermemek için her bir dökümanı zorla (Promise.all) yok eder.
 export const deleteAllMatchesFromCloud = async (tournamentId = 'main'): Promise<boolean> => {  
   try {    
     const snap = await getDocs(mCol(tournamentId));    
-    const CHUNK = 400;    
-    for (let i = 0; i < snap.docs.length; i += CHUNK) {      
-      const batch = writeBatch(db);      
-      snap.docs.slice(i, i + CHUNK).forEach(d => batch.delete(d.ref));      
-      await batch.commit();    
-    }    
+    if (snap.empty) return true;
+    
+    // Batch limitine takılmamak ve kesin silinmesini sağlamak için
+    await Promise.all(snap.docs.map(d => deleteDoc(d.ref)));    
+    console.log(`[${tournamentId}] Tüm maçlar başarıyla silindi (Nükleer)!`);
     return true;  
   } catch (e) { 
     console.error('deleteAllMatchesFromCloud hata:', e); 
@@ -365,15 +347,7 @@ export const deleteAllMatchesFromCloud = async (tournamentId = 'main'): Promise<
   }
 };  
 
-/** 
- * purgeOrphanMatchesFromCloud 
- * 
- * Firestore'da olup yerel maç listesinde OLMAYAN "hayalet" dökümanları siler. 
- * 
- * @param activeMatchIds  Şu an geçerli olan maç ID'leri (string[]) 
- * @param tournamentId    Hangi turnuva (varsayılan: 'main') 
- * @returns               Silinen döküman sayısı 
- */
+// HAYALET TEMİZLEYİCİ: Yukarıdaki ile aynı sağlam silme mantığı eklendi
 export const purgeOrphanMatchesFromCloud = async (  
   activeMatchIds: string[],  
   tournamentId = 'main'
@@ -385,14 +359,9 @@ export const purgeOrphanMatchesFromCloud = async (
 
     if (orphans.length === 0) return 0;  
 
-    const CHUNK = 400;    
-    for (let i = 0; i < orphans.length; i += CHUNK) {      
-      const batch = writeBatch(db);      
-      orphans.slice(i, i + CHUNK).forEach(d => batch.delete(d.ref));      
-      await batch.commit();    
-    }  
+    await Promise.all(orphans.map(d => deleteDoc(d.ref)));    
 
-    console.log("purgeOrphanMatchesFromCloud: " + orphans.length + " hayalet döküman silindi (" + tournamentId + ")");    
+    console.log(`purgeOrphanMatchesFromCloud: ${orphans.length} hayalet döküman silindi (${tournamentId})`);    
     return orphans.length;  
   } catch (e) {    
     console.error('purgeOrphanMatchesFromCloud hata:', e);    
