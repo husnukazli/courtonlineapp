@@ -57,7 +57,6 @@ export const DeskSupervisorView: React.FC = () => {
     resetAllScores,
     forcePushAllToCloud,
     pullFromCloudNow,
-    updateMatch,
   } = useTennisData();
 
   const [activeSubTab, setActiveSubTab] = useState<'grid' | 'stats' | 'formats' | 'referees' | 'manage' | 'info'>('grid');
@@ -117,12 +116,14 @@ export const DeskSupervisorView: React.FC = () => {
   const handleApplyFormats = () => {
     bulkApplyCategoryFormats(localFormats);
 
-    // KRİTİK DÜZELTME: Formatları kaydederken yeni maç oluşturma (importMatchesList), mevcut maçları güncelle!
-    matches.forEach(m => {
+    const updatedMatches = matches.map(m => {
       if (localFormats[m.Kategori] && m.Skor_Formati !== localFormats[m.Kategori]) {
-        updateMatch({ ...m, Skor_Formati: localFormats[m.Kategori] });
+        return { ...m, Skor_Formati: localFormats[m.Kategori] };
       }
+      return m;
     });
+
+    importMatchesList(updatedMatches);
 
     setFormatSavedMsg('✅ Kategori formatları tüm maçlara uygulandı ve buluta kaydedildi!');
     setTimeout(() => setFormatSavedMsg(''), 4000);
@@ -151,10 +152,7 @@ export const DeskSupervisorView: React.FC = () => {
       const parsed = JSON.parse(jsonInput);
       if (Array.isArray(parsed) && parsed.length > 0) {
         setIsSyncingAction(true);
-        
-        // KRİTİK DÜZELTME: Eski maçların üst üste binmemesi için yeni JSON yüklenmeden önce her şeyi sil!
         await wipeAllMatchesForTournament();
-
         importMatchesList(parsed);
         setImportMsg(`✅ ${parsed.length} maç başarıyla içe aktarıldı!`);
         setJsonInput('');
@@ -224,7 +222,7 @@ export const DeskSupervisorView: React.FC = () => {
           <tbody>
     `;
 
-    const sortedMatches = [...matches].sort((a, b) => a.Kort.localeCompare(b.Kort) || a.Saat.localeCompare(b.Saat));
+    const sortedMatches = [...matches].sort((a, b) => a.Kort.localeCompare(b.Kort) || (a.Saat || '').localeCompare(b.Saat || ''));
 
     sortedMatches.forEach(m => {
       const p1Winner = m.Kazanan === m['Oyuncu 1'];
@@ -341,7 +339,10 @@ export const DeskSupervisorView: React.FC = () => {
             
             <div className="flex flex-nowrap gap-4">
               {(selectedCourtFilter === 'ALL' ? distinctCourts : [selectedCourtFilter]).map((courtName) => {
-                const courtMatches = filteredMatches.filter((m) => m.Kort === courtName);
+                // KRİTİK EKLENTİ: Kort içi maçlar saate göre sıralandı
+                const courtMatches = filteredMatches
+                  .filter((m) => m.Kort === courtName)
+                  .sort((a, b) => (a.Saat || '').localeCompare(b.Saat || ''));
 
                 return (
                   <div key={courtName} className="bg-slate-900 border border-slate-800 rounded-3xl p-3 sm:p-4 space-y-3 flex flex-col shadow-xl min-w-[280px] w-[300px]">
@@ -653,7 +654,25 @@ export const DeskSupervisorView: React.FC = () => {
 
                 <button 
                   type="button" 
-                  onClick={handleImportJson} 
+                  onClick={async () => {
+                    try {
+                      const parsed = JSON.parse(jsonInput);
+                      if (Array.isArray(parsed) && parsed.length > 0) {
+                        setIsSyncingAction(true);
+                        await wipeAllMatchesForTournament();
+                        importMatchesList(parsed);
+                        setImportMsg(`✅ ${parsed.length} maç başarıyla içe aktarıldı!`);
+                        setJsonInput('');
+                        setRaporAlindi(false); 
+                        setTimeout(() => setImportMsg(''), 3000);
+                        setIsSyncingAction(false);
+                      } else {
+                        setImportMsg('❌ JSON geçerli bir maç dizisi [ { ... } ] olmalıdır.');
+                      }
+                    } catch (e: any) {
+                      setImportMsg('❌ Geçersiz JSON formatı: ' + e.message);
+                    }
+                  }}
                   disabled={!jsonInput.trim() || isSyncingAction} 
                   className="px-6 py-2.5 bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-bold text-xs rounded-xl shadow transition disabled:opacity-50 flex items-center gap-2"
                 >
