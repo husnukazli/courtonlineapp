@@ -24,7 +24,6 @@ import {
   Cloud,
 } from 'lucide-react';
 
-// --- AKILLI DURUM FİLTRELEYİCİLERİ (Büyük/Küçük harf ve boşluk hatalarını yoksayar) ---
 const isLiveMatch = (status?: string) => ['oynaniyor', 'duraklatildi'].includes((status || '').toLowerCase().trim());
 const isFinishedMatch = (status?: string) => ['bitti', 'retired', 'walkover'].includes((status || '').toLowerCase().trim());
 const isUpcomingMatch = (status?: string) => ['baslamadi'].includes((status || '').toLowerCase().trim());
@@ -88,7 +87,7 @@ export const CourtSupervisorView: React.FC = () => {
       }
 
       return true;
-    });
+    }).sort((a, b) => (a.Saat || '').localeCompare(b.Saat || '')); // KRİTİK EKLENTİ: Tüm eşleşmeler saate göre sıralandı
   }, [matches, selectedCourt, statusFilter, searchQuery]);
 
   const liveMatches = useMemo(() => filteredMatches.filter((m) => isLiveMatch(m.Durum)), [filteredMatches]);
