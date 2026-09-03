@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Tv,
   Filter,
@@ -106,10 +106,35 @@ export const DeskSupervisorView: React.FC = () => {
     return true;
   });
 
+  // YENİ EKLENDİ: Buluttan gelen formatlar güncellendiğinde ekranın da güncellenmesini sağlar
+  useEffect(() => {
+    if (categoryFormats && Object.keys(categoryFormats).length > 0) {
+      setLocalFormats(categoryFormats);
+    }
+  }, [categoryFormats]);
+
   const handleApplyFormats = () => {
+    // 1. Önce kategori eşleştirmelerini sisteme (state) tanıt
     bulkApplyCategoryFormats(localFormats);
-    setFormatSavedMsg('✅ Kategori formatları tüm maçlara başarıyla uygulandı!');
-    setTimeout(() => setFormatSavedMsg(''), 3000);
+
+    // 2. BÜYÜK DÜZELTME: Tüm maçları tara, kategorisi eşleşen maçların içindeki "Skor_Formati" metnini güncelle!
+    const updatedMatches = matches.map(m => {
+      if (localFormats[m.Kategori] && m.Skor_Formati !== localFormats[m.Kategori]) {
+        return { ...m, Skor_Formati: localFormats[m.Kategori] };
+      }
+      return m;
+    });
+
+    // 3. Maçları yeni formatlarıyla birlikte topluca buluta fırlat ve kaydet!
+    importMatchesList(updatedMatches);
+
+    // 4. Kategori ayarlarının kendisini de buluta yollamak için sistemi senkronize et
+    setTimeout(() => {
+      forcePushAllToCloud().catch(() => {});
+    }, 500);
+
+    setFormatSavedMsg('✅ Kategori formatları tüm maçlara uygulandı ve buluta kaydedildi!');
+    setTimeout(() => setFormatSavedMsg(''), 4000);
   };
 
   const handleAddRefereeSubmit = (e: React.FormEvent) => {
@@ -344,7 +369,6 @@ export const DeskSupervisorView: React.FC = () => {
                           const p1Name = m['Oyuncu 1'];
                           const p2Name = m['Oyuncu 2'];
 
-                          // GÜNCELLEME: Grayscale kaldırıldı, opacity artırıldı, Bekleyen maç görünümü iyileştirildi
                           const cardClass = isLive 
                             ? 'bg-gradient-to-br from-emerald-950/60 to-slate-900 border-2 border-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.15)] ring-1 ring-emerald-500/50 z-10 scale-[1.01]'
                             : isPaused 
@@ -363,7 +387,6 @@ export const DeskSupervisorView: React.FC = () => {
 
                           const statusText = isLive ? 'CANLI' : isPaused ? 'ASKIDA' : isUpcoming ? 'BEKLİYOR' : m.Durum.toUpperCase();
                           
-                          // GÜNCELLEME: Saat kısmı bekleyen maçlarda daha büyük ve bembeyaz oldu
                           const timeClass = isLive ? 'text-emerald-400 text-[10px]' 
                             : isPaused ? 'text-amber-400 text-[10px]' 
                             : isUpcoming ? 'text-white text-[12px] font-black tracking-wider' 
