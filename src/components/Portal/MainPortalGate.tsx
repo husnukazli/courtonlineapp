@@ -16,7 +16,7 @@ interface MainPortalGateProps {
 
 export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) => {
   const {
-    referees, matches, loginSupervisorByPin, loginDesk, deskPin,
+    referees, matches, loginSupervisorByPin, loginReferee, loginDesk, deskPin,
     cloudSyncStatus, lastCloudSync, pullFromCloudNow, clearLocalCacheAndResetFromCloud, tournamentInfo, tournamentId, setAuthRole
   } = useTennisData();
 
@@ -84,7 +84,7 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
   const handleSupervisorSubmit = () => {
     if (!selectedRefName) { setErrorMsg('Lütfen hakem adınızı seçin.'); return; }
     if (!pin) { setErrorMsg('PIN şifresi boş olamaz.'); return; }
-    const ok = loginSupervisorByPin(pin, selectedRefName);
+    const ok = loginReferee(selectedRefName, pin);
     if (ok) { setSuccessMsg(`✅ Hoş geldiniz ${selectedRefName}! Yönlendiriliyorsunuz...`); setTimeout(closeModal, 800); }
     else setErrorMsg('❌ PIN hatalı. Lütfen tekrar deneyin.');
   };
