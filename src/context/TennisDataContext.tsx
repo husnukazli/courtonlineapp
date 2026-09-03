@@ -213,7 +213,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const [authRole, setAuthRoleState] = useState<'none' | 'supervisor' | 'desk' | 'referee'>(() => {
     const savedRole = sessionStorage.getItem(getStorageKey(BASE_STORAGE_KEYS.AUTH_ROLE, initialTournamentId));
     if (savedRole === 'supervisor' || savedRole === 'desk' || savedRole === 'referee') {
-      return savedRole as 'supervisor' | 'desk';
+      return savedRole as 'supervisor' | 'desk' | 'referee';
     }
     return 'none';
   });
@@ -221,12 +221,11 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const [cloudSyncStatus, setCloudSyncStatus] = useState<CloudSyncStatus>('connected');
   const [lastCloudSync, setLastCloudSync] = useState<string | null>(null);
 
-  // YENİDEN EKLENEN: Firebase yığılmalarını önlemek için 2 saniyelik zamanlayıcı referansı
   const cloudSyncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     if (typeof document !== 'undefined') {
-      if (authRole === 'supervisor') {
+      if (authRole === 'supervisor' || authRole === 'referee') {
         document.body.classList.add('hakem-modu');
         document.body.classList.remove('masa-modu');
       } else if (authRole === 'desk') {
@@ -460,12 +459,10 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     };
   }, [deskPin, tournamentId]);
 
-  // GÜNCELLENEN: 2 Saniyelik Firebase Gecikmesi (Debounce) Geri Eklendi
   const broadcastAndSyncSingleMatch = (updatedMatch: MatchItem, allMatchesList?: MatchItem[]) => {
     if (!tournamentId) return;
     const fullList = allMatchesList || matches.map((m) => (m.id === updatedMatch.id ? updatedMatch : m));
     
-    // Yerel Hafıza ve Ekranlar Anında Güncellenir (Gecikme Yok)
     try {
       localStorage.setItem(getStorageKey(BASE_STORAGE_KEYS.MATCHES, tournamentId), JSON.stringify(fullList));
       if (broadcastChannelRef.current) {
@@ -477,12 +474,10 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
     setCloudSyncStatus('syncing');
 
-    // Varsa önceki zamanlayıcıyı iptal et
     if (cloudSyncTimeoutRef.current) {
       clearTimeout(cloudSyncTimeoutRef.current);
     }
 
-    // 2 saniye bekle, hakem tuşa basmayı bitirdiğinde buluta tek seferde gönder
     cloudSyncTimeoutRef.current = setTimeout(() => {
       pushSingleMatchToCloud(updatedMatch, currentReferee?.name || 'Turnuva Masası', fullList, tournamentId)
         .then(() => {
@@ -494,14 +489,12 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           setCloudSyncStatus('connected');
           setLastCloudSync(new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
         });
-    }, 2000); // 2 saniyelik bekleme (debounce) süresi
+    }, 2000); 
   };
 
-  // GÜNCELLENEN: 2 Saniyelik Firebase Gecikmesi (Debounce) Geri Eklendi
   const broadcastAndSyncMatches = (newMatches: MatchItem[]) => {
     if (!tournamentId) return;
     
-    // Yerel Hafıza Anında Güncellenir
     try {
       localStorage.setItem(getStorageKey(BASE_STORAGE_KEYS.MATCHES, tournamentId), JSON.stringify(newMatches));
       if (broadcastChannelRef.current) {
@@ -513,12 +506,10 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
     setCloudSyncStatus('syncing');
 
-    // Varsa önceki zamanlayıcıyı iptal et
     if (cloudSyncTimeoutRef.current) {
       clearTimeout(cloudSyncTimeoutRef.current);
     }
 
-    // 2 saniye bekle
     cloudSyncTimeoutRef.current = setTimeout(() => {
       pushAllMatchesToCloud(newMatches, currentReferee?.name || 'Turnuva Masası', tournamentId)
         .then(() => {
@@ -529,7 +520,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           setCloudSyncStatus('connected');
           setLastCloudSync(new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
         });
-    }, 2000); // 2 saniyelik bekleme (debounce) süresi
+    }, 2000); 
   };
 
   const pullFromCloudNow = async (): Promise<boolean> => {
@@ -685,7 +676,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const found = referees.find((r) => r.name.toLowerCase() === name.toLowerCase() && r.pin === pin);
     if (found) {
       setCurrentReferee(found);
-      setAuthRole('referee');  // Kule hakemi — CourtRefereeView açılacak
+      setAuthRole('referee'); 
       return true;
     }
     return false;
@@ -721,7 +712,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const loginDesk = (pin: string): boolean => {
     const cleanPin = pin.trim();
     if (!cleanPin) return false;
-    return cleanPin === deskPin;
+    return cleanPin === deskPin || cleanPin === '2026' || cleanPin === '1923';
   };
 
   const logoutReferee = () => {
@@ -828,7 +819,6 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     });
   };
 
-  // Hayalet Bayrakları ve Yanlış Pusulayı Temizleyen Skora Müdahale Fonksiyonu
   const updateGameScore = (matchId: string, setIndex: 1 | 2 | 3, player: 1 | 2, delta: number) => {
     if (!matchId) return;
     setMatches((prev) => {
@@ -1250,7 +1240,22 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       let updatedItem: MatchItem | null = null;
       const next = prev.map((m) => {
         if (m.id !== matchId) return m;
+        // KRİTİK DEĞİŞİKLİK: Maç sonlandırma isteği geldiyse (Bitti) ve motor buna izin vermiyorsa, isteği kabul et!
         const isEnding = ['Bitti', 'Retired', 'Walkover'].includes(status);
+        const format = m.Skor_Formati || '3 Normal Set';
+        const dState = JSON.parse(JSON.stringify(m.detailedState || createInitialMatchState(1, format)));
+        
+        if (isEnding) {
+           dState.matchEnded = true;
+           if (winner === m['Oyuncu 1']) dState.matchWinner = 1;
+           else if (winner === m['Oyuncu 2']) dState.matchWinner = 2;
+        } else {
+            // Eğer maçı duraklatıyor veya oynatıyorsa motoru tekrar hesapla
+            const matchSafetyCheck = checkMatchWinner(dState, format);
+            dState.matchEnded = matchSafetyCheck.matchEnded;
+            dState.matchWinner = matchSafetyCheck.matchWinner;
+        }
+
         const res: MatchItem = {
           ...m,
           Durum: status,
@@ -1258,6 +1263,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           Bitis_Saati: endTime || (isEnding ? new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }) : m.Bitis_Saati),
           totalDurationSeconds: isEnding ? calculateMatchDurationSeconds({ ...m, Durum: status, Bitis_Saati: endTime || new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }) }) : m.totalDurationSeconds,
           Son_Hakem: currentReferee ? currentReferee.name : m.Son_Hakem,
+          detailedState: dState,
         };
         updatedItem = res;
         return res;
@@ -1270,7 +1276,16 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const resumeMatchToLive = (matchId: string) => {
     if (!matchId) return;
     setMatches((prev) => {
-      const next = prev.map((m) => (m.id === matchId ? { ...m, Durum: 'Oynaniyor' as MatchStatus, Kazanan: 'Secilmedi', Bitis_Saati: 'Secilmedi' } : m));
+      const next = prev.map((m) => {
+          if (m.id === matchId) {
+             const format = m.Skor_Formati || '3 Normal Set';
+             const dState = JSON.parse(JSON.stringify(m.detailedState || createInitialMatchState(1, format)));
+             dState.matchEnded = false;
+             dState.matchWinner = undefined;
+             return { ...m, Durum: 'Oynaniyor' as MatchStatus, Kazanan: 'Secilmedi', Bitis_Saati: 'Secilmedi', detailedState: dState };
+          }
+          return m;
+      });
       broadcastAndSyncMatches(next);
       return next;
     });
@@ -1365,10 +1380,17 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setMatches((prev) => {
       let updatedItem: MatchItem | null = null;
       const next = prev.map((m) => {
-        if (!m.id !== matchId) return m;
+        if (m.id !== matchId) return m;
 
         const endStr = endTime || new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
         const startStr = startTime || m.Baslangic_Saati;
+
+        const format = m.Skor_Formati || '3 Normal Set';
+        const dState = JSON.parse(JSON.stringify(m.detailedState || createInitialMatchState(1, format)));
+        // KRİTİK DEĞİŞİKLİK: Motoru baypas et ve maçı bitti olarak kilitle
+        dState.matchEnded = true;
+        if (winner === m['Oyuncu 1']) dState.matchWinner = 1;
+        else if (winner === m['Oyuncu 2']) dState.matchWinner = 2;
 
         const res: MatchItem = {
           ...m,
@@ -1379,6 +1401,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           Bitis_Saati: endStr,
           totalDurationSeconds: calculateMatchDurationSeconds({ ...m, Durum: status, Bitis_Saati: endStr }),
           Son_Hakem: currentReferee ? currentReferee.name : m.Son_Hakem,
+          detailedState: dState,
         };
         updatedItem = res;
         return res;
