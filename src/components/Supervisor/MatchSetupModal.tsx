@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { MatchItem, ScoreFormatType } from '../../types/tennis';
 import { useTennisData } from '../../context/TennisDataContext';
-import { Play, Clock, X, CheckCircle2, Trophy, Award, Sparkles } from 'lucide-react';
+import { Play, Clock, X, CheckCircle2, Trophy, Award } from 'lucide-react';
 
 const SCORE_FORMAT_OPTIONS: ScoreFormatType[] = [
   '3 Normal Set',
@@ -113,7 +113,6 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
     const isP1 = Math.random() > 0.5;
     const winner = isP1 ? p1Name : p2Name;
     
-    // 8 TAKLA (8 * 360 = 2880 derece) - Eskiden 5 taklaydı
     const baseRotation = Math.floor(rotation / 360) * 360;
     const spins = 8 * 360; 
     
@@ -126,7 +125,6 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
     
     setRotation(finalRotation);
 
-    // Fırlatma animasyonu 2.5 saniye sürecek
     setTimeout(() => {
       setIsFlipping(false);
       setKuraKazanan(winner);
@@ -161,13 +159,13 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-4 bg-slate-950/90 backdrop-blur-md animate-in fade-in overflow-y-auto">
       
-      {/* 3D PARABOLA MOTORU: Özel Keyframes (Yukarı fırlama ve ekranı aşacak kadar 4.5 kat büyüme) */}
+      {/* 3D PARABOLA MOTORU: Sadece merkeze doğru (Z ekseninde) büyüme, Y sapması kaldırıldı */}
       <style>
         {`
           @keyframes coinParabolaJump {
-            0% { transform: scale(1) translateY(0); }
-            50% { transform: scale(4.5) translateY(-10vh); }
-            100% { transform: scale(1) translateY(0); }
+            0% { transform: scale(1); }
+            50% { transform: scale(4.5); }
+            100% { transform: scale(1); }
           }
           .animate-coin-jump {
             animation: coinParabolaJump 2.5s ease-in-out forwards;
@@ -177,9 +175,9 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
 
       <div className="bg-slate-900 border border-slate-700/50 rounded-3xl p-4 sm:p-6 w-full max-w-xl shadow-2xl space-y-4 my-auto relative">
         
-        {/* TAM EKRAN KURA MODALI */}
+        {/* TAM EKRAN KURA MODALI - Şeffaflık artırıldı (bg-slate-950/70) ve bulanıklık azaltıldı (backdrop-blur-md) */}
         {isCoinTossFullscreenOpen && (
-          <div className="fixed inset-0 z-[99999] bg-slate-950/85 backdrop-blur-xl flex flex-col items-center justify-center p-6 animate-in fade-in zoom-in-95 duration-200">
+          <div className="fixed inset-0 z-[99999] bg-slate-950/70 backdrop-blur-md flex flex-col items-center justify-center p-6 animate-in fade-in zoom-in-95 duration-200">
             <button 
               onClick={() => setIsCoinTossFullscreenOpen(false)} 
               className="absolute top-8 right-8 p-3 sm:p-4 bg-slate-800 hover:bg-rose-500 rounded-full text-white transition-colors shadow-lg z-50"
@@ -195,15 +193,13 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
                 className={`relative w-48 h-48 sm:w-64 sm:h-64 ${!isFlipping ? 'cursor-pointer hover:scale-105' : ''} transition-transform`}
                 style={{ perspective: '1200px' }}
               >
-                {/* JUMPER CONTAINER: Paranın büyüme ve havaya fırlama hareketini yönetir */}
                 <div className={`w-full h-full ${isFlipping ? 'animate-coin-jump' : ''}`}>
                   
-                  {/* SPINNER CONTAINER: Paranın 8 taklalık dönüşünü yönetir */}
                   <div 
                     className="w-full h-full absolute top-0 left-0"
                     style={{ 
                       transformStyle: 'preserve-3d', 
-                      transition: 'transform 2500ms cubic-bezier(0.2, 0.8, 0.2, 1)', // 2.5 saniyelik dönüş süresi
+                      transition: 'transform 2500ms cubic-bezier(0.2, 0.8, 0.2, 1)', 
                       transform: `rotateY(${rotation}deg)`
                     }}
                   >
@@ -315,15 +311,14 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
           <button
             type="button"
             onClick={triggerFullscreenCoinToss}
-            className="w-full py-4 rounded-2xl bg-gradient-to-r from-slate-800 to-slate-900 hover:from-slate-700 hover:to-slate-800 text-slate-300 border border-slate-700 font-black text-lg sm:text-xl flex items-center justify-center gap-2 shadow-xl transition active:scale-95"
+            className="w-full py-4 rounded-2xl bg-amber-500/80 hover:bg-amber-500 text-slate-950 border border-amber-600/50 font-black text-lg sm:text-xl flex items-center justify-center shadow-xl transition active:scale-95"
           >
-            <Sparkles className="w-5 h-5 text-slate-400" />
-            <span>Dev Ekran Kura Atışını Aç</span>
+            KURA ATIŞI
           </button>
 
           {kuraKazanan !== 'Secilmedi' && (
             <div className="text-xs font-black text-emerald-400 bg-emerald-950/40 px-3 py-1.5 rounded-xl border border-emerald-500/30 inline-block mt-2">
-              ✨ Kura Kazananı: <strong className="text-white">{kuraKazanan}</strong>
+              Kura Kazananı: <strong className="text-white">{kuraKazanan}</strong>
             </div>
           )}
         </div>
