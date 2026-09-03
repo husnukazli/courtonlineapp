@@ -29,12 +29,13 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
   const [kuraKazanan, setKuraKazanan] = useState<string>('Secilmedi');
   const [kuraTercih, setKuraTercih] = useState<string>('Servis');
   const [sahaTarafi, setSahaTarafi] = useState<string>('Sandalyenin Sağı');
-  const [ilkServisiAtan, setIlkServisiAtan] = useState<string>('Secilmedi'); // YENİ: İlk servisçi hafızası
+  const [ilkServisiAtan, setIlkServisiAtan] = useState<string>('Secilmedi');
   const [baslangicSaati, setBaslangicSaati] = useState<string>('');
   const [bitisSaati, setBitisSaati] = useState<string>('');
-  const [skorFormati, setSkorFormati] = useState<string>('3 Normal Set');
   
-  // YEPYENİ DEV KURA EKRANI KONTROLÜ
+  // DÜZELTME: Artık açılışta varsayılan olarak '3 Normal Set' yazmıyor. Başhakemin kaydettiği formatı alıyor.
+  const [skorFormati, setSkorFormati] = useState<string>(match?.Skor_Formati || '3 Normal Set');
+  
   const [isCoinTossFullscreenOpen, setIsCoinTossFullscreenOpen] = useState<boolean>(false);
   const [isFlipping, setIsFlipping] = useState<boolean>(false);
   const [displaySide, setDisplaySide] = useState<1 | 2>(1);
@@ -44,9 +45,8 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
       setKuraKazanan(match.Kura_Kazanan || 'Secilmedi');
       setKuraTercih(match.Kura_Tercih || 'Servis');
       setSahaTarafi(match.Saha_Tarafi || 'Sandalyenin Sağı');
-      setSkorFormati(match.Skor_Formati || '3 Normal Set');
+      setSkorFormati(match.Skor_Formati || '3 Normal Set'); // useEffect içinde de tekrar güvenceye aldık
 
-      // YENİ: İlk servisçi veritabanından çekiliyor
       const savedFirstServer = (match as any).ilkServisOyuncusu;
       if (savedFirstServer === 1) setIlkServisiAtan(match['Oyuncu 1']);
       else if (savedFirstServer === 2) setIlkServisiAtan(match['Oyuncu 2']);
@@ -95,7 +95,6 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
     else setBitisSaati(newStr);
   };
 
-  // TAM EKRAN DEV KURA FONKSİYONU
   const triggerFullscreenCoinToss = () => {
     setIsCoinTossFullscreenOpen(true);
   };
@@ -104,7 +103,6 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
     if (isFlipping) return;
     setIsFlipping(true);
 
-    // Hızlı renk/taraf değişimi efekti
     const interval = setInterval(() => {
       setDisplaySide((prev) => (prev === 1 ? 2 : 1));
     }, 100);
@@ -120,7 +118,6 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
   };
 
   const handleSaveAndStart = () => {
-    // YENİ: Servisi atacak oyuncuyu kura kurallarına göre kesin olarak hesaplayan mantık
     let finalFirstServer = 1;
     if (kuraTercih === 'Saha Seçimi') {
       finalFirstServer = ilkServisiAtan === p2Name ? 2 : 1;
@@ -149,7 +146,6 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/90 backdrop-blur-md animate-in fade-in overflow-y-auto">
       <div className="bg-slate-900 border-2 border-amber-500/50 rounded-3xl p-4 sm:p-6 w-full max-w-xl shadow-2xl space-y-4 my-auto relative">
         
-        {/* DEV EKRAN KURA MODALI (AÇILIR PENCERE İÇİNDE TAM EKRAN) */}
         {isCoinTossFullscreenOpen && (
           <div className="absolute inset-0 z-[999] bg-slate-950/98 rounded-3xl flex flex-col items-center justify-center p-6 animate-in fade-in">
             <button 
@@ -161,7 +157,6 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
 
             <h2 className="text-3xl font-black text-amber-400 tracking-widest mb-6">KURA ATIŞI</h2>
 
-            {/* DEVASA PARA */}
             <button
               type="button"
               onClick={executeCoinTossFlip}
@@ -203,7 +198,6 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
           </div>
         )}
 
-        {/* Header */}
         <div className="flex items-start justify-between pb-3 border-b border-slate-800">
           <div className="flex items-center gap-3">
             <div className="w-11 h-11 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/40 flex items-center justify-center text-2xl shrink-0 shadow-lg">
@@ -221,7 +215,6 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
           </button>
         </div>
 
-        {/* Players Card */}
         <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 flex items-center justify-between shadow-inner">
           <div className="flex-1">
             <div className="text-[10px] text-lime-400 font-extrabold uppercase">1. Oyuncu</div>
@@ -234,7 +227,6 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
           </div>
         </div>
 
-        {/* DEV KURA AÇMA BUTONU */}
         <div className="bg-slate-950 p-4 rounded-3xl border-2 border-amber-500/40 text-center space-y-3 shadow-xl">
           <div className="flex items-center justify-between">
             <span className="text-xs font-extrabold text-amber-300 uppercase flex items-center gap-1.5">
@@ -259,7 +251,6 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
           )}
         </div>
 
-        {/* Elle Seçim */}
         <div>
           <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 text-left">
             Veya Kura Kazananını Elle Seçin:
@@ -289,7 +280,6 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
           </div>
         </div>
 
-        {/* Tercih & Saha Tarafı */}
         <div className="grid grid-cols-2 gap-3 text-left">
           <div>
             <label className="text-[10px] font-extrabold uppercase text-slate-400 block mb-1">Tercih</label>
@@ -317,7 +307,6 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
           </div>
         </div>
 
-        {/* YENİ EKLENEN BÖLÜM: Saha Seçimi Yapılırsa Rakibin Servis Durumu Sorulur */}
         {kuraTercih === 'Saha Seçimi' && (
           <div className="mt-3 pt-3 border-t border-slate-800 animate-in fade-in text-left">
             <label className="text-[10px] font-extrabold uppercase text-lime-400 block mb-1.5">
@@ -335,7 +324,6 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
           </div>
         )}
 
-        {/* Başlangıç Saati */}
         <div className="bg-slate-950/80 p-3.5 rounded-2xl border border-slate-800 space-y-2">
           <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
             <Clock className="w-3.5 h-3.5 text-lime-400" />
@@ -354,7 +342,6 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
           </div>
         </div>
 
-        {/* Skor Formatı */}
         <div className="bg-slate-950/80 p-3 rounded-2xl border border-slate-800 space-y-1">
           <label className="text-xs font-bold text-slate-300 block">Skor Formatı</label>
           <select
@@ -368,7 +355,6 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
           </select>
         </div>
 
-        {/* Footer Actions */}
         <div className="flex items-center gap-3 pt-2">
           <button type="button" onClick={onClose} className="flex-1 py-3 px-4 rounded-2xl bg-slate-800 text-slate-300 font-bold text-xs">İptal</button>
           <button type="button" onClick={handleSaveAndStart} className="flex-2 py-3 px-5 rounded-2xl bg-lime-400 hover:bg-lime-300 text-slate-950 font-black text-sm flex items-center justify-center gap-2 shadow-xl">
