@@ -3,7 +3,7 @@ import { MatchItem, ScoreFormatType } from '../../types/tennis';
 import { useTennisData } from '../../context/TennisDataContext';
 import { Play, Clock, X, RotateCcw, Sparkles, CheckCircle2, Trophy } from 'lucide-react';
 
-const SCORE_FORMATS: ScoreFormatType[] = [
+const SCORE_FORMAT_OPTIONS: ScoreFormatType[] = [
   '3 Normal Set',
   '3 Kısa Set',
   '2 Normal Set, 3. Set 10 Puanlık Maç Tie-Break',
@@ -24,7 +24,8 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
   onClose,
   onStartMatch,
 }) => {
-  const { saveMatchSetup } = useTennisData();
+  // KRİTİK EKLENTİ: categoryFormats (Başhakem ayarları) içeri aktarıldı
+  const { saveMatchSetup, categoryFormats } = useTennisData();
 
   const [kuraKazanan, setKuraKazanan] = useState<string>('Secilmedi');
   const [kuraTercih, setKuraTercih] = useState<string>('Servis');
@@ -32,9 +33,7 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
   const [ilkServisiAtan, setIlkServisiAtan] = useState<string>('Secilmedi');
   const [baslangicSaati, setBaslangicSaati] = useState<string>('');
   const [bitisSaati, setBitisSaati] = useState<string>('');
-  
-  // DÜZELTME: Artık açılışta varsayılan olarak '3 Normal Set' yazmıyor. Başhakemin kaydettiği formatı alıyor.
-  const [skorFormati, setSkorFormati] = useState<string>(match?.Skor_Formati || '3 Normal Set');
+  const [skorFormati, setSkorFormati] = useState<string>('3 Normal Set');
   
   const [isCoinTossFullscreenOpen, setIsCoinTossFullscreenOpen] = useState<boolean>(false);
   const [isFlipping, setIsFlipping] = useState<boolean>(false);
@@ -45,7 +44,10 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
       setKuraKazanan(match.Kura_Kazanan || 'Secilmedi');
       setKuraTercih(match.Kura_Tercih || 'Servis');
       setSahaTarafi(match.Saha_Tarafi || 'Sandalyenin Sağı');
-      setSkorFormati(match.Skor_Formati || '3 Normal Set'); // useEffect içinde de tekrar güvenceye aldık
+
+      // KRİTİK DÜZELTME: Başhakemin kategori ayarı varsa her şeyden üstün tut, yoksa maçtakini al, o da yoksa 3 Normal Set yap.
+      const headUmpireFormat = categoryFormats[match.Kategori];
+      setSkorFormati(headUmpireFormat || match.Skor_Formati || '3 Normal Set');
 
       const savedFirstServer = (match as any).ilkServisOyuncusu;
       if (savedFirstServer === 1) setIlkServisiAtan(match['Oyuncu 1']);
@@ -62,7 +64,7 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
       }
       setBitisSaati(match.Bitis_Saati || '');
     }
-  }, [match, isOpen]);
+  }, [match, isOpen, categoryFormats]); // categoryFormats bağımlılıklara eklendi
 
   if (!isOpen || !match) return null;
 
@@ -349,7 +351,7 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
             onChange={(e) => setSkorFormati(e.target.value)}
             className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-lime-400 font-bold"
           >
-            {SCORE_FORMATS.map((fmt) => (
+            {SCORE_FORMAT_OPTIONS.map((fmt) => (
               <option key={fmt} value={fmt} className="text-white">{fmt}</option>
             ))}
           </select>
