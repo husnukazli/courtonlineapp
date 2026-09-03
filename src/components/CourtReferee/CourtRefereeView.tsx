@@ -5,8 +5,18 @@ import { MatchSetupTab } from './MatchSetupTab';
 import { LiveScoringTab } from './LiveScoringTab';
 import { UserCheck, LogOut, SlidersHorizontal, Activity } from 'lucide-react';
 
-export const CourtRefereeView: React.FC = () => {
-  const { currentReferee, logoutReferee } = useTennisData();
+interface CourtRefereeViewProps {
+  onBackToList?: () => void;
+}
+
+export const CourtRefereeView: React.FC<CourtRefereeViewProps> = ({ onBackToList }) => {
+  const { currentReferee, logoutReferee, setAuthRole } = useTennisData();
+
+  const handleLogout = () => {
+    logoutReferee();
+    setAuthRole('none');
+    if (onBackToList) onBackToList();
+  };
   const [subMode, setSubMode] = useState<'kurulum' | 'skor'>('kurulum');
 
   if (!currentReferee) {
@@ -58,7 +68,7 @@ export const CourtRefereeView: React.FC = () => {
           </div>
 
           <button
-            onClick={logoutReferee}
+            onClick={handleLogout}
             className="p-2 rounded-xl text-amber-400/60 hover:text-rose-400 hover:bg-rose-950/30 border border-amber-800/40 transition"
             title="Hakem Çıkışı"
           >
