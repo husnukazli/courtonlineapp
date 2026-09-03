@@ -16,11 +16,12 @@ interface MainPortalGateProps {
 
 export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) => {
   const {
-    referees, matches, loginSupervisorByPin, loginReferee, loginDesk, deskPin,
+    referees, matches, loginReferee, loginDesk, deskPin,
     cloudSyncStatus, lastCloudSync, pullFromCloudNow, clearLocalCacheAndResetFromCloud, tournamentInfo, tournamentId, setAuthRole
   } = useTennisData();
 
-  const [activeModal, setActiveModal] = useState<'supervisor' | 'desk' | null>(null);
+  // YENİ MİMARİ: Artık modal durumları 'referee' (Hakem) ve 'desk' (Başhakem) olarak ikiye ayrıldı.
+  const [activeModal, setActiveModal] = useState<'referee' | 'desk' | null>(null);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [pin, setPin] = useState('');
   const [selectedRefName, setSelectedRefName] = useState('');
@@ -33,7 +34,6 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
   const [filterDurum, setFilterDurum] = useState('TUMU');
   const [now, setNow] = useState(Date.now());
 
-  // YENİ: Başhakem ismini buluttan çekip ekranda göstermek için state
   const [deskRefName, setDeskRefName] = useState<string>('');
 
   useEffect(() => {
@@ -41,12 +41,10 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
     return () => clearInterval(t);
   }, []);
 
-  // YENİ: Başhakem masası seçildiğinde arka planda başhakem ismini bulma mantığı
   useEffect(() => {
     if (activeModal === 'desk' && tournamentId) {
       const fetchDeskRefName = async () => {
         try {
-          // Önce turnuva dokümanında kayıtlı mı diye bakıyoruz
           const tRef = doc(db, 'tournaments', tournamentId);
           const tSnap = await getDoc(tRef);
           if (tSnap.exists() && tSnap.data().bashakemAd) {
@@ -54,7 +52,6 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
             return;
           }
           
-          // Turnuva dokümanında yoksa, doğrudan Süper Admin listesinden eşleştiriyoruz
           const configRef = doc(db, 'superAdmin', 'config');
           const configSnap = await getDoc(configRef);
           if (configSnap.exists()) {
@@ -74,14 +71,14 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
     }
   }, [activeModal, tournamentId]);
 
-  const openSupervisorModal = () => { setActiveModal('supervisor'); setPin(''); setSelectedRefName(''); setErrorMsg(''); setSuccessMsg(''); setShowPin(false); };
+  const openRefereeModal = () => { setActiveModal('referee'); setPin(''); setSelectedRefName(''); setErrorMsg(''); setSuccessMsg(''); setShowPin(false); };
   const openDeskModal = () => { setActiveModal('desk'); setPin(''); setSelectedRefName(''); setErrorMsg(''); setSuccessMsg(''); setShowPin(false); };
   const closeModal = () => { setActiveModal(null); setPin(''); setErrorMsg(''); setSuccessMsg(''); };
   const handleKeypadPress = (d: string) => { if (pin.length < 8) { setPin(p => p + d); setErrorMsg(''); } };
   const handleKeypadBackspace = () => setPin(p => p.slice(0, -1));
   const handleKeypadClear = () => setPin('');
 
-  const handleSupervisorSubmit = () => {
+  const handleRefereeSubmit = () => {
     if (!selectedRefName) { setErrorMsg('Lütfen hakem adınızı seçin.'); return; }
     if (!pin) { setErrorMsg('PIN şifresi boş olamaz.'); return; }
     const ok = loginReferee(selectedRefName, pin);
@@ -115,7 +112,6 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
         localStorage.setItem('courtonline_desk_pin_v2', validMasterPin);
         setAuthRole('desk');
         
-        // İsmi bulabildiysek ismiyle, bulamadıysak Başhakem olarak karşıla
         const welcomeName = deskRefName ? deskRefName : 'Başhakem';
         setSuccessMsg(`✅ Hoş geldiniz ${welcomeName}! Giriş yapıldı...`); 
         
@@ -166,16 +162,16 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
           </div>
 
           <div className="flex items-center gap-2">
-            <button onClick={openSupervisorModal}
+            <button onClick={openRefereeModal}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-lime-400/15 hover:bg-lime-400/25 border border-lime-400/30 text-lime-300 text-xs font-black transition active:scale-95">
               <Smartphone className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Kort Hakemi</span>
+              <span className="hidden sm:inline">Hakem Girişi</span>
               <span className="sm:hidden">Hakem</span>
             </button>
             <button onClick={openDeskModal}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-cyan-400/15 hover:bg-cyan-400/25 border border-cyan-400/30 text-cyan-300 text-xs font-black transition active:scale-95">
               <Tv className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Başhakem</span>
+              <span className="hidden sm:inline">Başhakem Girişi</span>
               <span className="sm:hidden">Masa</span>
             </button>
             <button onClick={() => setIsShareModalOpen(true)}
@@ -348,7 +344,6 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
           );
         })()}
 
-        {/* BU BUTON ARTIK SADECE CİHAZ ÖNBELLEĞİNİ TEMİZLEYİP BULUTTAN GERİ ÇEKECEK - VERİTABANI GÜVENDE */}
         <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-800/60 text-xs text-slate-500">
           <div className="flex items-center gap-2">
             <Cloud className="w-3.5 h-3.5" />
@@ -380,19 +375,18 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
           <div className="bg-slate-900 border-2 border-slate-700/80 rounded-3xl p-5 sm:p-7 w-full max-w-md shadow-2xl space-y-4 my-auto">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <div className="flex items-center gap-3">
-                <div className={`w-10 h-10 rounded-2xl flex items-center justify-center font-black ${activeModal === 'supervisor' ? 'bg-lime-400/20 text-lime-400 border border-lime-400/30' : 'bg-cyan-400/20 text-cyan-400 border border-cyan-400/30'}`}>
-                  {activeModal === 'supervisor' ? <Smartphone className="w-5 h-5" /> : <Tv className="w-5 h-5" />}
+                <div className={`w-10 h-10 rounded-2xl flex items-center justify-center font-black ${activeModal === 'referee' ? 'bg-lime-400/20 text-lime-400 border border-lime-400/30' : 'bg-cyan-400/20 text-cyan-400 border border-cyan-400/30'}`}>
+                  {activeModal === 'referee' ? <Smartphone className="w-5 h-5" /> : <Tv className="w-5 h-5" />}
                 </div>
                 <div>
-                  <h3 className="font-black text-white text-base">{activeModal === 'supervisor' ? 'Kort Hakemi Girişi' : 'Başhakem Girişi'}</h3>
-                  <p className="text-xs text-slate-400">{activeModal === 'supervisor' ? 'İsminizi seçip PIN girin.' : 'Turnuva yöneticisi şifresini girin.'}</p>
+                  <h3 className="font-black text-white text-base">{activeModal === 'referee' ? 'Hakem Girişi' : 'Başhakem Girişi'}</h3>
+                  <p className="text-xs text-slate-400">{activeModal === 'referee' ? 'İsminizi seçip PIN girin.' : 'Turnuva yöneticisi şifresini girin.'}</p>
                 </div>
               </div>
               <button onClick={closeModal} className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition"><X className="w-5 h-5" /></button>
             </div>
 
-            {/* YENİ: Kort Hakemi ismini seçtiğinde gösterilen karşılama kartı */}
-            {activeModal === 'supervisor' && selectedRefName && (
+            {activeModal === 'referee' && selectedRefName && (
               <div className="flex items-center gap-3 p-3 bg-lime-500/10 border border-lime-500/20 rounded-xl mb-4 mt-2">
                 <div className="w-10 h-10 rounded-full bg-lime-400/20 flex items-center justify-center text-lime-400 font-bold shrink-0">
                   <User className="w-5 h-5" />
@@ -404,7 +398,6 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
               </div>
             )}
 
-            {/* YENİ: Başhakem arka planda bulunduğunda gösterilen karşılama kartı */}
             {activeModal === 'desk' && deskRefName && (
               <div className="flex items-center gap-3 p-3 bg-cyan-500/10 border border-cyan-500/20 rounded-xl mb-4">
                 <div className="w-10 h-10 rounded-full bg-cyan-400/20 flex items-center justify-center text-cyan-400 font-bold shrink-0">
@@ -417,7 +410,7 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
               </div>
             )}
 
-            {activeModal === 'supervisor' && (
+            {activeModal === 'referee' && (
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5"><User className="w-3.5 h-3.5 text-lime-400" /> Hakem Adı</label>
                 <select value={selectedRefName} onChange={(e) => { setSelectedRefName(e.target.value); setErrorMsg(''); }}
@@ -430,16 +423,16 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
 
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-slate-300 flex items-center justify-between">
-                <span className="flex items-center gap-1.5"><KeyRound className={`w-3.5 h-3.5 ${activeModal === 'supervisor' ? 'text-lime-400' : 'text-cyan-400'}`} /> PIN Şifresi</span>
+                <span className="flex items-center gap-1.5"><KeyRound className={`w-3.5 h-3.5 ${activeModal === 'referee' ? 'text-lime-400' : 'text-cyan-400'}`} /> PIN Şifresi</span>
                 <button type="button" onClick={() => setShowPin(!showPin)} className="text-[11px] text-slate-400 hover:text-white flex items-center gap-1">
                   {showPin ? <><EyeOff className="w-3 h-3" /> Gizle</> : <><Eye className="w-3 h-3" /> Göster</>}
                 </button>
               </label>
               <input type={showPin ? 'text' : 'password'} maxLength={10} value={pin}
                 onChange={(e) => { setPin(e.target.value); setErrorMsg(''); }}
-                onKeyDown={(e) => { if (e.key === 'Enter') { activeModal === 'supervisor' ? handleSupervisorSubmit() : handleDeskSubmit(); } }}
+                onKeyDown={(e) => { if (e.key === 'Enter') { activeModal === 'referee' ? handleRefereeSubmit() : handleDeskSubmit(); } }}
                 placeholder="••••" autoFocus
-                className={`w-full bg-slate-950 border rounded-2xl px-4 py-3 text-center text-2xl tracking-widest text-white font-mono font-black focus:outline-none ${activeModal === 'supervisor' ? 'border-slate-700 focus:border-lime-400' : 'border-slate-700 focus:border-cyan-400'}`} />
+                className={`w-full bg-slate-950 border rounded-2xl px-4 py-3 text-center text-2xl tracking-widest text-white font-mono font-black focus:outline-none ${activeModal === 'referee' ? 'border-slate-700 focus:border-lime-400' : 'border-slate-700 focus:border-cyan-400'}`} />
             </div>
 
             <div className="grid grid-cols-3 gap-2 pt-1">
@@ -456,8 +449,8 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
             {successMsg && <div className="p-3 bg-emerald-500/15 border border-emerald-500/30 rounded-xl text-emerald-300 text-xs flex items-center gap-2"><CheckCircle2 className="w-4 h-4 shrink-0" />{successMsg}</div>}
 
             <button type="button"
-              onClick={() => activeModal === 'supervisor' ? handleSupervisorSubmit() : handleDeskSubmit()}
-              className={`w-full py-3.5 px-4 rounded-2xl font-black text-sm text-slate-950 flex items-center justify-center gap-2 shadow-xl active:scale-95 transition ${activeModal === 'supervisor' ? 'bg-gradient-to-r from-lime-400 to-emerald-400' : 'bg-gradient-to-r from-cyan-400 to-teal-400'}`}>
+              onClick={() => activeModal === 'referee' ? handleRefereeSubmit() : handleDeskSubmit()}
+              className={`w-full py-3.5 px-4 rounded-2xl font-black text-sm text-slate-950 flex items-center justify-center gap-2 shadow-xl active:scale-95 transition ${activeModal === 'referee' ? 'bg-gradient-to-r from-lime-400 to-emerald-400' : 'bg-gradient-to-r from-cyan-400 to-teal-400'}`}>
               <KeyRound className="w-4 h-4" /> Giriş Yap
             </button>
           </div>
