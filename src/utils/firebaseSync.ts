@@ -11,7 +11,6 @@ import { MatchItem, RefereeUser } from '../types/tennis';
 const tDoc  = (tid: string) => doc(db, 'tournaments', tid);
 const mCol  = (tid: string) => collection(db, 'tournaments', tid, 'matches');
 const mDoc  = (tid: string, mid: string) => doc(db, 'tournaments', tid, 'matches', mid);
-// Süper admin koleksiyonu
 const superAdminDoc = () => doc(db, 'superAdmin', 'config');  
 
 // ─── YENİ: Geri Sarma (Bouncing) Koruması İçin Yerel Yazma Kilitleri ─────────
@@ -201,14 +200,11 @@ export const subscribeToCloudTournament = (
     (snap: QuerySnapshot<DocumentData>) => {      
       isApplyingRemoteChange = true;      
       
-      // KRİTİK DÜZELTME: Parçalı güncellemeler (docChanges) yerine doğrudan 
-      // veritabanının o anki TAM HALİNİ alıp sisteme basıyoruz.
-      // Bu sayede format uçmaları, maç silinmemesi gibi tüm sorunlar kökten çözüldü.
       const fullList: MatchItem[] = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as MatchItem));
       
-      if (fullList.length > 0) {
-          onMatchesUpdate(fullList);
-      }
+      // DÜZELTME: Eskiden burada "if (fullList.length > 0)" vardı, sildim!
+      // Artık liste 0 maç olsa bile (yani silindiyse) onMatchesUpdate tetiklenecek.
+      onMatchesUpdate(fullList);
       
       setTimeout(() => { isApplyingRemoteChange = false; }, 150);    },    
     (err: FirestoreError) => { if (onError) onError(err); }  
@@ -331,13 +327,12 @@ export const fetchTournamentFromCloud = async (tournamentId = 'main'): Promise<{
   }
 };  
 
-// NÜKLEER SİLME FONKSİYONU: Herhangi bir hataya meyil vermemek için her bir dökümanı zorla (Promise.all) yok eder.
+// NÜKLEER SİLME FONKSİYONU
 export const deleteAllMatchesFromCloud = async (tournamentId = 'main'): Promise<boolean> => {  
   try {    
     const snap = await getDocs(mCol(tournamentId));    
     if (snap.empty) return true;
     
-    // Batch limitine takılmamak ve kesin silinmesini sağlamak için
     await Promise.all(snap.docs.map(d => deleteDoc(d.ref)));    
     console.log(`[${tournamentId}] Tüm maçlar başarıyla silindi (Nükleer)!`);
     return true;  
@@ -347,7 +342,6 @@ export const deleteAllMatchesFromCloud = async (tournamentId = 'main'): Promise<
   }
 };  
 
-// HAYALET TEMİZLEYİCİ: Yukarıdaki ile aynı sağlam silme mantığı eklendi
 export const purgeOrphanMatchesFromCloud = async (  
   activeMatchIds: string[],  
   tournamentId = 'main'
