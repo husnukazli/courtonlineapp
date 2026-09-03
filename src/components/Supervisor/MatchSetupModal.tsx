@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { MatchItem, ScoreFormatType } from '../../types/tennis';
 import { useTennisData } from '../../context/TennisDataContext';
-import { Play, Clock, X, CheckCircle2, Trophy, Award, Sparkles } from 'lucide-react';
+import { Play, Clock, X, CheckCircle2, Trophy, Award } from 'lucide-react';
 
 const SCORE_FORMAT_OPTIONS: ScoreFormatType[] = [
   '3 Normal Set',
@@ -105,6 +105,7 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
     setIsCoinTossFullscreenOpen(true);
   };
 
+  // Sınırsız tekrar atışa izin veren kura motoru
   const executeCoinTossFlip = () => {
     if (isFlipping) return;
     setIsFlipping(true);
@@ -160,7 +161,7 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-4 bg-slate-950/90 backdrop-blur-md animate-in fade-in overflow-y-auto">
       <div className="bg-slate-900 border border-slate-700/50 rounded-3xl p-4 sm:p-6 w-full max-w-xl shadow-2xl space-y-4 my-auto relative">
         
-        {/* YENİ NESİL PREMIUM 3D KURA MODALI */}
+        {/* TAM EKRAN KURA MODALI */}
         {isCoinTossFullscreenOpen && (
           <div className="absolute inset-0 z-[999] bg-slate-950/98 rounded-3xl flex flex-col items-center justify-center p-6 animate-in fade-in">
             <button 
@@ -174,8 +175,9 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
 
             <div className="flex flex-col items-center justify-center">
               <div 
-                onClick={!isFlipping && !kuraKazanan ? executeCoinTossFlip : undefined}
-                className={`relative w-48 h-48 sm:w-64 sm:h-64 ${!isFlipping && !kuraKazanan ? 'cursor-pointer hover:scale-105' : ''} transition-transform`}
+                // Tıklama engeli kaldırıldı: Dönerken hariç her zaman tıklanıp yeniden atılabilir
+                onClick={!isFlipping ? executeCoinTossFlip : undefined}
+                className={`relative w-48 h-48 sm:w-64 sm:h-64 ${!isFlipping ? 'cursor-pointer hover:scale-105' : ''} transition-transform`}
                 style={{ perspective: '1000px' }}
               >
                 {/* 3D Kura Parası Motoru */}
@@ -187,7 +189,7 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
                     transform: `rotateY(${rotation}deg) ${isFlipping ? 'scale(1.3) translateY(-40px)' : 'scale(1) translateY(0)'}`
                   }}
                 >
-                  {/* ÖN YÜZ (BAŞLANGIÇ VEYA 1. OYUNCU - PLATİN) */}
+                  {/* ÖN YÜZ */}
                   <div 
                     className="w-full h-full absolute top-0 left-0 rounded-full flex flex-col items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950 border-[10px] sm:border-[16px] border-slate-300 shadow-[inset_0_0_50px_rgba(0,0,0,0.9),0_20px_40px_rgba(0,0,0,0.8)]"
                     style={{ backfaceVisibility: 'hidden' }}
@@ -212,7 +214,7 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
                     </div>
                   </div>
 
-                  {/* ARKA YÜZ (2. OYUNCU - PLATİN) */}
+                  {/* ARKA YÜZ */}
                   <div 
                     className="w-full h-full absolute top-0 left-0 rounded-full flex flex-col items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950 border-[10px] sm:border-[16px] border-slate-300 shadow-[inset_0_0_50px_rgba(0,0,0,0.9),0_20px_40px_rgba(0,0,0,0.8)]"
                     style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}
@@ -236,7 +238,7 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
                 ) : kuraKazanan !== 'Secilmedi' ? (
                   <div className="flex flex-col items-center animate-in fade-in zoom-in slide-in-from-bottom-4">
                     <span className="text-slate-400 font-bold text-xs uppercase tracking-widest mb-2 flex items-center gap-1.5"><Trophy className="w-3.5 h-3.5" /> KAZANAN</span>
-                    <span className="text-2xl sm:text-3xl font-black text-white bg-gradient-to-r from-slate-800 to-slate-900 px-8 py-3 rounded-2xl border border-slate-500/50 shadow-[0_0_30px_rgba(203,213,225,0.15)] text-center line-clamp-1 max-w-[90vw]">
+                    <span className="text-2xl sm:text-3xl font-black text-white bg-gradient-to-r from-slate-800 to-slate-900 px-8 py-3 rounded-2xl border border-slate-500/50 shadow-[0_0_30px_rgba(203,213,225,0.15)] text-center line-clamp-1 max-w-[90vw] cursor-pointer" onClick={executeCoinTossFlip} title="Tekrar Atmak İçin Dokun">
                       {kuraKazanan}
                     </span>
                   </div>
@@ -263,12 +265,12 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
 
         <div className="flex items-start justify-between pb-3 border-b border-slate-800">
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-slate-800 text-slate-300 border border-slate-700/50 flex items-center justify-center text-xl shrink-0 shadow-lg">
+            <div className="w-11 h-11 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/40 flex items-center justify-center text-xl shrink-0 shadow-lg">
               <Trophy className="w-6 h-6" />
             </div>
             <div>
               <h2 className="text-base sm:text-lg font-black text-white">Maç Öncesi Kura & Kurulum</h2>
-              <p className="text-xs text-slate-400 font-semibold mt-0.5">
+              <p className="text-xs text-amber-400 font-semibold mt-0.5">
                 {match.Kort} • {match.Kategori} • Planlanan: {match.Saat}
               </p>
             </div>
@@ -290,14 +292,14 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
           </div>
         </div>
 
+        {/* Canlı Parlak Renkli Eski Buton Tarzı Geri Getirildi */}
         <div className="bg-slate-950 p-4 rounded-3xl border border-slate-800 text-center space-y-3 shadow-lg">
           <button
             type="button"
             onClick={triggerFullscreenCoinToss}
-            className="w-full py-4 rounded-2xl bg-gradient-to-r from-slate-800 to-slate-900 hover:from-slate-700 hover:to-slate-800 text-slate-300 border border-slate-700 font-black text-sm sm:text-base flex items-center justify-center gap-2 shadow-xl transition active:scale-95"
+            className="w-full py-4 rounded-2xl bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:from-amber-300 hover:to-yellow-300 text-slate-950 font-black text-lg sm:text-xl flex items-center justify-center gap-2 shadow-xl transition active:scale-95"
           >
-            <Sparkles className="w-5 h-5 text-slate-400" />
-            <span>Dev Ekran Kura Atışını Aç</span>
+            <span>🪙 KURA ATIŞI</span>
           </button>
 
           {kuraKazanan !== 'Secilmedi' && (
