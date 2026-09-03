@@ -477,7 +477,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
   const currentSetP1Games = selectedSet === 1 ? s1_p1 : selectedSet === 2 ? s2_p1 : s3_p1;
   const currentSetP2Games = selectedSet === 1 ? s1_p2 : selectedSet === 2 ? s2_p2 : s3_p2;
 
-  // DIŞ HIZLI EKRAN İÇİN KİLİT KONTROLLERİ
   let isP1PlusDisabled = isPaused || isFinished || isCurrentSetComplete;
   let isP2PlusDisabled = isPaused || isFinished || isCurrentSetComplete;
 
@@ -499,7 +498,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
 
   return (
     <>
-      {/* 3. SET UYARISI - HER İKİ MOD İÇİN ORTAK */}
       {thirdSetWarning.show && (
         <div className="fixed inset-0 z-[100000] bg-slate-950/95 flex flex-col items-center justify-center p-6 animate-in fade-in zoom-in duration-300" style={{ touchAction: 'none' }}>
           <div className="bg-slate-900 border-4 border-amber-500 rounded-3xl p-6 sm:p-8 w-full max-w-lg text-center shadow-[0_0_80px_rgba(245,158,11,0.2)]">
@@ -550,11 +548,28 @@ export const CourtCard: React.FC<CourtCardProps> = ({
           </span>
         </div>
 
-        <div className="px-4 sm:px-5 py-2 bg-slate-950/80 border-b border-slate-800/80 flex items-center justify-between text-xs font-mono">
-          <div className="flex items-center gap-3">
-            <span className="text-slate-400 flex items-center gap-1"><Clock className="w-3.5 h-3.5 text-lime-400" />{match.Saat && <span className="text-slate-500 text-[10px]">{match.Saat}</span>} <strong className="text-white font-bold ml-1">{match.Baslangic_Saati && match.Baslangic_Saati !== 'Secilmedi' ? match.Baslangic_Saati : '--:--'}</strong></span>
+        {/* DÜZELTME UYGULANAN ALAN: Devasa Parlak Saat Tasarımı */}
+        <div className="px-4 sm:px-5 py-2.5 sm:py-3 bg-slate-950/90 border-b border-slate-800/80 flex items-center justify-between font-mono shadow-inner">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="flex items-center gap-1.5 bg-slate-800/50 px-2.5 py-1 rounded-lg border border-slate-700/50">
+              <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400" />
+              {match.Saat && (
+                <span className="text-white font-black text-sm sm:text-lg tracking-widest drop-shadow-md">
+                  {match.Saat}
+                </span>
+              )}
+            </div>
+            
+            {(isLive || isPaused || isFinished) && (
+               <div className="flex flex-col justify-center border-l border-slate-700/80 pl-2 sm:pl-3">
+                 <span className="text-[9px] sm:text-[10px] text-slate-500 font-bold uppercase leading-none mb-0.5">Fiili Başlama</span>
+                 <strong className="text-slate-300 text-xs sm:text-sm leading-none">{match.Baslangic_Saati && match.Baslangic_Saati !== 'Secilmedi' ? match.Baslangic_Saati : '--:--'}</strong>
+               </div>
+            )}
           </div>
-          <div className="text-slate-400 font-sans text-[11px] truncate pl-2 max-w-[110px]">{match.Skor_Formati}</div>
+          <div className="text-slate-400 font-sans text-[11px] sm:text-xs font-bold truncate pl-2 max-w-[120px] sm:max-w-[150px] text-right leading-tight">
+            {match.Skor_Formati}
+          </div>
         </div>
 
         <div className="p-4 sm:p-5 space-y-3">
@@ -563,7 +578,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
               <div className="col-span-6">Oyuncu / Takım</div><div className="col-span-2 text-center">1. Set</div><div className="col-span-2 text-center">2. Set</div><div className="col-span-2 text-center">3. Set</div>
             </div>
             
-            {/* OYUNCU 1 SATIRI - Akıllı Servis İkonu (Sol/Sağ) */}
             <div className={`grid grid-cols-12 items-center py-2 px-3 border-b border-slate-800/50 ${match.Kazanan === match['Oyuncu 1'] && isFinished ? 'bg-lime-500/10' : ''}`}>
               <div className="col-span-6 flex items-center gap-2 pr-2 min-w-0">
                 <span className="w-2.5 h-2.5 rounded-full bg-lime-400 shrink-0"></span>
@@ -580,7 +594,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
               <div className="col-span-2 text-center font-mono font-black text-lime-300">{isUpcoming ? '-' : s1_p1}</div><div className="col-span-2 text-center font-mono font-black text-lime-300">{isUpcoming ? '-' : s2_p1}</div><div className="col-span-2 text-center font-mono font-black text-lime-300">{isUpcoming ? '-' : s3_p1}</div>
             </div>
             
-            {/* OYUNCU 2 SATIRI - Akıllı Servis İkonu (Sol/Sağ) */}
             <div className={`grid grid-cols-12 items-center py-2 px-3 ${match.Kazanan === match['Oyuncu 2'] && isFinished ? 'bg-cyan-500/10' : ''}`}>
               <div className="col-span-6 flex items-center gap-2 pr-2 min-w-0">
                 <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 shrink-0"></span>
@@ -644,13 +657,9 @@ export const CourtCard: React.FC<CourtCardProps> = ({
         </div>
       </div>
 
-      {/* ============================================================== */}
-      {/* 2. TAM EKRAN KULE HAKEMİ MODU (ZEN MODU)                       */}
-      {/* ============================================================== */}
       {isChairMode && (
         <div className="fixed inset-0 z-[50000] bg-slate-950 flex flex-col animate-in fade-in zoom-in-95 duration-200 select-none" style={{ touchAction: 'none' }}>
           
-          {/* Ayarlar Butonu Bilgi Balonu (Toast) */}
           {toastMessage && (
             <div className="absolute top-16 left-1/2 -translate-x-1/2 z-[50000] bg-slate-800 text-white px-5 py-3 rounded-2xl border border-slate-700 shadow-2xl animate-in fade-in slide-in-from-top-4 flex items-center gap-3">
               <Info className="w-5 h-5 text-amber-400 shrink-0" />
