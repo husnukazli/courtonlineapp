@@ -5,41 +5,37 @@ import { SuperAdminScreen } from './components/Portal/SuperAdminScreen';
 import { MainPortalGate } from './components/Portal/MainPortalGate';
 import { Navigation } from './components/Navigation';
 import { CourtSupervisorView } from './components/Supervisor/CourtSupervisorView';
+import { CourtRefereeView } from './components/CourtReferee/CourtRefereeView';
 import { DeskSupervisorView } from './components/DeskSupervisor/DeskSupervisorView';
 import { HelpModal } from './components/Common/HelpModal';
 
-// Uygulama genelinde hangi ekranda olduğumuzu tutan tip
 type AppScreen =
-  | { type: 'list' }                        // Turnuva listesi (başlangıç)
-  | { type: 'superAdmin' }                  // Süper admin paneli
-  | { type: 'tournament'; id: string };     // Seçili bir turnuvanın izleyici/hakem ekranı
+  | { type: 'list' }
+  | { type: 'superAdmin' }
+  | { type: 'tournament'; id: string };
 
 const AppContent: React.FC = () => {
-  const { authRole, setAuthRole, setTournamentId, resetAllScores } = useTennisData();
+  const { authRole, setAuthRole, setTournamentId } = useTennisData();
   const [screen, setScreen] = useState<AppScreen>({ type: 'list' });
   const [currentTab, setCurrentTab] = useState<'supervisor' | 'desk'>('supervisor');
   const [isHelpOpen, setIsHelpOpen] = useState(false);
 
-  // Turnuva seçildiğinde
   const handleSelectTournament = (id: string) => {
     setTournamentId(id);
     setScreen({ type: 'tournament', id });
   };
 
-  // Süper admin girişi
   const handleSuperAdminLogin = () => setScreen({ type: 'superAdmin' });
 
-  // Geri (turnuva listesine dön)
   const handleBackToList = () => {
     setAuthRole('none');
-    setTournamentId('');          // Guard'lar bu boş ID'yi görünce Firestore'a yazmaz
+    setTournamentId('');
     setScreen({ type: 'list' });
   };
 
-  // Süper admin çıkışı
   const handleSuperAdminLogout = () => setScreen({ type: 'list' });
 
-  // ── Ekran: Turnuva Listesi ──────────────────────────────────────────────
+  // ── Turnuva Listesi ─────────────────────────────────────────────────────
   if (screen.type === 'list') {
     return (
       <TournamentListScreen
@@ -49,18 +45,28 @@ const AppContent: React.FC = () => {
     );
   }
 
-  // ── Ekran: Süper Admin ──────────────────────────────────────────────────
+  // ── Süper Admin ─────────────────────────────────────────────────────────
   if (screen.type === 'superAdmin') {
     return <SuperAdminScreen onLogout={handleSuperAdminLogout} />;
   }
 
-  // ── Ekran: Turnuva (izleyici/hakem/başhakem) ────────────────────────────
-  // Giriş yapılmamışsa → izleyici ekranı (MainPortalGate içinde PIN modalları var)
+  // ── Kule Hakemi girişi yaptıysa → doğrudan CourtRefereeView ────────────
+  if (authRole === 'referee') {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-lime-400 selection:text-slate-950">
+        <div className="flex-1 max-w-4xl w-full mx-auto px-3 sm:px-6 py-4 sm:py-6">
+          <CourtRefereeView onBackToList={handleBackToList} />
+        </div>
+      </div>
+    );
+  }
+
+  // ── Giriş yapılmamış → izleyici ekranı ─────────────────────────────────
   if (authRole === 'none') {
     return <MainPortalGate onBackToList={handleBackToList} />;
   }
 
-  // PIN ile giriş yapılmış → hakem/başhakem ekranı
+  // ── Başhakem (supervisor) veya Masa (desk) ──────────────────────────────
   const handleTabChange = (tab: 'supervisor' | 'desk') => {
     setCurrentTab(tab);
     setAuthRole(tab);
