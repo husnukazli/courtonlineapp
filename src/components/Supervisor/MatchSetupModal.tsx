@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { MatchItem, ScoreFormatType } from '../../types/tennis';
 import { useTennisData } from '../../context/TennisDataContext';
-import { Play, Clock, X, CheckCircle2, Trophy, Award } from 'lucide-react';
+import { Play, Clock, X, CheckCircle2, Trophy, Award, Sparkles } from 'lucide-react';
 
 const SCORE_FORMAT_OPTIONS: ScoreFormatType[] = [
   '3 Normal Set',
@@ -105,7 +105,6 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
     setIsCoinTossFullscreenOpen(true);
   };
 
-  // Sınırsız tekrar atışa izin veren kura motoru
   const executeCoinTossFlip = () => {
     if (isFlipping) return;
     setIsFlipping(true);
@@ -114,8 +113,9 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
     const isP1 = Math.random() > 0.5;
     const winner = isP1 ? p1Name : p2Name;
     
+    // 8 TAKLA (8 * 360 = 2880 derece) - Eskiden 5 taklaydı
     const baseRotation = Math.floor(rotation / 360) * 360;
-    const spins = 5 * 360; 
+    const spins = 8 * 360; 
     
     let finalRotation;
     if (isP1) {
@@ -126,10 +126,11 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
     
     setRotation(finalRotation);
 
+    // Fırlatma animasyonu 2.5 saniye sürecek
     setTimeout(() => {
       setIsFlipping(false);
       setKuraKazanan(winner);
-    }, 2000); 
+    }, 2500); 
   };
 
   const handleSaveAndStart = () => {
@@ -159,91 +160,109 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-4 bg-slate-950/90 backdrop-blur-md animate-in fade-in overflow-y-auto">
+      
+      {/* 3D PARABOLA MOTORU: Özel Keyframes (Yukarı fırlama ve ekranı aşacak kadar 4.5 kat büyüme) */}
+      <style>
+        {`
+          @keyframes coinParabolaJump {
+            0% { transform: scale(1) translateY(0); }
+            50% { transform: scale(4.5) translateY(-10vh); }
+            100% { transform: scale(1) translateY(0); }
+          }
+          .animate-coin-jump {
+            animation: coinParabolaJump 2.5s ease-in-out forwards;
+          }
+        `}
+      </style>
+
       <div className="bg-slate-900 border border-slate-700/50 rounded-3xl p-4 sm:p-6 w-full max-w-xl shadow-2xl space-y-4 my-auto relative">
         
         {/* TAM EKRAN KURA MODALI */}
         {isCoinTossFullscreenOpen && (
-          <div className="absolute inset-0 z-[999] bg-slate-950/98 rounded-3xl flex flex-col items-center justify-center p-6 animate-in fade-in">
+          <div className="fixed inset-0 z-[99999] bg-slate-950/85 backdrop-blur-xl flex flex-col items-center justify-center p-6 animate-in fade-in zoom-in-95 duration-200">
             <button 
               onClick={() => setIsCoinTossFullscreenOpen(false)} 
-              className="absolute top-6 right-6 p-3 bg-slate-800 hover:bg-rose-500 rounded-full text-white transition-colors shadow-lg z-50"
+              className="absolute top-8 right-8 p-3 sm:p-4 bg-slate-800 hover:bg-rose-500 rounded-full text-white transition-colors shadow-lg z-50"
             >
-              <X className="w-6 h-6" />
+              <X className="w-6 h-6 sm:w-8 sm:h-8" />
             </button>
 
-            <h2 className="text-2xl sm:text-3xl font-black text-slate-300 tracking-[0.2em] mb-10 text-center uppercase">Kura Atışı</h2>
+            <h2 className="text-2xl sm:text-4xl font-black text-slate-300 tracking-[0.2em] mb-12 text-center uppercase drop-shadow-md">Kura Atışı</h2>
 
             <div className="flex flex-col items-center justify-center">
               <div 
-                // Tıklama engeli kaldırıldı: Dönerken hariç her zaman tıklanıp yeniden atılabilir
                 onClick={!isFlipping ? executeCoinTossFlip : undefined}
                 className={`relative w-48 h-48 sm:w-64 sm:h-64 ${!isFlipping ? 'cursor-pointer hover:scale-105' : ''} transition-transform`}
-                style={{ perspective: '1000px' }}
+                style={{ perspective: '1200px' }}
               >
-                {/* 3D Kura Parası Motoru */}
-                <div 
-                  className="w-full h-full absolute top-0 left-0 transition-all ease-out"
-                  style={{ 
-                    transformStyle: 'preserve-3d', 
-                    transitionDuration: '2000ms',
-                    transform: `rotateY(${rotation}deg) ${isFlipping ? 'scale(1.3) translateY(-40px)' : 'scale(1) translateY(0)'}`
-                  }}
-                >
-                  {/* ÖN YÜZ */}
+                {/* JUMPER CONTAINER: Paranın büyüme ve havaya fırlama hareketini yönetir */}
+                <div className={`w-full h-full ${isFlipping ? 'animate-coin-jump' : ''}`}>
+                  
+                  {/* SPINNER CONTAINER: Paranın 8 taklalık dönüşünü yönetir */}
                   <div 
-                    className="w-full h-full absolute top-0 left-0 rounded-full flex flex-col items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950 border-[10px] sm:border-[16px] border-slate-300 shadow-[inset_0_0_50px_rgba(0,0,0,0.9),0_20px_40px_rgba(0,0,0,0.8)]"
-                    style={{ backfaceVisibility: 'hidden' }}
+                    className="w-full h-full absolute top-0 left-0"
+                    style={{ 
+                      transformStyle: 'preserve-3d', 
+                      transition: 'transform 2500ms cubic-bezier(0.2, 0.8, 0.2, 1)', // 2.5 saniyelik dönüş süresi
+                      transform: `rotateY(${rotation}deg)`
+                    }}
                   >
-                    <div className="w-[86%] h-[86%] rounded-full border-[3px] border-dashed border-slate-300/30 flex flex-col items-center justify-center p-4 text-center relative overflow-hidden">
-                      <Award className="absolute w-32 h-32 text-slate-300/10 -z-10" strokeWidth={1} />
-                      
-                      {!hasTossed ? (
-                        <>
-                          <span className="text-transparent bg-clip-text bg-gradient-to-b from-white to-slate-300 font-black text-4xl sm:text-5xl leading-none drop-shadow-2xl z-10 px-1 uppercase tracking-widest break-words">
-                            TOSS
-                          </span>
-                        </>
-                      ) : (
-                        <>
-                          <span className="text-slate-400 font-extrabold text-[10px] sm:text-xs tracking-[0.3em] uppercase mb-1 sm:mb-2 z-10 opacity-80">1. Oyuncu</span>
-                          <span className="text-transparent bg-clip-text bg-gradient-to-b from-white to-slate-200 font-black text-2xl sm:text-4xl leading-none drop-shadow-2xl z-10 px-1 uppercase tracking-wide break-words">
-                            {p1Name}
-                          </span>
-                        </>
-                      )}
+                    {/* ÖN YÜZ */}
+                    <div 
+                      className="w-full h-full absolute top-0 left-0 rounded-full flex flex-col items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950 border-[10px] sm:border-[16px] border-slate-300 shadow-[inset_0_0_50px_rgba(0,0,0,0.9),0_20px_40px_rgba(0,0,0,0.8)]"
+                      style={{ backfaceVisibility: 'hidden' }}
+                    >
+                      <div className="w-[86%] h-[86%] rounded-full border-[3px] border-dashed border-slate-300/30 flex flex-col items-center justify-center p-4 text-center relative overflow-hidden">
+                        <Award className="absolute w-32 h-32 text-slate-300/10 -z-10" strokeWidth={1} />
+                        
+                        {!hasTossed ? (
+                          <>
+                            <span className="text-transparent bg-clip-text bg-gradient-to-b from-white to-slate-300 font-black text-4xl sm:text-5xl leading-none drop-shadow-2xl z-10 px-1 uppercase tracking-widest break-words">
+                              TOSS
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="text-slate-400 font-extrabold text-[10px] sm:text-xs tracking-[0.3em] uppercase mb-1 sm:mb-2 z-10 opacity-80">1. Oyuncu</span>
+                            <span className="text-transparent bg-clip-text bg-gradient-to-b from-white to-slate-200 font-black text-2xl sm:text-4xl leading-none drop-shadow-2xl z-10 px-1 uppercase tracking-wide break-words">
+                              {p1Name}
+                            </span>
+                          </>
+                        )}
+                      </div>
                     </div>
-                  </div>
 
-                  {/* ARKA YÜZ */}
-                  <div 
-                    className="w-full h-full absolute top-0 left-0 rounded-full flex flex-col items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950 border-[10px] sm:border-[16px] border-slate-300 shadow-[inset_0_0_50px_rgba(0,0,0,0.9),0_20px_40px_rgba(0,0,0,0.8)]"
-                    style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}
-                  >
-                    <div className="w-[86%] h-[86%] rounded-full border-[3px] border-dashed border-slate-300/30 flex flex-col items-center justify-center p-4 text-center relative overflow-hidden">
-                      <Award className="absolute w-32 h-32 text-slate-300/10 -z-10" strokeWidth={1} />
-                      <span className="text-slate-400 font-extrabold text-[10px] sm:text-xs tracking-[0.3em] uppercase mb-1 sm:mb-2 z-10 opacity-80">2. Oyuncu</span>
-                      <span className="text-transparent bg-clip-text bg-gradient-to-b from-white to-slate-200 font-black text-2xl sm:text-4xl leading-none drop-shadow-2xl z-10 px-1 uppercase tracking-wide break-words">
-                        {p2Name}
-                      </span>
+                    {/* ARKA YÜZ */}
+                    <div 
+                      className="w-full h-full absolute top-0 left-0 rounded-full flex flex-col items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950 border-[10px] sm:border-[16px] border-slate-300 shadow-[inset_0_0_50px_rgba(0,0,0,0.9),0_20px_40px_rgba(0,0,0,0.8)]"
+                      style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}
+                    >
+                      <div className="w-[86%] h-[86%] rounded-full border-[3px] border-dashed border-slate-300/30 flex flex-col items-center justify-center p-4 text-center relative overflow-hidden">
+                        <Award className="absolute w-32 h-32 text-slate-300/10 -z-10" strokeWidth={1} />
+                        <span className="text-slate-400 font-extrabold text-[10px] sm:text-xs tracking-[0.3em] uppercase mb-1 sm:mb-2 z-10 opacity-80">2. Oyuncu</span>
+                        <span className="text-transparent bg-clip-text bg-gradient-to-b from-white to-slate-200 font-black text-2xl sm:text-4xl leading-none drop-shadow-2xl z-10 px-1 uppercase tracking-wide break-words">
+                          {p2Name}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
               
-              <div className="mt-10 h-20 flex items-center justify-center">
+              <div className="mt-16 h-20 flex items-center justify-center">
                 {isFlipping ? (
                   <div className="bg-slate-800/80 px-8 py-3 rounded-full border border-slate-700">
-                    <span className="text-slate-300 font-black text-lg sm:text-xl tracking-widest animate-pulse">Kura Atılıyor...</span>
+                    <span className="text-slate-300 font-black text-lg sm:text-2xl tracking-widest animate-pulse">Kura Atılıyor...</span>
                   </div>
                 ) : kuraKazanan !== 'Secilmedi' ? (
                   <div className="flex flex-col items-center animate-in fade-in zoom-in slide-in-from-bottom-4">
-                    <span className="text-slate-400 font-bold text-xs uppercase tracking-widest mb-2 flex items-center gap-1.5"><Trophy className="w-3.5 h-3.5" /> KAZANAN</span>
-                    <span className="text-2xl sm:text-3xl font-black text-white bg-gradient-to-r from-slate-800 to-slate-900 px-8 py-3 rounded-2xl border border-slate-500/50 shadow-[0_0_30px_rgba(203,213,225,0.15)] text-center line-clamp-1 max-w-[90vw] cursor-pointer" onClick={executeCoinTossFlip} title="Tekrar Atmak İçin Dokun">
+                    <span className="text-slate-400 font-bold text-xs sm:text-sm uppercase tracking-widest mb-2 flex items-center gap-1.5"><Trophy className="w-4 h-4" /> KAZANAN</span>
+                    <span className="text-3xl sm:text-4xl font-black text-white bg-gradient-to-r from-slate-800 to-slate-900 px-10 py-4 rounded-2xl border border-slate-500/50 shadow-[0_0_40px_rgba(203,213,225,0.15)] text-center line-clamp-1 max-w-[90vw] cursor-pointer" onClick={executeCoinTossFlip} title="Tekrar Atmak İçin Dokun">
                       {kuraKazanan}
                     </span>
                   </div>
                 ) : (
-                  <span className="text-white font-black text-base sm:text-lg tracking-widest bg-slate-800/60 px-8 py-3.5 rounded-full border border-slate-700 animate-bounce cursor-pointer hover:bg-slate-800 transition" onClick={executeCoinTossFlip}>
+                  <span className="text-white font-black text-lg sm:text-2xl tracking-widest bg-slate-800/60 px-10 py-4 rounded-full border border-slate-700 animate-bounce cursor-pointer hover:bg-slate-800 transition" onClick={executeCoinTossFlip}>
                     DOKUN VE AT
                   </span>
                 )}
@@ -251,10 +270,10 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
             </div>
 
             {kuraKazanan !== 'Secilmedi' && !isFlipping && (
-              <div className="mt-8 text-center animate-in fade-in slide-in-from-bottom-4">
+              <div className="mt-12 text-center animate-in fade-in slide-in-from-bottom-4">
                 <button 
                   onClick={() => setIsCoinTossFullscreenOpen(false)} 
-                  className="px-8 py-4 bg-gradient-to-r from-slate-300 to-slate-400 hover:from-slate-200 hover:to-slate-300 text-slate-950 font-black text-sm sm:text-lg rounded-2xl shadow-xl transition active:scale-95"
+                  className="px-10 py-5 bg-gradient-to-r from-slate-300 to-slate-400 hover:from-slate-200 hover:to-slate-300 text-slate-950 font-black text-base sm:text-xl rounded-2xl shadow-2xl transition active:scale-95"
                 >
                   Onayla ve Seçimlere Dön
                 </button>
@@ -265,12 +284,12 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
 
         <div className="flex items-start justify-between pb-3 border-b border-slate-800">
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/40 flex items-center justify-center text-xl shrink-0 shadow-lg">
+            <div className="w-11 h-11 rounded-2xl bg-slate-800 text-slate-300 border border-slate-700/50 flex items-center justify-center text-xl shrink-0 shadow-lg">
               <Trophy className="w-6 h-6" />
             </div>
             <div>
               <h2 className="text-base sm:text-lg font-black text-white">Maç Öncesi Kura & Kurulum</h2>
-              <p className="text-xs text-amber-400 font-semibold mt-0.5">
+              <p className="text-xs text-slate-400 font-semibold mt-0.5">
                 {match.Kort} • {match.Kategori} • Planlanan: {match.Saat}
               </p>
             </div>
@@ -292,14 +311,14 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
           </div>
         </div>
 
-        {/* Canlı Parlak Renkli Eski Buton Tarzı Geri Getirildi */}
         <div className="bg-slate-950 p-4 rounded-3xl border border-slate-800 text-center space-y-3 shadow-lg">
           <button
             type="button"
             onClick={triggerFullscreenCoinToss}
-            className="w-full py-4 rounded-2xl bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:from-amber-300 hover:to-yellow-300 text-slate-950 font-black text-lg sm:text-xl flex items-center justify-center gap-2 shadow-xl transition active:scale-95"
+            className="w-full py-4 rounded-2xl bg-gradient-to-r from-slate-800 to-slate-900 hover:from-slate-700 hover:to-slate-800 text-slate-300 border border-slate-700 font-black text-lg sm:text-xl flex items-center justify-center gap-2 shadow-xl transition active:scale-95"
           >
-            <span>🪙 KURA ATIŞI</span>
+            <Sparkles className="w-5 h-5 text-slate-400" />
+            <span>Dev Ekran Kura Atışını Aç</span>
           </button>
 
           {kuraKazanan !== 'Secilmedi' && (
