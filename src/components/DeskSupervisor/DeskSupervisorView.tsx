@@ -22,6 +22,7 @@ import {
   KeyRound,
   ShieldCheck,
   FileText,
+  RotateCcw,
 } from 'lucide-react';
 import { useTennisData } from '../../context/TennisDataContext';
 import { MatchItem, ScoreFormatType } from '../../types/tennis';
@@ -106,7 +107,6 @@ export const DeskSupervisorView: React.FC = () => {
     return true;
   });
 
-  // YENİ EKLENDİ: Buluttan gelen formatlar güncellendiğinde ekranın da güncellenmesini sağlar
   useEffect(() => {
     if (categoryFormats && Object.keys(categoryFormats).length > 0) {
       setLocalFormats(categoryFormats);
@@ -114,10 +114,8 @@ export const DeskSupervisorView: React.FC = () => {
   }, [categoryFormats]);
 
   const handleApplyFormats = () => {
-    // 1. Önce kategori eşleştirmelerini sisteme (state) tanıt
     bulkApplyCategoryFormats(localFormats);
 
-    // 2. BÜYÜK DÜZELTME: Tüm maçları tara, kategorisi eşleşen maçların içindeki "Skor_Formati" metnini güncelle!
     const updatedMatches = matches.map(m => {
       if (localFormats[m.Kategori] && m.Skor_Formati !== localFormats[m.Kategori]) {
         return { ...m, Skor_Formati: localFormats[m.Kategori] };
@@ -125,10 +123,8 @@ export const DeskSupervisorView: React.FC = () => {
       return m;
     });
 
-    // 3. Maçları yeni formatlarıyla birlikte topluca buluta fırlat ve kaydet!
     importMatchesList(updatedMatches);
 
-    // 4. Kategori ayarlarının kendisini de buluta yollamak için sistemi senkronize et
     setTimeout(() => {
       forcePushAllToCloud().catch(() => {});
     }, 500);
@@ -638,6 +634,26 @@ export const DeskSupervisorView: React.FC = () => {
                 >
                   <Trash2 className="w-4 h-4" />
                   <span>Tüm Maçları Kökten Sil (Sıfırla)</span>
+                </button>
+
+                {/* YENİ EKLENEN SIFIRLAMA BUTONU */}
+                <button 
+                  type="button" 
+                  disabled={isSyncingAction} 
+                  onClick={() => {
+                    const onay = window.confirm("DİKKAT: Bütün maçların SKORLARI sıfırlanacak!\n\nMaçlar ve fikstür silinmeyecek, sadece hepsi 'Başlamadı' durumuna dönüp skorları silinecektir. Deneme/Test sonrası temizlik için idealdir. Emin misiniz?");
+                    if (onay) {
+                      setIsSyncingAction(true);
+                      resetAllScores();
+                      setImportMsg('🔄 Bütün skorlar başarıyla sıfırlandı! Fikstür ilk haline döndü.');
+                      setIsSyncingAction(false);
+                      setTimeout(() => setImportMsg(''), 5000);
+                    }
+                  }} 
+                  className="flex items-center gap-1.5 px-4 py-2.5 bg-amber-600/20 hover:bg-amber-600/40 border border-amber-500/50 text-amber-300 font-bold text-xs rounded-xl transition disabled:opacity-50"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  <span>Sadece Skorları Sıfırla (Fikstürü Koru)</span>
                 </button>
 
                 <button 
