@@ -83,7 +83,7 @@ interface TennisDataContextType {
   categoryFormats: Record<string, string>;
   activeMatchId: string | null;
   activeMatch: MatchItem | null;
-  authRole: 'none' | 'supervisor' | 'desk';
+  authRole: 'none' | 'supervisor' | 'desk' | 'referee';
   deskPin: string;
   cloudSyncStatus: CloudSyncStatus;
   lastCloudSync: string | null;
@@ -102,7 +102,7 @@ interface TennisDataContextType {
   loginDesk: (pin: string) => boolean;
   logoutReferee: () => void;
   logoutAuth: () => void;
-  setAuthRole: (role: 'none' | 'supervisor' | 'desk') => void;
+  setAuthRole: (role: 'none' | 'supervisor' | 'desk' | 'referee') => void;
   updateDeskPin: (newPin: string) => void;
   setActiveMatchId: (id: string | null) => void;
   updateMatch: (match: MatchItem) => void;
@@ -210,9 +210,9 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     return localStorage.getItem(getStorageKey(BASE_STORAGE_KEYS.DESK_PIN, initialTournamentId)) || '2026';
   });
 
-  const [authRole, setAuthRoleState] = useState<'none' | 'supervisor' | 'desk'>(() => {
+  const [authRole, setAuthRoleState] = useState<'none' | 'supervisor' | 'desk' | 'referee'>(() => {
     const savedRole = sessionStorage.getItem(getStorageKey(BASE_STORAGE_KEYS.AUTH_ROLE, initialTournamentId));
-    if (savedRole === 'supervisor' || savedRole === 'desk') {
+    if (savedRole === 'supervisor' || savedRole === 'desk' || savedRole === 'referee') {
       return savedRole as 'supervisor' | 'desk';
     }
     return 'none';
@@ -238,7 +238,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   }, [authRole]);
 
-  const setAuthRole = (role: 'none' | 'supervisor' | 'desk') => {
+  const setAuthRole = (role: 'none' | 'supervisor' | 'desk' | 'referee') => {
     setAuthRoleState(role);
     if (role === 'none') {
       sessionStorage.removeItem(getStorageKey(BASE_STORAGE_KEYS.AUTH_ROLE, tournamentId));
@@ -685,7 +685,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const found = referees.find((r) => r.name.toLowerCase() === name.toLowerCase() && r.pin === pin);
     if (found) {
       setCurrentReferee(found);
-      setAuthRole('supervisor');
+      setAuthRole('referee');  // Kule hakemi — CourtRefereeView açılacak
       return true;
     }
     return false;
