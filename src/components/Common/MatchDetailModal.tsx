@@ -1,7 +1,8 @@
 import React from 'react';
-import { X, Clock, Award, ShieldAlert, History, UserCheck, Calendar, Zap, Timer } from 'lucide-react';
+import { X, Clock, Award, Timer, RotateCcw } from 'lucide-react';
 import { MatchItem } from '../../types/tennis';
 import { MatchLiveTimer } from './MatchLiveTimer';
+import { useTennisData } from '../../context/TennisDataContext';
 
 interface MatchDetailModalProps {
   match: MatchItem | null;
@@ -9,11 +10,20 @@ interface MatchDetailModalProps {
 }
 
 export const MatchDetailModal: React.FC<MatchDetailModalProps> = ({ match, onClose }) => {
+  const { resetMatchScore } = useTennisData();
+
   if (!match) return null;
 
   const state = match.detailedState;
   const p1Name = match['Oyuncu 1'];
   const p2Name = match['Oyuncu 2'];
+
+  const handleResetMatch = () => {
+    if (window.confirm('DİKKAT: Bu maçın tüm skorunu ve kurulum ayarlarını sıfırlamak istediğinize emin misiniz?\n\nMaç "Başlamadı" (0-0) konumuna geri dönecektir.')) {
+      resetMatchScore(match.id);
+      onClose();
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/85 backdrop-blur-sm animate-in fade-in">
@@ -34,7 +44,7 @@ export const MatchDetailModal: React.FC<MatchDetailModalProps> = ({ match, onClo
                       ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 animate-pulse'
                       : match.Durum === 'Duraklatildi'
                       ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                      : match.Durum === 'Bitti'
+                      : match.Durum === 'Bitti' || match.Durum === 'Retired' || match.Durum === 'Walkover'
                       ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
                       : 'bg-slate-800 text-slate-400'
                   }`}
@@ -81,13 +91,13 @@ export const MatchDetailModal: React.FC<MatchDetailModalProps> = ({ match, onClo
                 </span>
               </div>
               <div className="col-span-2 text-base font-bold py-2 border-b border-slate-800/80 text-white">
-                {state ? state.set1_p1 : match.Skor.split(' ')[0]?.split('/')[0] ?? '-'}
+                {state ? state.set1_p1 : (match.Skor || '').split(' ')[0]?.split('/')[0] ?? '-'}
               </div>
               <div className="col-span-2 text-base font-bold py-2 border-b border-slate-800/80 text-white">
-                {state ? state.set2_p1 : match.Skor.split(' ')[1]?.split('/')[0] ?? '-'}
+                {state ? state.set2_p1 : (match.Skor || '').split(' ')[1]?.split('/')[0] ?? '-'}
               </div>
               <div className="col-span-2 text-base font-bold py-2 border-b border-slate-800/80 text-white">
-                {state ? state.set3_p1 : match.Skor.split(' ')[2]?.split('/')[0] ?? '-'}
+                {state ? state.set3_p1 : (match.Skor || '').split(' ')[2]?.split('/')[0] ?? '-'}
               </div>
 
               {/* Player 2 Row */}
@@ -105,13 +115,13 @@ export const MatchDetailModal: React.FC<MatchDetailModalProps> = ({ match, onClo
                 </span>
               </div>
               <div className="col-span-2 text-base font-bold py-2 text-white">
-                {state ? state.set1_p2 : match.Skor.split(' ')[0]?.split('/')[1] ?? '-'}
+                {state ? state.set1_p2 : (match.Skor || '').split(' ')[0]?.split('/')[1] ?? '-'}
               </div>
               <div className="col-span-2 text-base font-bold py-2 text-white">
-                {state ? state.set2_p2 : match.Skor.split(' ')[1]?.split('/')[1] ?? '-'}
+                {state ? state.set2_p2 : (match.Skor || '').split(' ')[1]?.split('/')[1] ?? '-'}
               </div>
               <div className="col-span-2 text-base font-bold py-2 text-white">
-                {state ? state.set3_p2 : match.Skor.split(' ')[2]?.split('/')[1] ?? '-'}
+                {state ? state.set3_p2 : (match.Skor || '').split(' ')[2]?.split('/')[1] ?? '-'}
               </div>
             </div>
 
@@ -187,79 +197,20 @@ export const MatchDetailModal: React.FC<MatchDetailModalProps> = ({ match, onClo
               </div>
             )}
           </div>
-
-          {/* Stats if available */}
-          {state && (
-            <div>
-              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                <Zap className="w-4 h-4 text-amber-400" />
-                Maç İstatistikleri
-              </h4>
-              <div className="bg-slate-950 rounded-xl border border-slate-800 p-3 space-y-2 text-xs font-mono">
-                <div className="flex items-center justify-between text-slate-400">
-                  <span className="font-bold text-white w-12 text-left">{state.p1Aces}</span>
-                  <span className="font-sans text-slate-400">Ace (Servis Sayısı)</span>
-                  <span className="font-bold text-white w-12 text-right">{state.p2Aces}</span>
-                </div>
-                <div className="flex items-center justify-between text-slate-400">
-                  <span className="font-bold text-white w-12 text-left">{state.p1Winners}</span>
-                  <span className="font-sans text-slate-400">Winner (Kazanılan Vuruş)</span>
-                  <span className="font-bold text-white w-12 text-right">{state.p2Winners}</span>
-                </div>
-                <div className="flex items-center justify-between text-slate-400">
-                  <span className="font-bold text-white w-12 text-left">{state.p1DoubleFaults}</span>
-                  <span className="font-sans text-slate-400">Çift Hata</span>
-                  <span className="font-bold text-white w-12 text-right">{state.p2DoubleFaults}</span>
-                </div>
-                <div className="flex items-center justify-between text-slate-400">
-                  <span className="font-bold text-white w-12 text-left">{state.p1UnforcedErrors}</span>
-                  <span className="font-sans text-slate-400">Basit Hata</span>
-                  <span className="font-bold text-white w-12 text-right">{state.p2UnforcedErrors}</span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Challenge Log */}
-          {match.challenges && match.challenges.length > 0 && (
-            <div>
-              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                <ShieldAlert className="w-4 h-4 text-amber-400" />
-                Challenge & İtiraz Geçmişi ({match.challenges.length})
-              </h4>
-              <div className="space-y-2 max-h-48 overflow-y-auto">
-                {match.challenges.map((c) => (
-                  <div
-                    key={c.id}
-                    className="p-2.5 rounded-lg bg-slate-950 border border-slate-800 text-xs flex items-center justify-between"
-                  >
-                    <div>
-                      <div className="font-semibold text-slate-200">{c.notes}</div>
-                      <div className="text-[10px] text-slate-500 mt-0.5">
-                        {c.timestamp} • İtiraz Eden: {c.playerName}
-                      </div>
-                    </div>
-                    <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                        c.outcome === 'UPHELD'
-                          ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
-                          : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                      }`}
-                    >
-                      {c.outcome === 'UPHELD' ? 'Haklı Bulundu' : 'Haksız'}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
 
-        {/* Footer */}
-        <div className="p-4 border-t border-slate-800 bg-slate-950 flex justify-end flex-shrink-0">
+        {/* Footer with Reset Button */}
+        <div className="p-4 border-t border-slate-800 bg-slate-950 flex items-center justify-between flex-shrink-0">
+          <button
+            onClick={handleResetMatch}
+            className="px-4 py-2.5 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-400 text-xs font-bold rounded-xl transition flex items-center gap-2"
+          >
+            <RotateCcw className="w-4 h-4" /> Maçı Sıfırla
+          </button>
+          
           <button
             onClick={onClose}
-            className="px-5 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl transition"
+            className="px-6 py-2.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl transition"
           >
             Kapat
           </button>
