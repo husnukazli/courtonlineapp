@@ -99,6 +99,21 @@ export function isMatchTiebreakThirdSet(format: string): { isMT: boolean; target
   return { isMT: false, target: 7 };
 }
 
+// YENİ EKLENDİ: awardPoint fonksiyonunun düzgün çalışması için gereken eksik bağlantı fonksiyonu
+export function checkMatchWinner(state: TennisMatchState, format: string): { matchEnded: boolean; winner?: 1 | 2 } {
+  const result = validateFullMatchScores(
+    state.set1_p1, state.set1_p2,
+    state.set2_p1, state.set2_p2,
+    state.set3_p1, state.set3_p2,
+    format,
+    false
+  );
+  return { 
+    matchEnded: result.isMatchFinished, 
+    winner: result.winner !== null ? result.winner : undefined 
+  };
+}
+
 export function awardPoint(
   currentState: TennisMatchState,
   playerWon: 1 | 2,
@@ -356,75 +371,6 @@ function advanceToNextSet(state: TennisMatchState, format: string, previousSetWi
     state.tiebreakFirstServer = state.currentServer;
     state.totalPointsInTiebreak = 0;
   }
-}
-
-export function checkMatchWinner(
-  state: TennisMatchState,
-  format: string
-): { matchEnded: boolean; winner?: 1 | 2 } {
-  let p1Sets = 0;
-  let p2Sets = 0;
-
-  const { target, tiebreakAt } = getTargetGamesPerSet(format);
-  const thirdSetMT = isMatchTiebreakThirdSet(format);
-
-  // Set 1
-  if (
-    (state.set1_p1 >= target && state.set1_p1 - state.set1_p2 >= 2) ||
-    (state.set1_p1 === target + 1 && state.set1_p2 === target - 1) ||
-    (state.set1_p1 > state.set1_p2 && state.set1_p1 > tiebreakAt)
-  ) {
-    p1Sets++;
-  } else if (
-    (state.set1_p2 >= target && state.set1_p2 - state.set1_p1 >= 2) ||
-    (state.set1_p2 === target + 1 && state.set1_p1 === target - 1) ||
-    (state.set1_p2 > state.set1_p1 && state.set1_p2 > tiebreakAt)
-  ) {
-    p2Sets++;
-  }
-
-  // Set 2
-  if (
-    (state.set2_p1 >= target && state.set2_p1 - state.set2_p2 >= 2) ||
-    (state.set2_p1 === target + 1 && state.set2_p2 === target - 1) ||
-    (state.set2_p1 > state.set2_p2 && state.set2_p1 > tiebreakAt)
-  ) {
-    p1Sets++;
-  } else if (
-    (state.set2_p2 >= target && state.set2_p2 - state.set2_p1 >= 2) ||
-    (state.set2_p2 === target + 1 && state.set2_p1 === target - 1) ||
-    (state.set2_p2 > state.set2_p1 && state.set2_p2 > tiebreakAt)
-  ) {
-    p2Sets++;
-  }
-
-  // Set 3 (if played)
-  if (thirdSetMT.isMT) {
-    if (state.set3_p1 >= thirdSetMT.target && state.set3_p1 - state.set3_p2 >= 2) {
-      p1Sets++;
-    } else if (state.set3_p2 >= thirdSetMT.target && state.set3_p2 - state.set3_p1 >= 2) {
-      p2Sets++;
-    }
-  } else {
-    if (
-      (state.set3_p1 >= target && state.set3_p1 - state.set3_p2 >= 2) ||
-      (state.set3_p1 === target + 1 && state.set3_p2 === target - 1) ||
-      (state.set3_p1 > state.set3_p2 && state.set3_p1 > tiebreakAt)
-    ) {
-      p1Sets++;
-    } else if (
-      (state.set3_p2 >= target && state.set3_p2 - state.set3_p1 >= 2) ||
-      (state.set3_p2 === target + 1 && state.set3_p1 === target - 1) ||
-      (state.set3_p2 > state.set3_p1 && state.set3_p2 > tiebreakAt)
-    ) {
-      p2Sets++;
-    }
-  }
-
-  if (p1Sets >= 2) return { matchEnded: true, winner: 1 };
-  if (p2Sets >= 2) return { matchEnded: true, winner: 2 };
-
-  return { matchEnded: false };
 }
 
 export function buildScoreString(
