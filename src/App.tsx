@@ -5,7 +5,6 @@ import { SuperAdminScreen } from './components/Portal/SuperAdminScreen';
 import { MainPortalGate } from './components/Portal/MainPortalGate';
 import { Navigation } from './components/Navigation';
 import { CourtSupervisorView } from './components/Supervisor/CourtSupervisorView';
-import { CourtRefereeView } from './components/CourtReferee/CourtRefereeView';
 import { DeskSupervisorView } from './components/DeskSupervisor/DeskSupervisorView';
 import { HelpModal } from './components/Common/HelpModal';
 
@@ -17,7 +16,8 @@ type AppScreen =
 const AppContent: React.FC = () => {
   const { authRole, setAuthRole, setTournamentId } = useTennisData();
   const [screen, setScreen] = useState<AppScreen>({ type: 'list' });
-  const [currentTab, setCurrentTab] = useState<'supervisor' | 'desk'>('supervisor');
+  // Başhakem için varsayılan açılış sekmesini desk (Grid ve Yönetim) yapıyoruz.
+  const [currentTab, setCurrentTab] = useState<'supervisor' | 'desk'>('desk');
   const [isHelpOpen, setIsHelpOpen] = useState(false);
 
   const handleSelectTournament = (id: string) => {
@@ -51,13 +51,41 @@ const AppContent: React.FC = () => {
   }
 
   // ── ROL 1: HAKEM (Kort Hakemi) ──────────────────────────────────────────
-  // Hakem sadece kendi kortuna odaklandığı hibrit CourtRefereeView ekranını görür.
+  // Hakem giriş yaptığında artık eski ekran GELMEZ. Doğrudan Zen Modu açılır.
   if (authRole === 'referee') {
     return (
       <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-lime-400 selection:text-slate-950">
-        <div className="flex-1 max-w-4xl w-full mx-auto px-3 sm:px-6 py-4 sm:py-6">
-          <CourtRefereeView onBackToList={handleBackToList} />
-        </div>
+        <Navigation
+          currentTab="supervisor" // Sekme görseli olarak bunu kullanıyoruz
+          onTabChange={() => {}} // Hakem sekmeleri değiştiremez, sadece Zen modunda kalır
+          onOpenHelp={() => setIsHelpOpen(true)}
+          onBackToList={handleBackToList}
+        />
+        <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 py-4 sm:py-6">
+          <CourtSupervisorView /> {/* İŞTE YENİ HİBRİT ZEN MODU EKRANI BURASI! */}
+        </main>
+        <HelpModal isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
+      </div>
+    );
+  }
+
+  // ── ROL 2: BAŞHAKEM (Turnuva Masası ve İzleme) ──────────────────────────
+  if (authRole === 'desk') {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-lime-400 selection:text-slate-950">
+        <Navigation
+          currentTab={currentTab}
+          onTabChange={(tab) => setCurrentTab(tab)} // Başhakem Grid ve Zen Modu arasında rahatça gezebilir
+          onOpenHelp={() => setIsHelpOpen(true)}
+          onBackToList={handleBackToList}
+        />
+        <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 py-4 sm:py-6">
+          {currentTab === 'supervisor' ? <CourtSupervisorView /> : <DeskSupervisorView />}
+        </main>
+        <HelpModal isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
+        <footer className="py-4 border-t border-slate-900 text-center text-[11px] text-slate-500">
+          CourtOnline Tenis Skor & Saha Gözlemcisi Sistemi
+        </footer>
       </div>
     );
   }
@@ -67,29 +95,7 @@ const AppContent: React.FC = () => {
     return <MainPortalGate onBackToList={handleBackToList} />;
   }
 
-  // ── ROL 2: BAŞHAKEM (Turnuva Masası ve İzleme) ──────────────────────────
-  // Başhakem (desk), tek ekranda hem Kortları İzleme(supervisor tabı) hem Yönetim(desk tabı) sekmelerini görür.
-  const handleTabChange = (tab: 'supervisor' | 'desk') => {
-    setCurrentTab(tab);
-  };
-
-  return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-lime-400 selection:text-slate-950">
-      <Navigation
-        currentTab={currentTab}
-        onTabChange={handleTabChange}
-        onOpenHelp={() => setIsHelpOpen(true)}
-        onBackToList={handleBackToList}
-      />
-      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 py-4 sm:py-6">
-        {currentTab === 'supervisor' ? <CourtSupervisorView /> : <DeskSupervisorView />}
-      </main>
-      <HelpModal isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
-      <footer className="py-4 border-t border-slate-900 text-center text-[11px] text-slate-500">
-        CourtOnline Tenis Skor & Saha Gözlemcisi Sistemi
-      </footer>
-    </div>
-  );
+  return null;
 };
 
 export const App: React.FC = () => (
