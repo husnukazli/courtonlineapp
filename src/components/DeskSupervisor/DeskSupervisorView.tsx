@@ -57,6 +57,7 @@ export const DeskSupervisorView: React.FC = () => {
     resetAllScores,
     forcePushAllToCloud,
     pullFromCloudNow,
+    updateMatch,
   } = useTennisData();
 
   const [activeSubTab, setActiveSubTab] = useState<'grid' | 'stats' | 'formats' | 'referees' | 'manage' | 'info'>('grid');
@@ -116,18 +117,12 @@ export const DeskSupervisorView: React.FC = () => {
   const handleApplyFormats = () => {
     bulkApplyCategoryFormats(localFormats);
 
-    const updatedMatches = matches.map(m => {
+    // KRİTİK DÜZELTME: Formatları kaydederken yeni maç oluşturma (importMatchesList), mevcut maçları güncelle!
+    matches.forEach(m => {
       if (localFormats[m.Kategori] && m.Skor_Formati !== localFormats[m.Kategori]) {
-        return { ...m, Skor_Formati: localFormats[m.Kategori] };
+        updateMatch({ ...m, Skor_Formati: localFormats[m.Kategori] });
       }
-      return m;
     });
-
-    importMatchesList(updatedMatches);
-
-    setTimeout(() => {
-      forcePushAllToCloud().catch(() => {});
-    }, 500);
 
     setFormatSavedMsg('✅ Kategori formatları tüm maçlara uygulandı ve buluta kaydedildi!');
     setTimeout(() => setFormatSavedMsg(''), 4000);
@@ -151,15 +146,21 @@ export const DeskSupervisorView: React.FC = () => {
     downloadAnchor.remove();
   };
 
-  const handleImportJson = () => {
+  const handleImportJson = async () => {
     try {
       const parsed = JSON.parse(jsonInput);
       if (Array.isArray(parsed) && parsed.length > 0) {
+        setIsSyncingAction(true);
+        
+        // KRİTİK DÜZELTME: Eski maçların üst üste binmemesi için yeni JSON yüklenmeden önce her şeyi sil!
+        await wipeAllMatchesForTournament();
+
         importMatchesList(parsed);
         setImportMsg(`✅ ${parsed.length} maç başarıyla içe aktarıldı!`);
         setJsonInput('');
         setRaporAlindi(false); 
         setTimeout(() => setImportMsg(''), 3000);
+        setIsSyncingAction(false);
       } else {
         setImportMsg('❌ JSON geçerli bir maç dizisi [ { ... } ] olmalıdır.');
       }
@@ -611,11 +612,6 @@ export const DeskSupervisorView: React.FC = () => {
                   type="button" 
                   disabled={isSyncingAction} 
                   onClick={async () => {
-                    if (matches.length > 0 && !raporAlindi) {
-                      alert("⚠️ UYARI: Gün sonu raporunu henüz indirmediniz!\n\nLütfen tüm verileri silmeden önce yukarıdaki yeşil 'Gün Sonu Raporu Al (PDF)' butonuna tıklayarak sonuçları kaydedin.");
-                      return;
-                    }
-
                     const onay = window.confirm("DİKKAT: Bu turnuvaya ait TÜM MAÇLAR silinecek!\n\nYeni bir maç programı yüklemeden önce her şeyi sıfırlamak istediğinize emin misiniz?");
                     if (onay) {
                       setIsSyncingAction(true);
@@ -636,7 +632,6 @@ export const DeskSupervisorView: React.FC = () => {
                   <span>Tüm Maçları Kökten Sil (Sıfırla)</span>
                 </button>
 
-                {/* YENİ EKLENEN SIFIRLAMA BUTONU */}
                 <button 
                   type="button" 
                   disabled={isSyncingAction} 
