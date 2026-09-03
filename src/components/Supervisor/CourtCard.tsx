@@ -483,7 +483,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
 
   if (selectedSet === 3) {
       if (format.includes('10 Puanlık') || format.includes('7 Puanlık')) {
-          // Tie-break setiyse, 10 veya 7 sınırını ve 2 puan farkını kontrol et
           const target = format.includes('10 Puanlık') ? 10 : 7;
           if ((s3_p1 >= target && s3_p1 - s3_p2 >= 2) || (s3_p2 >= target && s3_p2 - s3_p1 >= 2)) {
              isP1PlusDisabled = true;
@@ -493,7 +492,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
              isP2PlusDisabled = false;
           }
       } else {
-          // 3. Set normal set ise standart set kontrolünü uygula
           isP1PlusDisabled = isPaused || isFinished || val3.isComplete;
           isP2PlusDisabled = isPaused || isFinished || val3.isComplete;
       }
@@ -565,25 +563,35 @@ export const CourtCard: React.FC<CourtCardProps> = ({
               <div className="col-span-6">Oyuncu / Takım</div><div className="col-span-2 text-center">1. Set</div><div className="col-span-2 text-center">2. Set</div><div className="col-span-2 text-center">3. Set</div>
             </div>
             
-            {/* OYUNCU 1 SATIRI - Servis İkonu Eklendi */}
+            {/* OYUNCU 1 SATIRI - Akıllı Servis İkonu (Sol/Sağ) */}
             <div className={`grid grid-cols-12 items-center py-2 px-3 border-b border-slate-800/50 ${match.Kazanan === match['Oyuncu 1'] && isFinished ? 'bg-lime-500/10' : ''}`}>
               <div className="col-span-6 flex items-center gap-2 pr-2 min-w-0">
                 <span className="w-2.5 h-2.5 rounded-full bg-lime-400 shrink-0"></span>
-                <span className="text-xs sm:text-sm font-bold text-white truncate leading-tight flex items-center gap-1.5">
-                    {match['Oyuncu 1']}
-                    {computedServerTeam === 1 && (isLive || isPaused) && <span className="text-amber-400 animate-bounce text-[10px] sm:text-xs" title="Servis Atan">🎾</span>}
+                <span className="text-xs sm:text-sm font-bold text-white leading-tight flex items-center gap-1.5 min-w-0 flex-1">
+                    {computedServerTeam === 1 && computedLeftTeam === 1 && (isLive || isPaused) && (
+                        <span className="text-amber-400 animate-bounce text-[10px] sm:text-xs shrink-0" title="Servis Atan (Sol Saha)">🎾</span>
+                    )}
+                    <span className="truncate">{match['Oyuncu 1']}</span>
+                    {computedServerTeam === 1 && computedLeftTeam !== 1 && (isLive || isPaused) && (
+                        <span className="text-amber-400 animate-bounce text-[10px] sm:text-xs shrink-0" title="Servis Atan (Sağ Saha)">🎾</span>
+                    )}
                 </span>
               </div>
               <div className="col-span-2 text-center font-mono font-black text-lime-300">{isUpcoming ? '-' : s1_p1}</div><div className="col-span-2 text-center font-mono font-black text-lime-300">{isUpcoming ? '-' : s2_p1}</div><div className="col-span-2 text-center font-mono font-black text-lime-300">{isUpcoming ? '-' : s3_p1}</div>
             </div>
             
-            {/* OYUNCU 2 SATIRI - Servis İkonu Eklendi */}
+            {/* OYUNCU 2 SATIRI - Akıllı Servis İkonu (Sol/Sağ) */}
             <div className={`grid grid-cols-12 items-center py-2 px-3 ${match.Kazanan === match['Oyuncu 2'] && isFinished ? 'bg-cyan-500/10' : ''}`}>
               <div className="col-span-6 flex items-center gap-2 pr-2 min-w-0">
                 <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 shrink-0"></span>
-                <span className="text-xs sm:text-sm font-bold text-white truncate leading-tight flex items-center gap-1.5">
-                    {match['Oyuncu 2']}
-                    {computedServerTeam === 2 && (isLive || isPaused) && <span className="text-amber-400 animate-bounce text-[10px] sm:text-xs" title="Servis Atan">🎾</span>}
+                <span className="text-xs sm:text-sm font-bold text-white leading-tight flex items-center gap-1.5 min-w-0 flex-1">
+                    {computedServerTeam === 2 && computedLeftTeam === 2 && (isLive || isPaused) && (
+                        <span className="text-amber-400 animate-bounce text-[10px] sm:text-xs shrink-0" title="Servis Atan (Sol Saha)">🎾</span>
+                    )}
+                    <span className="truncate">{match['Oyuncu 2']}</span>
+                    {computedServerTeam === 2 && computedLeftTeam !== 2 && (isLive || isPaused) && (
+                        <span className="text-amber-400 animate-bounce text-[10px] sm:text-xs shrink-0" title="Servis Atan (Sağ Saha)">🎾</span>
+                    )}
                 </span>
               </div>
               <div className="col-span-2 text-center font-mono font-black text-cyan-300">{isUpcoming ? '-' : s1_p2}</div><div className="col-span-2 text-center font-mono font-black text-cyan-300">{isUpcoming ? '-' : s2_p2}</div><div className="col-span-2 text-center font-mono font-black text-cyan-300">{isUpcoming ? '-' : s3_p2}</div>
