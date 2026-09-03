@@ -144,7 +144,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
     };
   }, [isChairMode]);
 
-  // GÜNCELLENDİ: Set Geçişlerini Otomatik Algılama (Sadece set bittiğinde/bozulduğunda tetiklenir)
   useEffect(() => {
     if (isLive) {
       let activeSet: 1 | 2 | 3 = 1;
@@ -158,18 +157,15 @@ export const CourtCard: React.FC<CourtCardProps> = ({
     }
   }, [val1.isComplete, val2.isComplete, val1.winner, isLive]);
 
-  // YENİ EKLENDİ: Geriye dönük düzeltmelerde (Örn: -1 yapıp 1. Sete dönüldüğünde) ileriki bozuk kurulumları temizle
   useEffect(() => {
     setSetupsBySet(prev => {
       const next = { ...prev };
       let changed = false;
       
-      // Eğer 1. Set artık bitmemiş durumdaysa, 2. ve 3. setlerin kurulum hafızasını sil
       if (!val1.isComplete) {
         if (next[2]) { delete next[2]; changed = true; }
         if (next[3]) { delete next[3]; changed = true; }
       } 
-      // Eğer 2. Set artık bitmemiş durumdaysa, 3. setin kurulum hafızasını sil
       else if (!val2.isComplete) {
         if (next[3]) { delete next[3]; changed = true; }
       }
@@ -481,6 +477,28 @@ export const CourtCard: React.FC<CourtCardProps> = ({
   const currentSetP1Games = selectedSet === 1 ? s1_p1 : selectedSet === 2 ? s2_p1 : s3_p1;
   const currentSetP2Games = selectedSet === 1 ? s1_p2 : selectedSet === 2 ? s2_p2 : s3_p2;
 
+  // DIŞ HIZLI EKRAN İÇİN KİLİT KONTROLLERİ
+  let isP1PlusDisabled = isPaused || isFinished || isCurrentSetComplete;
+  let isP2PlusDisabled = isPaused || isFinished || isCurrentSetComplete;
+
+  if (selectedSet === 3) {
+      if (format.includes('10 Puanlık') || format.includes('7 Puanlık')) {
+          // Tie-break setiyse, 10 veya 7 sınırını ve 2 puan farkını kontrol et
+          const target = format.includes('10 Puanlık') ? 10 : 7;
+          if ((s3_p1 >= target && s3_p1 - s3_p2 >= 2) || (s3_p2 >= target && s3_p2 - s3_p1 >= 2)) {
+             isP1PlusDisabled = true;
+             isP2PlusDisabled = true;
+          } else {
+             isP1PlusDisabled = false;
+             isP2PlusDisabled = false;
+          }
+      } else {
+          // 3. Set normal set ise standart set kontrolünü uygula
+          isP1PlusDisabled = isPaused || isFinished || val3.isComplete;
+          isP2PlusDisabled = isPaused || isFinished || val3.isComplete;
+      }
+  }
+
   return (
     <>
       {/* 3. SET UYARISI - HER İKİ MOD İÇİN ORTAK */}
@@ -546,17 +564,27 @@ export const CourtCard: React.FC<CourtCardProps> = ({
             <div className="grid grid-cols-12 bg-slate-900/80 text-[10px] font-extrabold uppercase text-slate-400 py-1.5 px-3 border-b border-slate-800">
               <div className="col-span-6">Oyuncu / Takım</div><div className="col-span-2 text-center">1. Set</div><div className="col-span-2 text-center">2. Set</div><div className="col-span-2 text-center">3. Set</div>
             </div>
+            
+            {/* OYUNCU 1 SATIRI - Servis İkonu Eklendi */}
             <div className={`grid grid-cols-12 items-center py-2 px-3 border-b border-slate-800/50 ${match.Kazanan === match['Oyuncu 1'] && isFinished ? 'bg-lime-500/10' : ''}`}>
               <div className="col-span-6 flex items-center gap-2 pr-2 min-w-0">
                 <span className="w-2.5 h-2.5 rounded-full bg-lime-400 shrink-0"></span>
-                <span className="text-xs sm:text-sm font-bold text-white truncate leading-tight">{match['Oyuncu 1']}</span>
+                <span className="text-xs sm:text-sm font-bold text-white truncate leading-tight flex items-center gap-1.5">
+                    {match['Oyuncu 1']}
+                    {computedServerTeam === 1 && (isLive || isPaused) && <span className="text-amber-400 animate-bounce text-[10px] sm:text-xs" title="Servis Atan">🎾</span>}
+                </span>
               </div>
               <div className="col-span-2 text-center font-mono font-black text-lime-300">{isUpcoming ? '-' : s1_p1}</div><div className="col-span-2 text-center font-mono font-black text-lime-300">{isUpcoming ? '-' : s2_p1}</div><div className="col-span-2 text-center font-mono font-black text-lime-300">{isUpcoming ? '-' : s3_p1}</div>
             </div>
+            
+            {/* OYUNCU 2 SATIRI - Servis İkonu Eklendi */}
             <div className={`grid grid-cols-12 items-center py-2 px-3 ${match.Kazanan === match['Oyuncu 2'] && isFinished ? 'bg-cyan-500/10' : ''}`}>
               <div className="col-span-6 flex items-center gap-2 pr-2 min-w-0">
                 <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 shrink-0"></span>
-                <span className="text-xs sm:text-sm font-bold text-white truncate leading-tight">{match['Oyuncu 2']}</span>
+                <span className="text-xs sm:text-sm font-bold text-white truncate leading-tight flex items-center gap-1.5">
+                    {match['Oyuncu 2']}
+                    {computedServerTeam === 2 && (isLive || isPaused) && <span className="text-amber-400 animate-bounce text-[10px] sm:text-xs" title="Servis Atan">🎾</span>}
+                </span>
               </div>
               <div className="col-span-2 text-center font-mono font-black text-cyan-300">{isUpcoming ? '-' : s1_p2}</div><div className="col-span-2 text-center font-mono font-black text-cyan-300">{isUpcoming ? '-' : s2_p2}</div><div className="col-span-2 text-center font-mono font-black text-cyan-300">{isUpcoming ? '-' : s3_p2}</div>
             </div>
@@ -576,11 +604,11 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="flex flex-col gap-1.5">
-                    <button type="button" disabled={isPaused || isFinished || (isCurrentSetComplete && selectedSet !== 3)} onClick={(e) => handleQuickScore(e, 1, 1)} className="w-full py-3 rounded-xl bg-lime-400 hover:bg-lime-300 text-slate-950 font-black text-sm flex items-center justify-center gap-1 transition disabled:opacity-50 disabled:cursor-not-allowed"><Plus className="w-5 h-5" />+1 OYUN</button>
+                    <button type="button" disabled={isP1PlusDisabled} onClick={(e) => handleQuickScore(e, 1, 1)} className="w-full py-3 rounded-xl bg-lime-400 hover:bg-lime-300 text-slate-950 font-black text-sm flex items-center justify-center gap-1 transition disabled:opacity-50 disabled:cursor-not-allowed"><Plus className="w-5 h-5" />+1 OYUN</button>
                     <button type="button" disabled={isPaused} onClick={(e) => handleQuickScore(e, 1, -1)} className="w-full py-2 rounded-xl bg-rose-500/10 text-rose-400 font-bold text-xs flex items-center justify-center gap-1 transition disabled:opacity-50"><Minus className="w-4 h-4" />-1 Düş</button>
                   </div>
                   <div className="flex flex-col gap-1.5">
-                    <button type="button" disabled={isPaused || isFinished || (isCurrentSetComplete && selectedSet !== 3)} onClick={(e) => handleQuickScore(e, 2, 1)} className="w-full py-3 rounded-xl bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-black text-sm flex items-center justify-center gap-1 transition disabled:opacity-50 disabled:cursor-not-allowed"><Plus className="w-5 h-5" />+1 OYUN</button>
+                    <button type="button" disabled={isP2PlusDisabled} onClick={(e) => handleQuickScore(e, 2, 1)} className="w-full py-3 rounded-xl bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-black text-sm flex items-center justify-center gap-1 transition disabled:opacity-50 disabled:cursor-not-allowed"><Plus className="w-5 h-5" />+1 OYUN</button>
                     <button type="button" disabled={isPaused} onClick={(e) => handleQuickScore(e, 2, -1)} className="w-full py-2 rounded-xl bg-rose-500/10 text-cyan-400 font-bold text-xs flex items-center justify-center gap-1 transition disabled:opacity-50"><Minus className="w-4 h-4" />-1 Düş</button>
                   </div>
                 </div>
