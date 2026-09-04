@@ -7,19 +7,17 @@ import {
 import { db } from './firebase';
 import { MatchItem, RefereeUser } from '../types/tennis';  
 
-// ─── Firestore yol yardımcıları (tournamentId dinamik) ──────────────────────
 const tDoc  = (tid: string) => doc(db, 'tournaments', tid);
 const mCol  = (tid: string) => collection(db, 'tournaments', tid, 'matches');
 const mDoc  = (tid: string, mid: string) => doc(db, 'tournaments', tid, 'matches', mid);
 const superAdminDoc = () => doc(db, 'superAdmin', 'config');  
 
-// ─── YENİ: Geri Sarma (Bouncing) Koruması İçin Yerel Yazma Kilitleri ─────────
 const localWriteLocks: Record<string, number> = {};
 
-// ─── Tipler ─────────────────────────────────────────────────────────────────
 export interface CloudTournamentMetadata {  
   referees?: RefereeUser[];  
   categoryFormats?: Record<string, string>;  
+  categoryNoAdSettings?: Record<string, boolean>; // YENİ EKLENDİ
   deskPin?: string;  
   lastUpdated?: string;  
   updatedBy?: string;  
@@ -42,11 +40,9 @@ export interface SuperAdminConfig {
   superAdminSifre: string;
 }  
 
-// ─── Realtime bayrak ────────────────────────────────────────────────────────
 let isApplyingRemoteChange = false;
 export const getIsApplyingRemoteChange = () => isApplyingRemoteChange;  
 
-// ─── Turnuva Listesi (Süper Admin) ──────────────────────────────────────────
 export const fetchTournamentList = async (): Promise<TournamentListItem[]> => {  
   try {    
     const snap = await getDocs(collection(db, 'tournaments'));    
@@ -104,7 +100,8 @@ export const createTournament = async (info: {
       version: 1,      
       deskPin: '9999',      
       referees: [],      
-      categoryFormats: {},    
+      categoryFormats: {},  
+      categoryNoAdSettings: {},  // YENİ
     });    
     return id;  
   } catch (e) {    
@@ -130,7 +127,6 @@ export const deleteTournamentFromCloud = async (tid: string): Promise<boolean> =
   }
 };  
 
-// ─── Süper Admin ────────────────────────────────────────────────────────────
 const DEFAULT_SUPER_ADMIN_CONFIG: SuperAdminConfig = {  
   superAdminSifre: 'admin2025',  
   bashakem_listesi: [],
@@ -141,7 +137,7 @@ export const fetchSuperAdminConfig = async (): Promise<SuperAdminConfig | null> 
     const snap = await getDoc(superAdminDoc());    
     if (!snap.exists()) {      
       await setDoc(superAdminDoc(), DEFAULT_SUPER_ADMIN_CONFIG);      
-      console.log('superAdmin/config ilk kez oluşturuldu. Varsayılan şifre: admin2025');      
+      console.log('superAdmin/config ilk kez oluşturuldu.');      
       return DEFAULT_SUPER_ADMIN_CONFIG;    
     }    
     return snap.data() as SuperAdminConfig;  
@@ -171,7 +167,6 @@ export const saveSuperAdminConfig = async (cfg: SuperAdminConfig): Promise<boole
   }
 };  
 
-// ─── Gerçek Zamanlı Dinleyici (tournamentId ile) ────────────────────────────
 export const subscribeToCloudTournament = (  
   tournamentId: string,  
   onMatchesUpdate: (matches: MatchItem[]) => void,  
@@ -185,7 +180,8 @@ export const subscribeToCloudTournament = (
       const d = snap.data();      
       onMetaUpdate({        
         referees: d.referees,        
-        categoryFormats: d.categoryFormats,        
+        categoryFormats: d.categoryFormats,     
+        categoryNoAdSettings: d.categoryNoAdSettings, // YENİ   
         deskPin: d.deskPin,        
         lastUpdated: d.lastUpdated,        
         updatedBy: d.updatedBy,        
@@ -199,13 +195,8 @@ export const subscribeToCloudTournament = (
     { includeMetadataChanges: false }, 
     (snap: QuerySnapshot<DocumentData>) => {      
       isApplyingRemoteChange = true;      
-      
       const fullList: MatchItem[] = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as MatchItem));
-      
-      // DÜZELTME: Eskiden burada "if (fullList.length > 0)" vardı, sildim!
-      // Artık liste 0 maç olsa bile (yani silindiyse) onMatchesUpdate tetiklenecek.
       onMatchesUpdate(fullList);
-      
       setTimeout(() => { isApplyingRemoteChange = false; }, 150);    },    
     (err: FirestoreError) => { if (onError) onError(err); }  
   );  
@@ -213,7 +204,6 @@ export const subscribeToCloudTournament = (
   return () => { unsubMeta(); unsubMatches(); };
 };  
 
-// ─── Tek Maç Güncelleme ─────────────────────────────────────────────────────
 export const pushSingleMatchToCloud = async (  
   match: MatchItem,  
   author = 'Saha Gözlemcisi',  
@@ -223,7 +213,6 @@ export const pushSingleMatchToCloud = async (
   if (!match || !match.id) return false;  
   try {    
     localWriteLocks[match.id] = Date.now();
-
     await setDoc(mDoc(tournamentId, match.id), { ...match, Son_Guncelleme: new Date().toISOString() }, { merge: true });    
     updateDoc(tDoc(tournamentId), { lastUpdated: new Date().toISOString(), updatedBy: author }).catch(() => {});    
     return true;  
@@ -233,7 +222,6 @@ export const pushSingleMatchToCloud = async (
   }
 };  
 
-// ─── Toplu Maç Güncelleme ───────────────────────────────────────────────────
 export const pushAllMatchesToCloud = async (  
   matches: MatchItem[], author = 'Saha Gözlemcisi', tournamentId = 'main'
 ): Promise<boolean> => {  
@@ -259,7 +247,6 @@ export const pushAllMatchesToCloud = async (
 
 export const replaceAllMatchesInCloud = pushAllMatchesToCloud;  
 
-// ─── Meta Güncellemeleri ────────────────────────────────────────────────────
 export const pushRefereesToCloud = async (referees: RefereeUser[], tournamentId = 'main'): Promise<boolean> => {  
   try { 
     await setDoc(tDoc(tournamentId), { referees }, { merge: true }); 
@@ -280,6 +267,17 @@ export const pushCategoryFormatsToCloud = async (categoryFormats: Record<string,
   }
 };  
 
+// YENİ EKLENDİ
+export const pushCategoryNoAdSettingsToCloud = async (categoryNoAdSettings: Record<string, boolean>, tournamentId = 'main'): Promise<boolean> => {  
+  try { 
+    await setDoc(tDoc(tournamentId), { categoryNoAdSettings }, { merge: true }); 
+    return true; 
+  } catch (e) { 
+    console.error('pushCategoryNoAdSettingsToCloud:', e); 
+    return false; 
+  }
+};  
+
 export const pushDeskPinToCloud = async (deskPin: string, tournamentId = 'main'): Promise<boolean> => {  
   try { 
     await setDoc(tDoc(tournamentId), { deskPin }, { merge: true }); 
@@ -292,11 +290,12 @@ export const pushDeskPinToCloud = async (deskPin: string, tournamentId = 'main')
 
 export const pushFullTournamentToCloud = async (  
   matches: MatchItem[], referees: RefereeUser[],  
-  categoryFormats: Record<string, string>, deskPin = '9999', tournamentId = 'main'
+  categoryFormats: Record<string, string>, deskPin = '9999', tournamentId = 'main',
+  categoryNoAdSettings: Record<string, boolean> = {} // YENİ
 ): Promise<void> => {  
   try {    
     await setDoc(tDoc(tournamentId), {      
-      referees, categoryFormats, deskPin, version: 1,      
+      referees, categoryFormats, categoryNoAdSettings, deskPin, version: 1,      
       lastUpdated: new Date().toISOString(), updatedBy: 'Sistem Senkronizasyonu',    
     }, { merge: true });    
     await pushAllMatchesToCloud(matches, 'Sistem Senkronizasyonu', tournamentId);  
@@ -305,11 +304,11 @@ export const pushFullTournamentToCloud = async (
   }
 };  
 
-// ─── İlk Yükleme ───────────────────────────────────────────────────────────
 export const fetchTournamentFromCloud = async (tournamentId = 'main'): Promise<{  
   matches: MatchItem[];  
   referees?: RefereeUser[];  
   categoryFormats?: Record<string, string>;  
+  categoryNoAdSettings?: Record<string, boolean>; // YENİ
   deskPin?: string;  
   tournamentVersion?: number;
 } | null> => {  
@@ -320,14 +319,20 @@ export const fetchTournamentFromCloud = async (tournamentId = 'main'): Promise<{
     ]);    
     const meta = metaSnap.exists() ? metaSnap.data() : {};    
     const matches: MatchItem[] = matchSnap.docs.map(d => ({ id: d.id, ...d.data() } as MatchItem));    
-    return { matches, referees: meta.referees, categoryFormats: meta.categoryFormats, deskPin: meta.deskPin, tournamentVersion: meta.version };  
+    return { 
+      matches, 
+      referees: meta.referees, 
+      categoryFormats: meta.categoryFormats, 
+      categoryNoAdSettings: meta.categoryNoAdSettings, 
+      deskPin: meta.deskPin, 
+      tournamentVersion: meta.version 
+    };  
   } catch (e) { 
     console.error('fetchTournamentFromCloud hata:', e); 
     return null; 
   }
 };  
 
-// NÜKLEER SİLME FONKSİYONU
 export const deleteAllMatchesFromCloud = async (tournamentId = 'main'): Promise<boolean> => {  
   try {    
     const snap = await getDocs(mCol(tournamentId));    
