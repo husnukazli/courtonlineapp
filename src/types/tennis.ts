@@ -25,7 +25,7 @@ export interface ChallengeRecord {
   player: 1 | 2;
   playerName: string;
   reason: 'LINE_CALL' | 'OVERRULE' | 'SERVICE_FAULT' | 'TOUCH_NET' | 'LET_POINT';
-  outcome: 'UPHELD' | 'OVERTURNED'; // UPHELD = İtiraz kabul edildi / Hakem kararını değiştirdi, OVERTURNED = Karar korundu
+  outcome: 'UPHELD' | 'OVERTURNED'; 
   notes?: string;
 }
 
@@ -37,7 +37,6 @@ export interface TennisMatchState {
   set2_p2: number;
   set3_p1: number;
   set3_p2: number;
-  // Game points: "0", "15", "30", "40", "AD"
   gamePoint_p1: string;
   gamePoint_p2: string;
   currentServer: 1 | 2;
@@ -46,12 +45,11 @@ export interface TennisMatchState {
   isMatchTiebreak: boolean;
   tiebreak_p1: number;
   tiebreak_p2: number;
-  tiebreakTarget: number; // 7 or 10
+  tiebreakTarget: number;
   tiebreakFirstServer?: 1 | 2;
   totalPointsInTiebreak: number;
   p1ChallengesLeft: number;
   p2ChallengesLeft: number;
-  // Stats
   p1Aces: number;
   p2Aces: number;
   p1DoubleFaults: number;
@@ -63,7 +61,8 @@ export interface TennisMatchState {
   totalPoints_p1: number;
   totalPoints_p2: number;
   lastActionMessage?: string;
-  needsChangeover?: boolean; // Saha değişimi uyarısı
+  needsChangeover?: boolean;
+  isNoAd?: boolean; // YENİ EKLENDİ: Karar Puanı (Avantajsız) bayrağı
 }
 
 export interface PointHistoryItem {
@@ -85,17 +84,18 @@ export interface MatchItem {
   'Oyuncu 2': string;
   Kategori: string;
   Skor_Formati: ScoreFormatType | string;
+  isNoAd?: boolean; // YENİ EKLENDİ: Maçın No-Ad olup olmadığı
   Durum: MatchStatus;
-  Skor: string; // "4/1 4/2 0/0"
+  Skor: string;
   Kura_Kazanan: string;
   Kura_Tercih: TossChoice | string;
   Saha_Tarafi: CourtSide | string;
   Baslangic_Saati: string;
   Bitis_Saati: string;
-  startTimeTimestamp?: number; // Milliseconds timestamp when match started
-  pausedAccumulatedMs?: number; // Total milliseconds spent in paused state
-  lastPausedTimestamp?: number; // Timestamp when match was last paused
-  totalDurationSeconds?: number; // Final frozen match duration in seconds
+  startTimeTimestamp?: number;
+  pausedAccumulatedMs?: number;
+  lastPausedTimestamp?: number;
+  totalDurationSeconds?: number;
   Son_Hakem: string;
   Kazanan: string;
   detailedState?: TennisMatchState;
