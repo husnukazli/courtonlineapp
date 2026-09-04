@@ -1,28 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Tv,
-  Filter,
-  Search,
-  ZoomIn,
-  ZoomOut,
-  RefreshCw,
-  Plus,
-  Trash2,
-  CheckCircle2,
-  Clock,
-  Award,
-  Layers,
-  Users,
-  FileSpreadsheet,
-  Download,
-  Upload,
-  AlertCircle,
-  Eye,
-  Lock,
-  KeyRound,
-  ShieldCheck,
-  FileText,
-  RotateCcw,
+  Tv, Filter, Search, ZoomIn, ZoomOut, RefreshCw, Plus, Trash2, CheckCircle2,
+  Clock, Award, Layers, Users, FileSpreadsheet, Download, Upload, AlertCircle,
+  Eye, Lock, KeyRound, ShieldCheck, FileText, RotateCcw,
 } from 'lucide-react';
 import { useTennisData } from '../../context/TennisDataContext';
 import { MatchItem, ScoreFormatType } from '../../types/tennis';
@@ -42,6 +22,7 @@ export const DeskSupervisorView: React.FC = () => {
     matches,
     referees,
     categoryFormats,
+    categoryNoAdSettings, // YENİ EKLENDİ
     deskPin,
     cloudSyncStatus,
     lastCloudSync,
@@ -49,6 +30,7 @@ export const DeskSupervisorView: React.FC = () => {
     addReferee,
     deleteReferee,
     bulkApplyCategoryFormats,
+    bulkApplyCategoryNoAdSettings, // YENİ EKLENDİ
     tournamentInfo,
     saveTournamentInfo,
     purgeOrphanMatches,
@@ -76,6 +58,7 @@ export const DeskSupervisorView: React.FC = () => {
   const [deskPinSuccessMsg, setDeskPinSuccessMsg] = useState<string>('');
 
   const [localFormats, setLocalFormats] = useState<Record<string, string>>(() => categoryFormats);
+  const [localNoAdSettings, setLocalNoAdSettings] = useState<Record<string, boolean>>(() => categoryNoAdSettings || {}); // YENİ EKLENDİ
   const [formatSavedMsg, setFormatSavedMsg] = useState<string>('');
 
   const [jsonInput, setJsonInput] = useState<string>('');
@@ -111,21 +94,40 @@ export const DeskSupervisorView: React.FC = () => {
     if (categoryFormats && Object.keys(categoryFormats).length > 0) {
       setLocalFormats(categoryFormats);
     }
-  }, [categoryFormats]);
+    if (categoryNoAdSettings) {
+      setLocalNoAdSettings(categoryNoAdSettings);
+    }
+  }, [categoryFormats, categoryNoAdSettings]);
 
+  // YENİ EKLENDİ: Format ile birlikte No-Ad kararları da kaydediliyor
   const handleApplyFormats = () => {
     bulkApplyCategoryFormats(localFormats);
+    bulkApplyCategoryNoAdSettings(localNoAdSettings);
 
     const updatedMatches = matches.map(m => {
+      let changed = false;
+      let newM = { ...m };
+      
       if (localFormats[m.Kategori] && m.Skor_Formati !== localFormats[m.Kategori]) {
-        return { ...m, Skor_Formati: localFormats[m.Kategori] };
+        newM.Skor_Formati = localFormats[m.Kategori];
+        changed = true;
       }
-      return m;
+      
+      const currentNoAd = !!m.isNoAd;
+      const newNoAd = !!localNoAdSettings[m.Kategori];
+      if (currentNoAd !== newNoAd) {
+        newM.isNoAd = newNoAd;
+        changed = true;
+      }
+
+      return changed ? newM : m;
     });
 
-    importMatchesList(updatedMatches);
+    if (JSON.stringify(updatedMatches) !== JSON.stringify(matches)) {
+        importMatchesList(updatedMatches);
+    }
 
-    setFormatSavedMsg('✅ Kategori formatları tüm maçlara uygulandı ve buluta kaydedildi!');
+    setFormatSavedMsg('✅ Kategori formatları ve No-Ad ayarları kaydedildi!');
     setTimeout(() => setFormatSavedMsg(''), 4000);
   };
 
@@ -339,7 +341,6 @@ export const DeskSupervisorView: React.FC = () => {
             
             <div className="flex flex-nowrap gap-4">
               {(selectedCourtFilter === 'ALL' ? distinctCourts : [selectedCourtFilter]).map((courtName) => {
-                // KRİTİK EKLENTİ: Kort içi maçlar saate göre sıralandı
                 const courtMatches = filteredMatches
                   .filter((m) => m.Kort === courtName)
                   .sort((a, b) => (a.Saat || '').localeCompare(b.Saat || ''));
@@ -492,16 +493,35 @@ export const DeskSupervisorView: React.FC = () => {
 
       {activeSubTab === 'formats' && (
         <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-6">
-          <div><h3 className="font-bold text-base text-white">🎾 Kategori ve Maç Formatı Eşleştirme</h3></div>
+          <div>
+            <h3 className="font-bold text-base text-white">🎾 Kategori ve Maç Formatı Eşleştirme</h3>
+            <p className="text-xs text-slate-400 mt-1">Her kategori için formatı ve Karar Puanı (No-Ad) ayarını buradan yönetebilirsiniz.</p>
+          </div>
           {formatSavedMsg && <div className="p-3 bg-emerald-950/50 border border-emerald-500/40 rounded-xl text-emerald-300 text-xs font-bold">{formatSavedMsg}</div>}
           <div className="space-y-3 divide-y divide-slate-800">
+            {/* YENİ EKLENTİ: Kategori Listesine No-Ad Kutucuğu */}
+            <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center text-[10px] font-extrabold uppercase text-slate-500 px-2 pb-2">
+               <div className="sm:col-span-4">Kategori Adı</div>
+               <div className="sm:col-span-5">Skor Formatı</div>
+               <div className="sm:col-span-3">Karar Puanı (Avantaj Yok)</div>
+            </div>
             {distinctCategories.map((kat) => (
-              <div key={kat} className="pt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
-                <div className="font-bold text-sm text-slate-200">🎾 {kat}</div>
-                <div>
+              <div key={kat} className="pt-3 grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
+                <div className="sm:col-span-4 font-bold text-sm text-slate-200 truncate pr-2">🎾 {kat}</div>
+                <div className="sm:col-span-5">
                   <select value={localFormats[kat] || '3 Normal Set'} onChange={(e) => setLocalFormats((prev) => ({ ...prev, [kat]: e.target.value }))} className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-lime-300 font-bold focus:border-cyan-400">
                     {SCORE_FORMAT_OPTIONS.map((fmt) => (<option key={fmt} value={fmt}>{fmt}</option>))}
                   </select>
+                </div>
+                <div className="sm:col-span-3 flex items-center gap-2.5 bg-slate-950/50 p-2.5 rounded-xl border border-slate-800">
+                  <input 
+                    type="checkbox" 
+                    id={`noad-${kat}`} 
+                    checked={!!localNoAdSettings[kat]} 
+                    onChange={(e) => setLocalNoAdSettings(prev => ({ ...prev, [kat]: e.target.checked }))} 
+                    className="w-4 h-4 rounded border-slate-700 text-cyan-400 focus:ring-cyan-400 bg-slate-950 cursor-pointer" 
+                  />
+                  <label htmlFor={`noad-${kat}`} className="text-xs font-bold text-slate-300 cursor-pointer select-none">No-Ad Oyna</label>
                 </div>
               </div>
             ))}
