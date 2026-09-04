@@ -33,6 +33,7 @@ import {
   replaceAllMatchesInCloud,
   pushRefereesToCloud,
   pushCategoryFormatsToCloud,
+  pushCategoryNoAdSettingsToCloud,
   pushDeskPinToCloud,
   pushFullTournamentToCloud,
   subscribeToCloudTournament,
@@ -60,6 +61,7 @@ export const sanitizeMatchList = (rawList: any[]): MatchItem[] => {
       'Oyuncu 2': item?.['Oyuncu 2'] || 'Oyuncu 2',
       Kategori: item?.Kategori || 'Büyükler',
       Skor_Formati: item?.Skor_Formati || '3 Normal Set',
+      isNoAd: !!item?.isNoAd, // YENİ
       Durum: item?.Durum || 'Baslamadi',
       Skor: item?.Skor || '-',
       Kura_Kazanan: item?.Kura_Kazanan || 'Secilmedi',
@@ -81,6 +83,7 @@ interface TennisDataContextType {
   referees: RefereeUser[];
   currentReferee: RefereeUser | null;
   categoryFormats: Record<string, string>;
+  categoryNoAdSettings: Record<string, boolean>; // YENİ
   activeMatchId: string | null;
   activeMatch: MatchItem | null;
   authRole: 'none' | 'supervisor' | 'desk' | 'referee';
@@ -149,6 +152,7 @@ interface TennisDataContextType {
       baslangicSaati: string;
       bitisSaati: string;
       skorFormati?: string;
+      isNoAd?: boolean; // YENİ
       ilkServisOyuncusu?: 1 | 2;
     }
   ) => void;
@@ -181,6 +185,7 @@ interface TennisDataContextType {
   deleteReferee: (name: string) => void;
   updateCategoryFormat: (category: string, format: string) => void;
   bulkApplyCategoryFormats: (formatMap: Record<string, string>) => void;
+  bulkApplyCategoryNoAdSettings: (noAdMap: Record<string, boolean>) => void; // YENİ
   tournamentInfo: { ad: string; yer: string; tarih: string; not: string };
   saveTournamentInfo: (info: { ad: string; yer: string; tarih: string; not: string }) => void;
   importMatchesList: (newMatches: MatchItem[]) => void;
@@ -194,6 +199,7 @@ const BASE_STORAGE_KEYS = {
   REFEREES: 'courtonline_referees_v2',
   CURRENT_REF: 'courtonline_curr_ref_v2',
   CATEGORY_FORMATS: 'courtonline_cat_formats_v2',
+  CATEGORY_NOAD: 'courtonline_cat_noad_v2', // YENİ
   ACTIVE_MATCH_ID: 'courtonline_active_match_id_v2',
   DESK_PIN: 'courtonline_desk_pin_v2',
   AUTH_ROLE: 'courtonline_auth_role_v2',
@@ -279,6 +285,13 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     try { return saved ? JSON.parse(saved) : INITIAL_CATEGORY_FORMAT_MEMORY; } catch { return INITIAL_CATEGORY_FORMAT_MEMORY; }
   });
 
+  // YENİ EKLENDİ
+  const [categoryNoAdSettings, setCategoryNoAdSettings] = useState<Record<string, boolean>>(() => {
+    if (!initialTournamentId) return {};
+    const saved = localStorage.getItem(getStorageKey(BASE_STORAGE_KEYS.CATEGORY_NOAD, initialTournamentId));
+    try { return saved ? JSON.parse(saved) : {}; } catch { return {}; }
+  });
+
   const [activeMatchId, setActiveMatchId] = useState<string | null>(() => {
     if (!initialTournamentId) return 'm-9';
     return localStorage.getItem(getStorageKey(BASE_STORAGE_KEYS.ACTIVE_MATCH_ID, initialTournamentId)) || 'm-9';
@@ -296,6 +309,9 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       
       const cachedFormats = localStorage.getItem(getStorageKey(BASE_STORAGE_KEYS.CATEGORY_FORMATS, id));
       setCategoryFormats(cachedFormats ? JSON.parse(cachedFormats) : INITIAL_CATEGORY_FORMAT_MEMORY);
+
+      const cachedNoAd = localStorage.getItem(getStorageKey(BASE_STORAGE_KEYS.CATEGORY_NOAD, id));
+      setCategoryNoAdSettings(cachedNoAd ? JSON.parse(cachedNoAd) : {});
     } else {
       setMatches([]);
       setReferees([]);
@@ -327,6 +343,12 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       localStorage.setItem(getStorageKey(BASE_STORAGE_KEYS.CATEGORY_FORMATS, tournamentId), JSON.stringify(categoryFormats));
     }
   }, [categoryFormats, tournamentId]);
+
+  useEffect(() => {
+    if (tournamentId) {
+      localStorage.setItem(getStorageKey(BASE_STORAGE_KEYS.CATEGORY_NOAD, tournamentId), JSON.stringify(categoryNoAdSettings));
+    }
+  }, [categoryNoAdSettings, tournamentId]);
 
   useEffect(() => {
     if (tournamentId) {
@@ -397,6 +419,10 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           setCategoryFormats(remote.categoryFormats);
           localStorage.setItem(getStorageKey(BASE_STORAGE_KEYS.CATEGORY_FORMATS, tournamentId), JSON.stringify(remote.categoryFormats));
         }
+        if (remote.categoryNoAdSettings) {
+          setCategoryNoAdSettings(remote.categoryNoAdSettings);
+          localStorage.setItem(getStorageKey(BASE_STORAGE_KEYS.CATEGORY_NOAD, tournamentId), JSON.stringify(remote.categoryNoAdSettings));
+        }
         if (remote.deskPin) {
           setDeskPin(remote.deskPin);
           localStorage.setItem(getStorageKey(BASE_STORAGE_KEYS.DESK_PIN, tournamentId), remote.deskPin);
@@ -442,6 +468,11 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         if (meta.categoryFormats && Object.keys(meta.categoryFormats).length > 0) {
           setCategoryFormats(meta.categoryFormats);
           localStorage.setItem(getStorageKey(BASE_STORAGE_KEYS.CATEGORY_FORMATS, tournamentId), JSON.stringify(meta.categoryFormats));
+        }
+
+        if (meta.categoryNoAdSettings) {
+          setCategoryNoAdSettings(meta.categoryNoAdSettings);
+          localStorage.setItem(getStorageKey(BASE_STORAGE_KEYS.CATEGORY_NOAD, tournamentId), JSON.stringify(meta.categoryNoAdSettings));
         }
 
         if (meta.deskPin) {
@@ -539,6 +570,10 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           setCategoryFormats(remote.categoryFormats);
           localStorage.setItem(getStorageKey(BASE_STORAGE_KEYS.CATEGORY_FORMATS, tournamentId), JSON.stringify(remote.categoryFormats));
         }
+        if (remote.categoryNoAdSettings) {
+          setCategoryNoAdSettings(remote.categoryNoAdSettings);
+          localStorage.setItem(getStorageKey(BASE_STORAGE_KEYS.CATEGORY_NOAD, tournamentId), JSON.stringify(remote.categoryNoAdSettings));
+        }
         if (remote.deskPin) {
           setDeskPin(remote.deskPin);
           localStorage.setItem(getStorageKey(BASE_STORAGE_KEYS.DESK_PIN, tournamentId), remote.deskPin);
@@ -563,6 +598,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       localStorage.removeItem(getStorageKey(BASE_STORAGE_KEYS.MATCHES, tournamentId));
       localStorage.removeItem(getStorageKey(BASE_STORAGE_KEYS.REFEREES, tournamentId));
       localStorage.removeItem(getStorageKey(BASE_STORAGE_KEYS.CATEGORY_FORMATS, tournamentId));
+      localStorage.removeItem(getStorageKey(BASE_STORAGE_KEYS.CATEGORY_NOAD, tournamentId));
       localStorage.removeItem(getStorageKey(BASE_STORAGE_KEYS.DESK_PIN, tournamentId));
       
       setMatches([]);
@@ -581,6 +617,10 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           setCategoryFormats(remote.categoryFormats);
           localStorage.setItem(getStorageKey(BASE_STORAGE_KEYS.CATEGORY_FORMATS, tournamentId), JSON.stringify(remote.categoryFormats));
         }
+        if (remote.categoryNoAdSettings) {
+          setCategoryNoAdSettings(remote.categoryNoAdSettings);
+          localStorage.setItem(getStorageKey(BASE_STORAGE_KEYS.CATEGORY_NOAD, tournamentId), JSON.stringify(remote.categoryNoAdSettings));
+        }
         if (remote.deskPin) {
           setDeskPin(remote.deskPin);
           localStorage.setItem(getStorageKey(BASE_STORAGE_KEYS.DESK_PIN, tournamentId), remote.deskPin);
@@ -590,6 +630,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         setMatches(initialSanitized);
         setReferees(INITIAL_REFEREES);
         setCategoryFormats(INITIAL_CATEGORY_FORMAT_MEMORY);
+        setCategoryNoAdSettings({});
       }
 
       setCloudSyncStatus('connected');
@@ -627,6 +668,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       await replaceAllMatchesInCloud(matches, currentReferee?.name || 'Turnuva Masası', tournamentId);
       await pushRefereesToCloud(referees, tournamentId);
       await pushCategoryFormatsToCloud(categoryFormats, tournamentId);
+      await pushCategoryNoAdSettingsToCloud(categoryNoAdSettings, tournamentId);
       await pushDeskPinToCloud(deskPin, tournamentId);
       setCloudSyncStatus('connected');
       setLastCloudSync(new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
@@ -639,7 +681,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const resetAllScores = () => {
     const cleanMatches = matches.map((m) => {
       const format = m.Skor_Formati || '3 Normal Set';
-      const cleanState = createInitialMatchState(1, format);
+      const cleanState = createInitialMatchState(1, format, !!m.isNoAd);
       return {
         ...m,
         Durum: 'Baslamadi' as MatchStatus,
@@ -683,7 +725,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   };
 
   const loginRefereeDirect = (name?: string) => {
-    console.warn('Şifresiz giriş güvenlik nedeniyle tamamen kapatılmıştır.');
+    console.warn('Şifresiz giriş güvenlik nedeniyle kapatılmıştır.');
   };
 
   const loginSupervisorByPin = (pin: string, name?: string): boolean => {
@@ -742,6 +784,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       baslangicSaati: string;
       bitisSaati: string;
       skorFormati?: string;
+      isNoAd?: boolean; // YENİ
       ilkServisOyuncusu?: 1 | 2;
     }
   ) => {
@@ -753,6 +796,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
         let detState = m.detailedState;
         const chosenFormat = data.skorFormati || m.Skor_Formati || '3 Normal Set';
+        const chosenNoAd = data.isNoAd !== undefined ? data.isNoAd : !!m.isNoAd; // YENİ
 
         if (!detState || (m.Durum === 'Baslamadi' && data.durum === 'Oynaniyor')) {
           let server: 1 | 2 = 1;
@@ -766,7 +810,10 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           if (data.ilkServisOyuncusu) {
             server = data.ilkServisOyuncusu;
           }
-          detState = createInitialMatchState(server, chosenFormat);
+          detState = createInitialMatchState(server, chosenFormat, chosenNoAd);
+        } else {
+          // Eğer önceden state varsa no-ad tercihini de üzerine yazalım
+          detState.isNoAd = chosenNoAd;
         }
 
         let setupStartTs = m.startTimeTimestamp;
@@ -806,6 +853,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             ? Math.floor(Math.max(0, setupEndTs - setupStartTs) / 1000)
             : undefined,
           Skor_Formati: chosenFormat,
+          isNoAd: chosenNoAd, // YENİ
           Son_Hakem: currentReferee ? currentReferee.name : 'Turnuva Masası',
           detailedState: detState,
         };
@@ -827,8 +875,9 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         if (m.id !== matchId) return m;
         const format = m.Skor_Formati || '3 Normal Set';
         
-        const dState = JSON.parse(JSON.stringify(m.detailedState || createInitialMatchState(1, format)));
-        
+        const dState = JSON.parse(JSON.stringify(m.detailedState || createInitialMatchState(1, format, !!m.isNoAd)));
+        dState.isNoAd = !!m.isNoAd; // Garanti
+
         if (setIndex === 1) {
           if (player === 1) dState.set1_p1 = Math.max(0, dState.set1_p1 + delta);
           else dState.set1_p2 = Math.max(0, dState.set1_p2 + delta);
@@ -916,7 +965,8 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       const next = prev.map((m) => {
         if (m.id !== matchId) return m;
         const format = m.Skor_Formati || '3 Normal Set';
-        const dState = JSON.parse(JSON.stringify(m.detailedState || createInitialMatchState(1, format)));
+        const dState = JSON.parse(JSON.stringify(m.detailedState || createInitialMatchState(1, format, !!m.isNoAd)));
+        dState.isNoAd = !!m.isNoAd;
 
         dState.set1_p1 = s1_p1; dState.set1_p2 = s1_p2;
         const v1 = validateSingleSet(dState.set1_p1, dState.set1_p2, 1, format);
@@ -998,7 +1048,8 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       const next = prev.map((m) => {
         if (m.id !== matchId) return m;
         const format = m.Skor_Formati || '3 Normal Set';
-        const dState = JSON.parse(JSON.stringify(m.detailedState || createInitialMatchState(1, format)));
+        const dState = JSON.parse(JSON.stringify(m.detailedState || createInitialMatchState(1, format, !!m.isNoAd)));
+        dState.isNoAd = !!m.isNoAd;
 
         dState.set1_p1 = data.s1_p1; dState.set1_p2 = data.s1_p2;
         const v1 = validateSingleSet(dState.set1_p1, dState.set1_p2, 1, format);
@@ -1080,7 +1131,9 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       const next = prev.map((m) => {
         if (!m.id || m.id !== matchId) return m;
 
-        const currState = m.detailedState || createInitialMatchState(1, m.Skor_Formati || '3 Normal Set');
+        const currState = m.detailedState || createInitialMatchState(1, m.Skor_Formati || '3 Normal Set', !!m.isNoAd);
+        currState.isNoAd = !!m.isNoAd; // Motor işlemeden önce emniyet kilidi
+
         const format = m.Skor_Formati || '3 Normal Set';
         const matchSafetyCheck = checkMatchWinner(currState, format);
 
@@ -1240,17 +1293,15 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       let updatedItem: MatchItem | null = null;
       const next = prev.map((m) => {
         if (m.id !== matchId) return m;
-        // KRİTİK DEĞİŞİKLİK: Maç sonlandırma isteği geldiyse (Bitti) ve motor buna izin vermiyorsa, isteği kabul et!
         const isEnding = ['Bitti', 'Retired', 'Walkover'].includes(status);
         const format = m.Skor_Formati || '3 Normal Set';
-        const dState = JSON.parse(JSON.stringify(m.detailedState || createInitialMatchState(1, format)));
+        const dState = JSON.parse(JSON.stringify(m.detailedState || createInitialMatchState(1, format, !!m.isNoAd)));
         
         if (isEnding) {
            dState.matchEnded = true;
            if (winner === m['Oyuncu 1']) dState.matchWinner = 1;
            else if (winner === m['Oyuncu 2']) dState.matchWinner = 2;
         } else {
-            // Eğer maçı duraklatıyor veya oynatıyorsa motoru tekrar hesapla
             const matchSafetyCheck = checkMatchWinner(dState, format);
             dState.matchEnded = matchSafetyCheck.matchEnded;
             dState.matchWinner = matchSafetyCheck.matchWinner;
@@ -1279,7 +1330,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       const next = prev.map((m) => {
           if (m.id === matchId) {
              const format = m.Skor_Formati || '3 Normal Set';
-             const dState = JSON.parse(JSON.stringify(m.detailedState || createInitialMatchState(1, format)));
+             const dState = JSON.parse(JSON.stringify(m.detailedState || createInitialMatchState(1, format, !!m.isNoAd)));
              dState.matchEnded = false;
              dState.matchWinner = undefined;
              return { ...m, Durum: 'Oynaniyor' as MatchStatus, Kazanan: 'Secilmedi', Bitis_Saati: 'Secilmedi', detailedState: dState };
@@ -1294,7 +1345,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const resetMatchScore = (matchId: string) => {
     if (!matchId) return;
     setMatches((prev) => {
-      const next = prev.map((m) => (m.id === matchId ? { ...m, Skor: '-', Durum: 'Baslamadi' as MatchStatus, Kazanan: 'Secilmedi', detailedState: createInitialMatchState(1, m.Skor_Formati || '3 Normal Set'), pointHistory: [], disputeHistory: [] } : m));
+      const next = prev.map((m) => (m.id === matchId ? { ...m, Skor: '-', Durum: 'Baslamadi' as MatchStatus, Kazanan: 'Secilmedi', detailedState: createInitialMatchState(1, m.Skor_Formati || '3 Normal Set', !!m.isNoAd), pointHistory: [], disputeHistory: [] } : m));
       broadcastAndSyncMatches(next);
       return next;
     });
@@ -1330,6 +1381,11 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   const bulkApplyCategoryFormats = (formatMap: Record<string, string>) => {
     setCategoryFormats((prev) => ({ ...prev, ...formatMap }));
+  };
+
+  // YENİ EKLENDİ: Başhakem No-Ad listesini topluca uygular
+  const bulkApplyCategoryNoAdSettings = (noAdMap: Record<string, boolean>) => {
+    setCategoryNoAdSettings((prev) => ({ ...prev, ...noAdMap }));
   };
 
   const [tournamentInfoState, setTournamentInfoState] = useState({ ad: '', yer: '', tarih: '', not: '' });
@@ -1386,8 +1442,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         const startStr = startTime || m.Baslangic_Saati;
 
         const format = m.Skor_Formati || '3 Normal Set';
-        const dState = JSON.parse(JSON.stringify(m.detailedState || createInitialMatchState(1, format)));
-        // KRİTİK DEĞİŞİKLİK: Motoru baypas et ve maçı bitti olarak kilitle
+        const dState = JSON.parse(JSON.stringify(m.detailedState || createInitialMatchState(1, format, !!m.isNoAd)));
         dState.matchEnded = true;
         if (winner === m['Oyuncu 1']) dState.matchWinner = 1;
         else if (winner === m['Oyuncu 2']) dState.matchWinner = 2;
@@ -1421,6 +1476,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         referees,
         currentReferee,
         categoryFormats,
+        categoryNoAdSettings, // YENİ
         activeMatchId,
         activeMatch: matches.find((m) => m.id === activeMatchId) || null,
         authRole,
@@ -1462,6 +1518,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         deleteReferee,
         updateCategoryFormat,
         bulkApplyCategoryFormats,
+        bulkApplyCategoryNoAdSettings, // YENİ
         tournamentInfo: tournamentInfoState,
         saveTournamentInfo,
         importMatchesList,
