@@ -8,7 +8,8 @@ import {
 
 export function createInitialMatchState(
   server: 1 | 2 = 1,
-  format: ScoreFormatType | string = '3 Normal Set'
+  format: ScoreFormatType | string = '3 Normal Set',
+  isNoAd: boolean = false // YENİ EKLENDİ
 ): TennisMatchState {
   return {
     currentSet: 1,
@@ -42,6 +43,7 @@ export function createInitialMatchState(
     totalPoints_p2: 0,
     lastActionMessage: 'Maç başladı. Servis: Oyuncu ' + server,
     needsChangeover: false,
+    isNoAd, // YENİ EKLENDİ
   };
 }
 
@@ -99,7 +101,6 @@ export function isMatchTiebreakThirdSet(format: string): { isMT: boolean; target
   return { isMT: false, target: 7 };
 }
 
-// YENİ EKLENDİ: awardPoint fonksiyonunun düzgün çalışması için gereken eksik bağlantı fonksiyonu
 export function checkMatchWinner(state: TennisMatchState, format: string): { matchEnded: boolean; winner?: 1 | 2 } {
   const result = validateFullMatchScores(
     state.set1_p1, state.set1_p2,
@@ -123,25 +124,22 @@ export function awardPoint(
   p2Name: string = 'Oyuncu 2'
 ): { nextState: TennisMatchState; matchEnded: boolean; matchWinner?: 1 | 2; summary: string } {
   
-  // 1. KATI GÜVENLİK DUVARI: Eğer maç format gereği zaten kazanılmışsa, içeriye ASLA fazladan sayı sokma!
   const initialMatchCheck = checkMatchWinner(currentState, format);
   if (initialMatchCheck.matchEnded) {
     return {
-      nextState: currentState, // Durumu değiştirmeden aynen geri fırlat (100'e gitmeyi engeller)
+      nextState: currentState,
       matchEnded: true,
       matchWinner: initialMatchCheck.winner,
       summary: 'Kural İhlali Engellendi: Maç skor formatına ulaştı ve bitti. Daha fazla sayı girilemez.',
     };
   }
 
-  // Deep copy state
   const state: TennisMatchState = JSON.parse(JSON.stringify(currentState));
   const winnerName = playerWon === 1 ? p1Name : p2Name;
   let matchEnded = false;
   let matchWinner: 1 | 2 | undefined;
   let summary = `${winnerName} sayı kazandı (${pointType})`;
 
-  // Stats updating
   if (playerWon === 1) {
     state.totalPoints_p1++;
     if (pointType === 'ACE') state.p1Aces++;
@@ -159,7 +157,6 @@ export function awardPoint(
   const { target: targetGames, tiebreakAt } = getTargetGamesPerSet(format);
   const thirdSetMT = isMatchTiebreakThirdSet(format);
 
-  // CASE 1: In Tie-Break or Match Tie-Break
   if (state.isTiebreak) {
     if (playerWon === 1) {
       state.tiebreak_p1++;
@@ -168,23 +165,19 @@ export function awardPoint(
     }
     state.totalPointsInTiebreak++;
 
-    // Rotation in tiebreak: 1st point server A, then every 2 points alternates
     const totalPts = state.tiebreak_p1 + state.tiebreak_p2;
     const initialTbServer = state.tiebreakFirstServer || state.currentServer;
     const otherServer: 1 | 2 = initialTbServer === 1 ? 2 : 1;
 
-    // Server cycle
     const cycle = Math.floor((totalPts - 1) / 2);
     state.currentServer = cycle % 2 === 0 ? otherServer : initialTbServer;
 
-    // Saha değişimi check: sum of points is a multiple of 6
     state.needsChangeover = totalPts % 6 === 0;
 
     const p1Score = state.tiebreak_p1;
     const p2Score = state.tiebreak_p2;
     const target = state.tiebreakTarget;
 
-    // Check if Tie-break won (>= target and >= 2 point lead)
     const p1WonTb = p1Score >= target && p1Score - p2Score >= 2;
     const p2WonTb = p2Score >= target && p2Score - p1Score >= 2;
 
@@ -193,7 +186,6 @@ export function awardPoint(
       summary = `${setWinner === 1 ? p1Name : p2Name} Tie-Break'i kazandı! (${p1Score}-${p2Score})`;
 
       if (state.isMatchTiebreak) {
-        // Set 3 match tiebreak completed
         state.set3_p1 = p1Score;
         state.set3_p2 = p2Score;
         matchEnded = true;
@@ -203,7 +195,6 @@ export function awardPoint(
         state.lastActionMessage = `Maç Bitti! Kazanan: ${setWinner === 1 ? p1Name : p2Name}`;
         return { nextState: state, matchEnded, matchWinner, summary };
       } else {
-        // Regular set tiebreak completed
         if (state.currentSet === 1) {
           if (setWinner === 1) state.set1_p1++;
           else state.set1_p2++;
@@ -215,7 +206,6 @@ export function awardPoint(
           else state.set3_p2++;
         }
 
-        // Check overall match outcome after set
         const matchResult = checkMatchWinner(state, format);
         if (matchResult.matchEnded) {
           matchEnded = true;
@@ -225,7 +215,6 @@ export function awardPoint(
           return { nextState: state, matchEnded, matchWinner, summary };
         }
 
-        // Advance to next set
         advanceToNextSet(state, format, setWinner);
       }
     } else {
@@ -235,11 +224,11 @@ export function awardPoint(
     return { nextState: state, matchEnded, matchWinner, summary };
   }
 
-  // CASE 2: Regular Game Scoring (0, 15, 30, 40, AD)
   const p1Pt = state.gamePoint_p1;
   const p2Pt = state.gamePoint_p2;
   let gameWon: 1 | 2 | null = null;
 
+  // KRİTİK EKLENTİ: No-Ad (Karar Puanı) motor entegrasyonu
   if (playerWon === 1) {
     if (p1Pt === '0') state.gamePoint_p1 = '15';
     else if (p1Pt === '15') state.gamePoint_p1 = '30';
@@ -247,9 +236,13 @@ export function awardPoint(
       state.gamePoint_p1 = '40';
     } else if (p1Pt === '40') {
       if (p2Pt === '40') {
-        state.gamePoint_p1 = 'AD';
+        if (state.isNoAd) {
+          gameWon = 1; // NO-AD kuralı: 40-40'ta puanı alan oyunu bitirir!
+        } else {
+          state.gamePoint_p1 = 'AD';
+        }
       } else if (p2Pt === 'AD') {
-        state.gamePoint_p2 = '40'; // Deuce again
+        state.gamePoint_p2 = '40'; 
       } else {
         gameWon = 1;
       }
@@ -263,9 +256,13 @@ export function awardPoint(
       state.gamePoint_p2 = '40';
     } else if (p2Pt === '40') {
       if (p1Pt === '40') {
-        state.gamePoint_p2 = 'AD';
+        if (state.isNoAd) {
+          gameWon = 2; // NO-AD kuralı: 40-40'ta puanı alan oyunu bitirir!
+        } else {
+          state.gamePoint_p2 = 'AD';
+        }
       } else if (p1Pt === 'AD') {
-        state.gamePoint_p1 = '40'; // Deuce again
+        state.gamePoint_p1 = '40'; 
       } else {
         gameWon = 2;
       }
@@ -274,14 +271,12 @@ export function awardPoint(
     }
   }
 
-  // If game won
   if (gameWon !== null) {
     state.gamePoint_p1 = '0';
     state.gamePoint_p2 = '0';
     const winningPlayerName = gameWon === 1 ? p1Name : p2Name;
     summary = `Oyun ${winningPlayerName}!`;
 
-    // Increment current set games
     let p1Games = 0;
     let p2Games = 0;
 
@@ -302,14 +297,11 @@ export function awardPoint(
       p2Games = state.set3_p2;
     }
 
-    // Switch server for next game
     state.currentServer = state.currentServer === 1 ? 2 : 1;
 
-    // Check Saha Değişimi (Odd game sum in current set)
     const totalGamesInSet = p1Games + p2Games;
     state.needsChangeover = totalGamesInSet % 2 !== 0;
 
-    // Check Set Win condition
     let setWinner: 1 | 2 | null = null;
 
     if (p1Games >= targetGames && p1Games - p2Games >= 2) {
@@ -321,7 +313,6 @@ export function awardPoint(
     } else if (p2Games === targetGames + 1 && p1Games === targetGames - 1) {
       setWinner = 2;
     } else if (p1Games === tiebreakAt && p2Games === tiebreakAt) {
-      // Start Tiebreak!
       state.isTiebreak = true;
       state.tiebreak_p1 = 0;
       state.tiebreak_p2 = 0;
@@ -397,10 +388,6 @@ export function buildScoreString(
   }
   return parts.join(' ');
 }
-
-// ----------------------------------------------------
-// TENNIS SCORE VALIDATION ENGINE
-// ----------------------------------------------------
 
 export interface SetValidationResult {
   valid: boolean;
