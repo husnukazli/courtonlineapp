@@ -5,14 +5,47 @@ import {
   Shield, Smartphone, Tv, Lock, KeyRound, CheckCircle2,
   AlertCircle, X, User, Eye, EyeOff, ChevronRight,
   RefreshCw, Trash2, Cloud, QrCode, Activity, Clock,
-  Trophy, Circle,
+  Trophy, Circle, MapPin, CalendarPlus
 } from 'lucide-react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../utils/firebase';
+import { MatchItem } from '../../types/tennis';
 
 interface MainPortalGateProps {
   onBackToList?: () => void;
 }
+
+// ─── GOOGLE CALENDAR LINK GENERATOR ──────────────────────────────────────────
+const generateGoogleCalendarLink = (match: MatchItem, location: string) => {
+  const title = `🎾 Tenis Maçı: ${match['Oyuncu 1']} vs ${match['Oyuncu 2']}`;
+  const details = `Kategori: ${match.Kategori} | Kort: ${match.Kort} | Format: ${match.Skor_Formati || '3 Normal Set'}`;
+  
+  const today = new Date();
+  const [hours, minutes] = (match.Saat || '09:00').split(':').map(Number);
+  
+  const startDate = new Date(today);
+  if (!isNaN(hours) && !isNaN(minutes)) {
+    startDate.setHours(hours, minutes, 0);
+  } else {
+    startDate.setHours(9, 0, 0);
+  }
+  
+  const endDate = new Date(startDate);
+  endDate.setHours(startDate.getHours() + 2); // Varsayılan 2 saat
+
+  const formatGoogleDate = (date: Date) => date.toISOString().replace(/-|:|\.\d\d\d/g, "");
+
+  const params = new URLSearchParams({
+    action: 'TEMPLATE',
+    text: title,
+    details: details,
+    location: location || 'Tenis Kortu',
+    dates: `${formatGoogleDate(startDate)}/${formatGoogleDate(endDate)}`
+  });
+
+  return `https://calendar.google.com/calendar/render?${params.toString()}`;
+};
+// ─────────────────────────────────────────────────────────────────────────────
 
 export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) => {
   const {
@@ -20,7 +53,6 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
     cloudSyncStatus, lastCloudSync, pullFromCloudNow, clearLocalCacheAndResetFromCloud, tournamentInfo, tournamentId, setAuthRole
   } = useTennisData();
 
-  // YENİ MİMARİ: Artık modal durumları 'referee' (Hakem) ve 'desk' (Başhakem) olarak ikiye ayrıldı.
   const [activeModal, setActiveModal] = useState<'referee' | 'desk' | null>(null);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [pin, setPin] = useState('');
@@ -185,13 +217,32 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
 
       <main className="max-w-7xl mx-auto px-3 sm:px-6 py-4 space-y-5">
         {(tournamentInfo.ad || tournamentInfo.yer || tournamentInfo.tarih) && (
-          <div className="text-center py-3 border-b border-slate-800/60 space-y-0.5">
+          <div className="text-center py-4 border-b border-slate-800/60 space-y-1">
             {tournamentInfo.ad && (
               <h1 className="text-base sm:text-lg font-black text-white tracking-tight">{tournamentInfo.ad}</h1>
             )}
-            <div className="flex items-center justify-center gap-3 flex-wrap text-xs text-slate-400">
-              {tournamentInfo.yer && <span>📍 {tournamentInfo.yer}</span>}
-              {tournamentInfo.tarih && <span>📅 {tournamentInfo.tarih}</span>}
+            
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-6 pt-1 text-xs text-slate-400">
+              {tournamentInfo.tarih && (
+                <span className="flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5 text-slate-500" />
+                  {tournamentInfo.tarih}
+                </span>
+              )}
+              
+              {/* YENİ EKLENDİ: Google Haritalar Rota Butonu */}
+              {tournamentInfo.yer && (
+                <a 
+                  href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(tournamentInfo.yer)}`}
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 transition"
+                  title="Haritada Yol Tarifi Al"
+                >
+                  <MapPin className="w-3.5 h-3.5" />
+                  <span>{tournamentInfo.yer} (Yol Tarifi Al)</span>
+                </a>
+              )}
             </div>
           </div>
         )}
@@ -271,11 +322,14 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
           const MacKarti = ({ m }: { m: any }) => {
             const isLive = m.Durum === 'Oynaniyor';
             const isDone = m.Durum === 'Bitti' || m.Durum === 'Retired' || m.Durum === 'Walkover';
+            const isUpcoming = m.Durum === 'Baslamadi';
+
             return (
-              <div className={`rounded-2xl border p-3 space-y-2 transition
+              <div className={`rounded-2xl border p-3 space-y-2 flex flex-col transition
                 ${isLive ? 'bg-emerald-950/30 border-emerald-700/50 shadow-lg shadow-emerald-900/20'
                   : isDone ? 'bg-rose-950/20 border-rose-800/50'
                   : 'bg-slate-900/70 border-slate-700/50'}`}>
+                
                 <div className="flex items-center justify-between gap-1">
                   <span className={`font-mono font-black text-sm tracking-wide
                     ${isLive ? 'text-emerald-400' : isDone ? 'text-rose-400/70' : 'text-cyan-400'}`}>
@@ -290,6 +344,7 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
                     {statusLabel(m.Durum || '')}
                   </span>
                 </div>
+
                 <div className="space-y-1">
                   {[
                     { name: m['Oyuncu 1'] || m['Takım 1'] || '—', kazandi: isDone && (m.Kazanan === m['Oyuncu 1'] || m.Kazanan === m['Takım 1']) },
@@ -308,9 +363,26 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
                     </div>
                   ))}
                 </div>
-                <div className="text-[10px] text-slate-500 truncate">
-                  {m.Kategori || m.Skor_Formati || ''}
+                
+                <div className="mt-auto pt-2 border-t border-slate-800/50 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <span className="text-[10px] text-slate-500 truncate">
+                    {m.Kategori || m.Skor_Formati || ''}
+                  </span>
+                  
+                  {/* YENİ EKLENDİ: Başlamamış maçlar için "Ajandama Ekle" Butonu */}
+                  {isUpcoming && (
+                    <a 
+                      href={generateGoogleCalendarLink(m as MatchItem, tournamentInfo?.yer || '')}
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded-lg text-[10px] font-bold transition shrink-0"
+                    >
+                      <CalendarPlus className="w-3 h-3" />
+                      <span>Ajandama Ekle</span>
+                    </a>
+                  )}
                 </div>
+
               </div>
             );
           };
@@ -363,6 +435,7 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
             <RefreshCw className="w-3 h-3" /> Önbelleği Sıfırla / Yenile
           </button>
         </div>
+
         {tournamentInfo.not && (
           <div className="text-center py-4 border-t border-slate-800/60">
             <p className="text-xs text-slate-400 italic max-w-xl mx-auto">{tournamentInfo.not}</p>
@@ -370,6 +443,7 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
         )}
       </main>
 
+      {/* GİRİŞ MODALLARI KISMI (Değişmedi) */}
       {activeModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md animate-in fade-in duration-150 overflow-y-auto">
           <div className="bg-slate-900 border-2 border-slate-700/80 rounded-3xl p-5 sm:p-7 w-full max-w-md shadow-2xl space-y-4 my-auto">
