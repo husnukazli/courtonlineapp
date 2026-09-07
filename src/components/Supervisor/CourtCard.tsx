@@ -17,7 +17,8 @@ import {
   ArrowRightLeft,
   Settings,
   LogOut,
-  Info
+  Info,
+  PenLine // YENİ EKLENDİ: Hızlı Skor İkonu
 } from 'lucide-react';
 
 interface CourtCardProps {
@@ -48,6 +49,7 @@ const vibrateDevice = (pattern: number | number[] = 50) => {
 export const CourtCard: React.FC<CourtCardProps> = ({
   match,
   onFinishMatch,
+  onEditScore,
   onOpenSetup,
 }) => {
   const { updateGameScore, setMatchStatus, awardPointToMatch, undoLastPoint } = useTennisData();
@@ -548,7 +550,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
           </span>
         </div>
 
-        {/* DÜZELTME UYGULANAN ALAN: Devasa Parlak Saat Tasarımı */}
         <div className="px-4 sm:px-5 py-2.5 sm:py-3 bg-slate-950/90 border-b border-slate-800/80 flex items-center justify-between font-mono shadow-inner">
           <div className="flex items-center gap-2 sm:gap-3">
             <div className="flex items-center gap-1.5 bg-slate-800/50 px-2.5 py-1 rounded-lg border border-slate-700/50">
@@ -641,8 +642,16 @@ export const CourtCard: React.FC<CourtCardProps> = ({
         <div className="p-3 sm:p-4 bg-slate-950/70 border-t border-slate-800 flex items-center gap-2">
           {isUpcoming ? (
             <div className="flex items-center gap-2 w-full">
-              {onOpenSetup && <button type="button" onClick={(e) => { e.stopPropagation(); onOpenSetup(match); }} className="py-2.5 px-3 rounded-xl bg-slate-800 text-amber-300 font-bold text-xs border border-slate-700 transition">🪙 Kura</button>}
-              <button type="button" onClick={handleStartMatchDirect} className="flex-1 py-2.5 bg-gradient-to-r from-amber-400 to-yellow-400 text-slate-950 font-black text-xs sm:text-sm rounded-xl flex items-center justify-center gap-1.5"><PlayCircle className="w-4 h-4" /> Maçı Başlat</button>
+              {onOpenSetup && <button type="button" onClick={(e) => { e.stopPropagation(); onOpenSetup(match); }} className="py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold text-xs border border-slate-700 transition" title="Kura Çek">🪙 Kura</button>}
+              
+              {/* YENİ EKLENDİ: Başlamamış maçlar için Hızlı Skor Butonu */}
+              {onEditScore && (
+                <button type="button" onClick={(e) => { e.stopPropagation(); onEditScore(match); }} className="py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-400 font-bold text-xs border border-slate-700 transition flex items-center gap-1.5" title="Hızlı Skor Gir">
+                  <PenLine className="w-3.5 h-3.5" /> Skor
+                </button>
+              )}
+
+              <button type="button" onClick={handleStartMatchDirect} className="flex-1 py-2.5 bg-gradient-to-r from-amber-400 to-yellow-400 hover:from-amber-300 hover:to-yellow-300 text-slate-950 font-black text-xs sm:text-sm rounded-xl flex items-center justify-center gap-1.5 transition active:scale-95"><PlayCircle className="w-4 h-4" /> Maçı Başlat</button>
             </div>
           ) : isLive || isPaused ? (
             <div className="flex items-center gap-2 w-full">
@@ -651,7 +660,15 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                   <Settings className="w-5 h-5" />
                 </button>
               )}
-              <button type="button" onClick={(e) => { e.stopPropagation(); onFinishMatch(match); }} className="flex-1 h-12 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-sm rounded-xl flex justify-center items-center gap-2 transition"><Trophy className="w-4 h-4 text-cyan-400" /> Maçı Sonlandır</button>
+              
+              {/* YENİ EKLENDİ: Canlı maçlar için Hızlı Skor Butonu */}
+              {onEditScore && (
+                <button type="button" onClick={(e) => { e.stopPropagation(); onEditScore(match); }} className="h-12 w-12 flex items-center justify-center shrink-0 bg-slate-800 hover:bg-slate-700 text-cyan-400 border border-cyan-500/30 rounded-xl transition active:scale-95" title="Doğrudan Skor Düzenle">
+                  <PenLine className="w-5 h-5" />
+                </button>
+              )}
+
+              <button type="button" onClick={(e) => { e.stopPropagation(); onFinishMatch(match); }} className="flex-1 h-12 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-sm rounded-xl flex justify-center items-center gap-2 transition active:scale-95"><Trophy className="w-4 h-4 text-cyan-400" /> Maçı Sonlandır</button>
             </div>
           ) : null}
         </div>
@@ -857,10 +874,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                     </div>
                   )}
 
-                  {/* DEV EKRAN: SOL OYUNCU vs SAĞ OYUNCU */}
                   <div className="grid grid-cols-2 gap-2 sm:gap-6 flex-1 min-h-0">
-                    
-                    {/* SOL SAHA */}
                     <div className={`bg-slate-900 rounded-3xl p-2 sm:p-5 border-4 flex flex-col justify-between shadow-2xl overflow-hidden ${computedServerTeam === leftTeamId ? 'border-amber-400 shadow-[0_0_30px_rgba(251,191,36,0.15)]' : 'border-slate-800'}`}>
                       <div className="flex flex-col items-center justify-center min-h-[4rem] sm:min-h-[5.5rem] border-b border-slate-800/80 pb-2 mb-2">
                         <div className={`flex items-start justify-center gap-1 w-full ${leftTeamId === 1 ? 'text-lime-400' : 'text-cyan-400'}`}>
@@ -904,7 +918,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                       </div>
                     </div>
 
-                    {/* SAĞ SAHA */}
                     <div className={`bg-slate-900 rounded-3xl p-2 sm:p-5 border-4 flex flex-col justify-between shadow-2xl overflow-hidden ${computedServerTeam === rightTeamId ? 'border-amber-400 shadow-[0_0_30px_rgba(251,191,36,0.15)]' : 'border-slate-800'}`}>
                       <div className="flex flex-col items-center justify-center min-h-[4rem] sm:min-h-[5.5rem] border-b border-slate-800/80 pb-2 mb-2">
                         <div className={`flex items-start justify-center gap-1 w-full ${rightTeamId === 1 ? 'text-lime-400' : 'text-cyan-400'}`}>
@@ -950,7 +963,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
 
                   </div>
 
-                  {/* ALT AKSİYON ÇUBUĞU */}
                   <div className="pt-2 border-t border-slate-800 flex flex-col gap-2 sm:gap-3 shrink-0 pb-4">
                     <div className="flex gap-2 sm:gap-3">
                       <button type="button" onClick={(e) => startTimer(e, 'Saha Değişimi', 90)} className="flex-1 py-3 sm:py-4 bg-slate-900 border border-slate-700 text-slate-300 hover:text-white text-[10px] sm:text-sm font-black rounded-xl transition shadow-md">90s Değişim</button>
