@@ -184,8 +184,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
     prevSetRef.current = selectedSet;
   }, [selectedSet, format]);
 
-  // YENİ: KUSURSUZ TIE-BREAK SAHA DEĞİŞİMİ ALGORİTMASI
-  // "Son konumlarına göre saha değiştirsinler" kuralının matematiksel tam karşılığı
   useEffect(() => {
     if (selectedSet > 1 && !setupsBySet[selectedSet] && setupsBySet[selectedSet - 1]) {
       const prevSet = selectedSet - 1;
@@ -199,13 +197,11 @@ export const CourtCard: React.FC<CourtCardProps> = ({
         const nextServerTeam = totalGamesPrevSet % 2 === 0 ? prevSetup.firstServingTeam : (prevSetup.firstServingTeam === 1 ? 2 : 1);
         let finalLeftTeamPrevSet = prevSetup.leftTeam;
         
-        // Bir önceki set Tie-Break ile bittiyse tespit ediyoruz
         const isNormalTB = (prevS1 === 7 && prevS2 === 6) || (prevS1 === 6 && prevS2 === 7);
         const isShortTB = (prevS1 === 5 && prevS2 === 4) || (prevS1 === 4 && prevS2 === 5);
         const wasTiebreak = isNormalTB || isShortTB;
         
         if (wasTiebreak) {
-          // Tie-breakte oynanan toplam puanı bulmak için geçmiş puana bakıyoruz!
           let tbPoints = 0;
           if (match.pointHistory && match.pointHistory.length > 0) {
             let maxTb1 = 0; let maxTb2 = 0;
@@ -216,13 +212,12 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                   maxTb2 = Math.max(maxTb2, snap.tiebreak_p2);
                }
             }
-            if (maxTb1 > 0 || maxTb2 > 0) tbPoints = maxTb1 + maxTb2 + 1; // +1 = final kazandıran vuruş
+            if (maxTb1 > 0 || maxTb2 > 0) tbPoints = maxTb1 + maxTb2 + 1; 
           }
-          if (tbPoints === 0) tbPoints = 12; // Sistem hafızası boşsa varsayılan 7-5 bitti kabul et
+          if (tbPoints === 0) tbPoints = 12; 
           
           const tbStartSide = (totalGamesPrevSet % 4 === 1 || totalGamesPrevSet % 4 === 2) ? (prevSetup.leftTeam === 1 ? 2 : 1) : prevSetup.leftTeam;
           
-          // Maç bitmeden 1 saniye önce oyuncular hangi sahadaydı? (İşte son konum hesaplaması)
           if (prevSetup.tbType === 'coman') {
              const block = Math.floor((tbPoints - 1) / 4);
              finalLeftTeamPrevSet = block % 2 === 0 ? tbStartSide : (tbStartSide === 1 ? 2 : 1);
@@ -231,11 +226,9 @@ export const CourtCard: React.FC<CourtCardProps> = ({
              finalLeftTeamPrevSet = block % 2 === 0 ? tbStartSide : (tbStartSide === 1 ? 2 : 1);
           }
         } else {
-          // Normal oyunla bittiyse
           finalLeftTeamPrevSet = ((totalGamesPrevSet - 1) % 4 === 1 || (totalGamesPrevSet - 1) % 4 === 2) ? (prevSetup.leftTeam === 1 ? 2 : 1) : prevSetup.leftTeam;
         }
 
-        // TIE BREAK SONU SAHA DEĞİŞİM KURALI (13. oyun tek sayıdır, saha DOĞRU ve SON konumdan tersine döner!)
         const changeEnds = totalGamesPrevSet % 2 !== 0; 
         const nextLeftTeam = changeEnds ? (finalLeftTeamPrevSet === 1 ? 2 : 1) : finalLeftTeamPrevSet;
 
@@ -280,9 +273,38 @@ export const CourtCard: React.FC<CourtCardProps> = ({
   let computedLeftTeam: 1 | 2 = 1;
   let activeServerName = '';
   let activeReceiverName = '';
-  let isSideChangePoint = false;
   let currentT1ServerIdx: 0 | 1 = 0;
   let currentT2ServerIdx: 0 | 1 = 0;
+
+  // ─── DOĞRUDAN MOTOR DESTEKLİ SAHA DEĞİŞİM KONTROLÜ (BUG FIX) ───
+  let isSideChangePoint = false;
+  const isGameStart = state?.gamePoint_p1 === '0' && state?.gamePoint_p2 === '0';
+  
+  if (isTB) {
+      // TB içindeyken Setup ekranına/onayına bağlı olmaksızın uyarıyı yakarız.
+      isSideChangePoint = state?.needsChangeover || (tbPoints > 0 && tbPoints % 6 === 0);
+      
+      // Sadece Coman TB için özel geçersiz kılma:
+      if (isSetupValid && chairSetup.tbType === 'coman') {
+          isSideChangePoint = tbPoints > 0 && ((tbPoints - 1) % 4 === 0);
+      }
+  } else {
+      // Normal oyunlarda yalnızca 0-0 iken motorun "Değiş!" emrini dinler.
+      if (isGameStart) {
+          isSideChangePoint = state?.needsChangeover || false;
+          
+          // Fallback: Motor değeri yoksa (eski state vb.), matematikle teyit et:
+          if (state?.needsChangeover === undefined) {
+              if (currentSetGames > 0 && currentSetGames % 2 === 1) {
+                  isSideChangePoint = true;
+              } else if (currentSetGames === 0 && selectedSet > 1) {
+                  const prevSetGames = selectedSet === 2 ? (s1_p1 + s1_p2) : (s2_p1 + s2_p2);
+                  if (prevSetGames % 2 === 1) isSideChangePoint = true;
+              }
+          }
+      }
+  }
+  // ───────────────────────────────────────────────────────────────
 
   if (isSetupValid) {
     const isComan = chairSetup.tbType === 'coman';
@@ -301,18 +323,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
     if (!isTB) {
       computedServerTeam = currentSetGames % 2 === 0 ? chairSetup.firstServingTeam : otherTeam;
       computedLeftTeam = (currentSetGames % 4 === 1 || currentSetGames % 4 === 2) ? (chairSetup.leftTeam === 1 ? 2 : 1) : chairSetup.leftTeam;
-      
-      // HAKEM UYARISI: Sahalar Değişiyor! 
-      if (state?.gamePoint_p1 === '0' && state?.gamePoint_p2 === '0') {
-        if (currentSetGames > 0 && currentSetGames % 2 === 1) {
-          isSideChangePoint = true; 
-        } else if (currentSetGames === 0 && selectedSet > 1) {
-          const prevSetGames = selectedSet === 2 ? (s1_p1 + s1_p2) : (s2_p1 + s2_p2);
-          if (prevSetGames % 2 === 1) {
-            isSideChangePoint = true; 
-          }
-        }
-      }
       
       if (isDoubles) {
         const teamServiceRounds = Math.floor(currentSetGames / 2);
@@ -338,11 +348,9 @@ export const CourtCard: React.FC<CourtCardProps> = ({
       else if (isComan) {
         const block = Math.floor((tbPoints - 1) / 4);
         computedLeftTeam = block % 2 === 0 ? (tbStartSide === 1 ? 2 : 1) : tbStartSide;
-        isSideChangePoint = ((tbPoints - 1) % 4 === 0) && tbPoints > 0;
       } else {
         const block = Math.floor(tbPoints / 6);
         computedLeftTeam = block % 2 === 1 ? (tbStartSide === 1 ? 2 : 1) : tbStartSide;
-        isSideChangePoint = (tbPoints > 0 && tbPoints % 6 === 0);
       }
 
       if (isDoubles) {
