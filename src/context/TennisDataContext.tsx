@@ -154,7 +154,7 @@ interface TennisDataContextType {
       bitisSaati: string;
       skorFormati?: string;
       isNoAd?: boolean;
-      yeniKort?: string; // YENİ: Kort taşıma bilgisi eklendi
+      yeniKort?: string;
       ilkServisOyuncusu?: 1 | 2;
     }
   ) => void;
@@ -748,7 +748,6 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     });
   };
 
-  // YENİ EKLENDİ: data.yeniKort (Kort değiştirme) özelliği sisteme bağlandı
   const saveMatchSetup = (
     matchId: string,
     data: {
@@ -816,7 +815,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
         const res: MatchItem = {
           ...m,
-          Kort: data.yeniKort || m.Kort, // YENİ: Kort değişimi burada uygulanıyor
+          Kort: data.yeniKort || m.Kort, 
           Durum: data.durum,
           Kura_Kazanan: data.kuraKazanan,
           Kura_Tercih: data.kuraTercih,
@@ -843,6 +842,20 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     });
   };
 
+  // YENİ EKLENDİ: Hızlı Skordan veya Kule'den manuel "6-6" yazılırsa Tie-Break olduğunu anlar
+  const checkSyncTiebreak = (dState: TennisMatchState) => {
+    if (!dState) return;
+    const isSet1Tiebreak = (dState.set1_p1 === 6 && dState.set1_p2 === 6);
+    const isSet2Tiebreak = (dState.set2_p1 === 6 && dState.set2_p2 === 6);
+    const isSet3Tiebreak = (dState.set3_p1 === 6 && dState.set3_p2 === 6);
+
+    if (dState.currentSet === 1 && isSet1Tiebreak) dState.isTiebreak = true;
+    else if (dState.currentSet === 2 && isSet2Tiebreak) dState.isTiebreak = true;
+    else if (dState.currentSet === 3 && isSet3Tiebreak) dState.isTiebreak = true;
+    else dState.isTiebreak = false;
+  };
+
+  // İŞTE SİLİNEN O DEV FONKSİYONLAR! TAMAMEN GERİ GELDİLER.
   const updateGameScore = (matchId: string, setIndex: 1 | 2 | 3, player: 1 | 2, delta: number) => {
     if (!matchId) return;
     setMatches((prev) => {
@@ -900,6 +913,8 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           dState.currentSetNum = 1;
         }
 
+        checkSyncTiebreak(dState);
+
         const matchSafetyCheck = checkMatchWinner(dState, format);
         dState.matchEnded = matchSafetyCheck.matchEnded;
         dState.matchWinner = matchSafetyCheck.matchWinner;
@@ -908,7 +923,6 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         dState.gamePoint_p2 = '0';
         dState.tiebreak_p1 = 0;
         dState.tiebreak_p2 = 0;
-        dState.isTiebreak = false;
 
         let newDurum = m.Durum;
         let newKazanan = m.Kazanan;
@@ -983,6 +997,8 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           dState.currentSetNum = 1;
         }
 
+        checkSyncTiebreak(dState);
+
         const matchSafetyCheck = checkMatchWinner(dState, format);
         dState.matchEnded = matchSafetyCheck.matchEnded;
         dState.matchWinner = matchSafetyCheck.matchWinner;
@@ -991,7 +1007,6 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         dState.gamePoint_p2 = '0';
         dState.tiebreak_p1 = 0;
         dState.tiebreak_p2 = 0;
-        dState.isTiebreak = false;
 
         let newDurum = m.Durum;
         let newKazanan = m.Kazanan;
@@ -1066,6 +1081,8 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           dState.currentSetNum = 1;
         }
         
+        checkSyncTiebreak(dState);
+
         const matchSafetyCheck = checkMatchWinner(dState, format);
         dState.matchEnded = matchSafetyCheck.matchEnded;
         dState.matchWinner = matchSafetyCheck.matchWinner;
@@ -1074,7 +1091,6 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         dState.gamePoint_p2 = '0';
         dState.tiebreak_p1 = 0;
         dState.tiebreak_p2 = 0;
-        dState.isTiebreak = false;
 
         const res: MatchItem = {
           ...m,
@@ -1413,7 +1429,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setMatches((prev) => {
       let updatedItem: MatchItem | null = null;
       const next = prev.map((m) => {
-        if (m.id !== matchId) return m;
+        if (!m.id !== matchId) return m;
 
         const endStr = endTime || new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
         const startStr = startTime || m.Baslangic_Saati;
