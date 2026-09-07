@@ -154,6 +154,7 @@ interface TennisDataContextType {
       bitisSaati: string;
       skorFormati?: string;
       isNoAd?: boolean;
+      yeniKort?: string; // YENİ: Kort taşıma bilgisi eklendi
       ilkServisOyuncusu?: 1 | 2;
     }
   ) => void;
@@ -747,6 +748,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     });
   };
 
+  // YENİ EKLENDİ: data.yeniKort (Kort değiştirme) özelliği sisteme bağlandı
   const saveMatchSetup = (
     matchId: string,
     data: {
@@ -758,6 +760,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       bitisSaati: string;
       skorFormati?: string;
       isNoAd?: boolean; 
+      yeniKort?: string; 
       ilkServisOyuncusu?: 1 | 2;
     }
   ) => {
@@ -813,6 +816,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
         const res: MatchItem = {
           ...m,
+          Kort: data.yeniKort || m.Kort, // YENİ: Kort değişimi burada uygulanıyor
           Durum: data.durum,
           Kura_Kazanan: data.kuraKazanan,
           Kura_Tercih: data.kuraTercih,
