@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { MatchItem, ScoreFormatType } from '../../types/tennis';
 import { useTennisData } from '../../context/TennisDataContext';
-import { Play, Clock, X, CheckCircle2, Trophy, Award } from 'lucide-react';
+import { Play, Clock, X, CheckCircle2, Trophy, Award, Save } from 'lucide-react';
 
 const SCORE_FORMAT_OPTIONS: ScoreFormatType[] = [
   '3 Normal Set',
@@ -24,7 +24,7 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
   onClose,
   onStartMatch,
 }) => {
-  const { saveMatchSetup, categoryFormats } = useTennisData();
+  const { saveMatchSetup, categoryFormats, categoryNoAdSettings, matches } = useTennisData();
 
   const [kuraKazanan, setKuraKazanan] = useState<string>('Secilmedi');
   const [kuraTercih, setKuraTercih] = useState<string>('Servis');
@@ -33,12 +33,15 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
   const [baslangicSaati, setBaslangicSaati] = useState<string>('');
   const [bitisSaati, setBitisSaati] = useState<string>('');
   const [skorFormati, setSkorFormati] = useState<string>('3 Normal Set');
+  const [isNoAd, setIsNoAd] = useState<boolean>(false); 
+  const [secilenKort, setSecilenKort] = useState<string>(''); // YENİ: Kort Taşıma State'i
   
   const [isCoinTossFullscreenOpen, setIsCoinTossFullscreenOpen] = useState<boolean>(false);
-  
   const [isFlipping, setIsFlipping] = useState<boolean>(false);
   const [rotation, setRotation] = useState<number>(0);
   const [hasTossed, setHasTossed] = useState<boolean>(false); 
+
+  const distinctKortlar = Array.from(new Set(matches.map((m: any) => m.Kort).filter(Boolean))).sort() as string[];
 
   React.useEffect(() => {
     if (match) {
@@ -48,6 +51,11 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
 
       const headUmpireFormat = categoryFormats[match.Kategori];
       setSkorFormati(headUmpireFormat || match.Skor_Formati || '3 Normal Set');
+
+      const headUmpireNoAd = categoryNoAdSettings ? categoryNoAdSettings[match.Kategori] : undefined;
+      setIsNoAd(headUmpireNoAd !== undefined ? headUmpireNoAd : !!match.isNoAd);
+
+      setSecilenKort(match.Kort || 'Secilmedi');
 
       const savedFirstServer = (match as any).ilkServisOyuncusu;
       if (savedFirstServer === 1) setIlkServisiAtan(match['Oyuncu 1']);
@@ -68,7 +76,7 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
       setIsFlipping(false);
       setHasTossed(false);
     }
-  }, [match, isOpen, categoryFormats]);
+  }, [match, isOpen, categoryFormats, categoryNoAdSettings]);
 
   if (!isOpen || !match) return null;
 
@@ -131,6 +139,33 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
     }, 2500); 
   };
 
+  // YENİ EKLENDİ: Sadece kortu ve ayarları kaydedip "Başlamadı" (Bekliyor) olarak bırakan fonksiyon
+  const handleJustSave = () => {
+    let finalFirstServer = 1;
+    if (kuraTercih === 'Saha Seçimi') {
+      finalFirstServer = ilkServisiAtan === p2Name ? 2 : 1;
+    } else if (kuraKazanan === p1Name) {
+      finalFirstServer = kuraTercih === 'Servis' ? 1 : 2;
+    } else if (kuraKazanan === p2Name) {
+      finalFirstServer = kuraTercih === 'Servis' ? 2 : 1;
+    }
+
+    saveMatchSetup(match.id, {
+      durum: match.Durum, // Mevcut durumu korur (Büyük ihtimalle "Baslamadi")
+      kuraKazanan,
+      kuraTercih,
+      sahaTarafi,
+      baslangicSaati: match.Baslangic_Saati || 'Secilmedi', // Başlama saatini ilerletmez
+      bitisSaati,
+      skorFormati,
+      isNoAd, 
+      yeniKort: secilenKort !== match.Kort ? secilenKort : undefined, // Kort değişikliği varsa bildir
+      ilkServisOyuncusu: finalFirstServer,
+    });
+
+    onClose();
+  };
+
   const handleSaveAndStart = () => {
     let finalFirstServer = 1;
     if (kuraTercih === 'Saha Seçimi') {
@@ -149,6 +184,8 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
       baslangicSaati: baslangicSaati || new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),
       bitisSaati,
       skorFormati,
+      isNoAd, 
+      yeniKort: secilenKort !== match.Kort ? secilenKort : undefined, // Kort değişikliği varsa bildir
       ilkServisOyuncusu: finalFirstServer,
     });
 
@@ -159,7 +196,6 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-4 bg-slate-950/90 backdrop-blur-md animate-in fade-in overflow-y-auto">
       
-      {/* 3D PARABOLA MOTORU: Sadece merkeze doğru (Z ekseninde) büyüme, Y sapması kaldırıldı */}
       <style>
         {`
           @keyframes coinParabolaJump {
@@ -175,7 +211,6 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
 
       <div className="bg-slate-900 border border-slate-700/50 rounded-3xl p-4 sm:p-6 w-full max-w-xl shadow-2xl space-y-4 my-auto relative">
         
-        {/* TAM EKRAN KURA MODALI - Şeffaflık artırıldı (bg-slate-950/70) ve bulanıklık azaltıldı (backdrop-blur-md) */}
         {isCoinTossFullscreenOpen && (
           <div className="fixed inset-0 z-[99999] bg-slate-950/70 backdrop-blur-md flex flex-col items-center justify-center p-6 animate-in fade-in zoom-in-95 duration-200">
             <button 
@@ -203,7 +238,6 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
                       transform: `rotateY(${rotation}deg)`
                     }}
                   >
-                    {/* ÖN YÜZ */}
                     <div 
                       className="w-full h-full absolute top-0 left-0 rounded-full flex flex-col items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950 border-[10px] sm:border-[16px] border-slate-300 shadow-[inset_0_0_50px_rgba(0,0,0,0.9),0_20px_40px_rgba(0,0,0,0.8)]"
                       style={{ backfaceVisibility: 'hidden' }}
@@ -228,7 +262,6 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
                       </div>
                     </div>
 
-                    {/* ARKA YÜZ */}
                     <div 
                       className="w-full h-full absolute top-0 left-0 rounded-full flex flex-col items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950 border-[10px] sm:border-[16px] border-slate-300 shadow-[inset_0_0_50px_rgba(0,0,0,0.9),0_20px_40px_rgba(0,0,0,0.8)]"
                       style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}
@@ -286,7 +319,7 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
             <div>
               <h2 className="text-base sm:text-lg font-black text-white">Maç Öncesi Kura & Kurulum</h2>
               <p className="text-xs text-slate-400 font-semibold mt-0.5">
-                {match.Kort} • {match.Kategori} • Planlanan: {match.Saat}
+                {match.Kategori} • Planlanan: <strong className="text-white">{match.Saat}</strong>
               </p>
             </div>
           </div>
@@ -396,44 +429,65 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
           </div>
         )}
 
-        <div className="bg-slate-950/80 p-3.5 rounded-2xl border border-slate-800 space-y-2">
-          <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-            <Clock className="w-3.5 h-3.5 text-slate-400" />
-            <span>Maç Başlangıç Saati</span>
-          </label>
-          <div className="flex items-center gap-2">
-            <input
-              type="time"
-              value={baslangicSaati}
-              onChange={(e) => setBaslangicSaati(e.target.value)}
-              className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm font-mono font-bold text-white shrink-0 w-28 text-center"
-            />
-            <button type="button" onClick={() => handleSetTimeNow('start')} className="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-white text-xs font-black transition">Şimdi</button>
-            <button type="button" onClick={() => handleAdjustTime('start', -5)} className="px-2 py-2 rounded-lg bg-slate-800 text-slate-400 text-xs font-bold transition hover:bg-slate-700 hover:text-white">-5 dk</button>
-            <button type="button" onClick={() => handleAdjustTime('start', +5)} className="px-2 py-2 rounded-lg bg-slate-800 text-slate-400 text-xs font-bold transition hover:bg-slate-700 hover:text-white">+5 dk</button>
+        <div className="grid grid-cols-2 gap-3 pt-1">
+          <div className="bg-slate-950/80 p-3 rounded-2xl border border-slate-800 space-y-2">
+            <label className="text-xs font-bold text-slate-300 block">Maç Formatı</label>
+            <select
+              value={skorFormati}
+              onChange={(e) => setSkorFormati(e.target.value)}
+              className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2 py-2 text-[10px] sm:text-xs text-white font-bold"
+            >
+              {SCORE_FORMAT_OPTIONS.map((fmt) => (
+                <option key={fmt} value={fmt} className="text-slate-300">{fmt}</option>
+              ))}
+            </select>
+            
+            <div className="flex items-center justify-between pt-1 border-t border-slate-700/50">
+               <label className="text-[10px] font-bold text-slate-400">Karar Puanı (No-Ad)</label>
+               <input 
+                 type="checkbox" 
+                 checked={isNoAd} 
+                 onChange={(e) => setIsNoAd(e.target.checked)} 
+                 className="w-3.5 h-3.5 rounded border-slate-700 text-cyan-400 bg-slate-900 cursor-pointer" 
+               />
+            </div>
+          </div>
+
+          {/* YENİ EKLENDİ: Kort Değiştirme ve Taşıma Modülü */}
+          <div className="bg-slate-950/80 p-3 rounded-2xl border border-slate-800 space-y-2">
+            <label className="text-[10px] font-bold text-amber-400 block uppercase tracking-wider">Kort Değişimi (Taşı)</label>
+            <select
+              value={secilenKort}
+              onChange={(e) => setSecilenKort(e.target.value)}
+              className="w-full bg-slate-900 border border-amber-500/50 rounded-xl px-2 py-2 text-[11px] sm:text-xs text-amber-300 font-bold focus:border-amber-400"
+            >
+              {distinctKortlar.map((k) => (
+                <option key={k} value={k}>{k}</option>
+              ))}
+            </select>
+            <div className="text-[9px] text-slate-500 leading-tight">Seçtiğiniz kortta saatine göre sıraya girer.</div>
           </div>
         </div>
 
-        <div className="bg-slate-950/80 p-3 rounded-2xl border border-slate-800 space-y-1">
-          <label className="text-xs font-bold text-slate-300 block">Skor Formatı</label>
-          <select
-            value={skorFormati}
-            onChange={(e) => setSkorFormati(e.target.value)}
-            className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-bold"
-          >
-            {SCORE_FORMAT_OPTIONS.map((fmt) => (
-              <option key={fmt} value={fmt} className="text-slate-300">{fmt}</option>
-            ))}
-          </select>
-        </div>
-
-        <div className="flex items-center gap-3 pt-2">
-          <button type="button" onClick={onClose} className="flex-1 py-3 px-4 rounded-2xl bg-slate-800 hover:bg-rose-500/20 text-slate-300 hover:text-rose-400 font-bold text-xs transition border border-transparent hover:border-rose-500/30">İptal</button>
-          <button type="button" onClick={handleSaveAndStart} className="flex-2 py-3 px-5 rounded-2xl bg-gradient-to-r from-emerald-500 to-emerald-400 hover:from-emerald-400 hover:to-emerald-300 text-slate-950 font-black text-sm flex items-center justify-center gap-2 shadow-xl transition active:scale-95">
+        <div className="flex flex-col gap-2 pt-2">
+          {/* Orijinal Maçı Başlat Butonu */}
+          <button type="button" onClick={handleSaveAndStart} className="w-full py-3.5 px-5 rounded-2xl bg-gradient-to-r from-emerald-500 to-emerald-400 hover:from-emerald-400 hover:to-emerald-300 text-slate-950 font-black text-sm flex items-center justify-center gap-2 shadow-xl transition active:scale-95">
             <Play className="w-4 h-4 fill-slate-950" />
             <span>Maçı Başlat & Canlı Skora Geç</span>
           </button>
+          
+          <div className="flex gap-2">
+            {/* YENİ EKLENDİ: Sadece Ayarları (Kortu) Kaydet ve Çık Butonu */}
+            <button type="button" onClick={handleJustSave} className="flex-1 py-3 px-2 rounded-2xl bg-slate-800 hover:bg-slate-700 text-amber-400 font-bold text-xs transition border border-slate-700 flex items-center justify-center gap-1.5 shadow-md">
+              <Save className="w-3.5 h-3.5" />
+              <span>Sadece Ayarları/Kortu Kaydet</span>
+            </button>
+            <button type="button" onClick={onClose} className="py-3 px-6 rounded-2xl bg-slate-800 hover:bg-rose-500/20 text-slate-300 hover:text-rose-400 font-bold text-xs transition border border-transparent hover:border-rose-500/30">
+              İptal
+            </button>
+          </div>
         </div>
+
       </div>
     </div>
   );
