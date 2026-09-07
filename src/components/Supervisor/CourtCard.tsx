@@ -162,15 +162,8 @@ export const CourtCard: React.FC<CourtCardProps> = ({
     setSetupsBySet(prev => {
       const next = { ...prev };
       let changed = false;
-      
-      if (!val1.isComplete) {
-        if (next[2]) { delete next[2]; changed = true; }
-        if (next[3]) { delete next[3]; changed = true; }
-      } 
-      else if (!val2.isComplete) {
-        if (next[3]) { delete next[3]; changed = true; }
-      }
-      
+      if (!val1.isComplete) { if (next[2]) { delete next[2]; changed = true; } if (next[3]) { delete next[3]; changed = true; } } 
+      else if (!val2.isComplete) { if (next[3]) { delete next[3]; changed = true; } }
       return changed ? next : prev;
     });
   }, [val1.isComplete, val2.isComplete]);
@@ -178,29 +171,23 @@ export const CourtCard: React.FC<CourtCardProps> = ({
   useEffect(() => {
     if (selectedSet === 3 && prevSetRef.current !== 3) {
       let msg = "3. Set NORMAL SET olarak planlanmıştır.";
-      if (format.includes('10 Puanlık')) {
-        msg = "3. Set 10 PUANLIK MAÇ TİE-BREAK olarak planlanmıştır.";
-      } else if (format.includes('7 Puanlık')) {
-        msg = "3. Set 7 PUANLIK MAÇ TİE-BREAK olarak planlanmıştır.";
-      } else if (format.includes('3 Kısa Set')) {
-        msg = "3. Set KISA SET olarak planlanmıştır.";
-      }
+      if (format.includes('10 Puanlık')) msg = "3. Set 10 PUANLIK MAÇ TİE-BREAK olarak planlanmıştır.";
+      else if (format.includes('7 Puanlık')) msg = "3. Set 7 PUANLIK MAÇ TİE-BREAK olarak planlanmıştır.";
+      else if (format.includes('3 Kısa Set')) msg = "3. Set KISA SET olarak planlanmıştır.";
 
       setThirdSetWarning({ show: true, text: msg });
       vibrateDevice([100, 50, 100]); 
-
-      const timer = setTimeout(() => {
-        setThirdSetWarning(prev => ({ ...prev, show: false }));
-      }, 6000);
-
+      const timer = setTimeout(() => { setThirdSetWarning(prev => ({ ...prev, show: false })); }, 6000);
       prevSetRef.current = selectedSet;
       return () => clearTimeout(timer);
     }
     prevSetRef.current = selectedSet;
   }, [selectedSet, format]);
 
+  // YENİ: KUSURSUZ TIE-BREAK SAHA DEĞİŞİMİ ALGORİTMASI
+  // "Son konumlarına göre saha değiştirsinler" kuralının matematiksel tam karşılığı
   useEffect(() => {
-    if (!isDoubles && selectedSet > 1 && !setupsBySet[selectedSet] && setupsBySet[selectedSet - 1]) {
+    if (selectedSet > 1 && !setupsBySet[selectedSet] && setupsBySet[selectedSet - 1]) {
       const prevSet = selectedSet - 1;
       const prevSetup = setupsBySet[prevSet];
       
@@ -210,10 +197,57 @@ export const CourtCard: React.FC<CourtCardProps> = ({
       
       if (totalGamesPrevSet > 0) {
         const nextServerTeam = totalGamesPrevSet % 2 === 0 ? prevSetup.firstServingTeam : (prevSetup.firstServingTeam === 1 ? 2 : 1);
-        const lastGameOpposite = ((totalGamesPrevSet - 1) % 4 === 1 || (totalGamesPrevSet - 1) % 4 === 2);
+        let finalLeftTeamPrevSet = prevSetup.leftTeam;
+        
+        // Bir önceki set Tie-Break ile bittiyse tespit ediyoruz
+        const isNormalTB = (prevS1 === 7 && prevS2 === 6) || (prevS1 === 6 && prevS2 === 7);
+        const isShortTB = (prevS1 === 5 && prevS2 === 4) || (prevS1 === 4 && prevS2 === 5);
+        const wasTiebreak = isNormalTB || isShortTB;
+        
+        if (wasTiebreak) {
+          // Tie-breakte oynanan toplam puanı bulmak için geçmiş puana bakıyoruz!
+          let tbPoints = 0;
+          if (match.pointHistory && match.pointHistory.length > 0) {
+            let maxTb1 = 0; let maxTb2 = 0;
+            for (let i = match.pointHistory.length - 1; i >= 0; i--) {
+               const snap = match.pointHistory[i].snapshot;
+               if (snap.currentSet === prevSet && snap.isTiebreak) {
+                  maxTb1 = Math.max(maxTb1, snap.tiebreak_p1);
+                  maxTb2 = Math.max(maxTb2, snap.tiebreak_p2);
+               }
+            }
+            if (maxTb1 > 0 || maxTb2 > 0) tbPoints = maxTb1 + maxTb2 + 1; // +1 = final kazandıran vuruş
+          }
+          if (tbPoints === 0) tbPoints = 12; // Sistem hafızası boşsa varsayılan 7-5 bitti kabul et
+          
+          const tbStartSide = (totalGamesPrevSet % 4 === 1 || totalGamesPrevSet % 4 === 2) ? (prevSetup.leftTeam === 1 ? 2 : 1) : prevSetup.leftTeam;
+          
+          // Maç bitmeden 1 saniye önce oyuncular hangi sahadaydı? (İşte son konum hesaplaması)
+          if (prevSetup.tbType === 'coman') {
+             const block = Math.floor((tbPoints - 1) / 4);
+             finalLeftTeamPrevSet = block % 2 === 0 ? tbStartSide : (tbStartSide === 1 ? 2 : 1);
+          } else {
+             const block = Math.floor((tbPoints - 1) / 6);
+             finalLeftTeamPrevSet = block % 2 === 0 ? tbStartSide : (tbStartSide === 1 ? 2 : 1);
+          }
+        } else {
+          // Normal oyunla bittiyse
+          finalLeftTeamPrevSet = ((totalGamesPrevSet - 1) % 4 === 1 || (totalGamesPrevSet - 1) % 4 === 2) ? (prevSetup.leftTeam === 1 ? 2 : 1) : prevSetup.leftTeam;
+        }
+
+        // TIE BREAK SONU SAHA DEĞİŞİM KURALI (13. oyun tek sayıdır, saha DOĞRU ve SON konumdan tersine döner!)
         const changeEnds = totalGamesPrevSet % 2 !== 0; 
-        const nextInitialOpposite = changeEnds ? !lastGameOpposite : lastGameOpposite;
-        const nextLeftTeam = nextInitialOpposite ? (prevSetup.leftTeam === 1 ? 2 : 1) : prevSetup.leftTeam;
+        const nextLeftTeam = changeEnds ? (finalLeftTeamPrevSet === 1 ? 2 : 1) : finalLeftTeamPrevSet;
+
+        let nextT1ServerIdx = prevSetup.t1ServerIdx;
+        let nextT2ServerIdx = prevSetup.t2ServerIdx;
+
+        if (isDoubles) {
+          const teamServicesT1 = Math.floor(totalGamesPrevSet / 2) + (prevSetup.firstServingTeam === 1 && totalGamesPrevSet % 2 !== 0 ? 1 : 0);
+          const teamServicesT2 = Math.floor(totalGamesPrevSet / 2) + (prevSetup.firstServingTeam === 2 && totalGamesPrevSet % 2 !== 0 ? 1 : 0);
+          nextT1ServerIdx = (prevSetup.t1ServerIdx + teamServicesT1) % 2 as 0 | 1;
+          nextT2ServerIdx = (prevSetup.t2ServerIdx + teamServicesT2) % 2 as 0 | 1;
+        }
 
         setSetupsBySet(prev => ({
           ...prev,
@@ -221,12 +255,14 @@ export const CourtCard: React.FC<CourtCardProps> = ({
             ...prevSetup,
             setupSetNum: selectedSet,
             firstServingTeam: nextServerTeam,
-            leftTeam: nextLeftTeam
+            leftTeam: nextLeftTeam,
+            t1ServerIdx: nextT1ServerIdx,
+            t2ServerIdx: nextT2ServerIdx
           }
         }));
       }
     }
-  }, [selectedSet, isDoubles, setupsBySet, s1_p1, s1_p2, s2_p1, s2_p2, s3_p1, s3_p2]);
+  }, [selectedSet, isDoubles, setupsBySet, s1_p1, s1_p2, s2_p1, s2_p2, s3_p1, s3_p2, match.pointHistory]);
 
   useEffect(() => {
     if (showSetupOverlay && !isEditingSetup && setupForm.firstServingTeam === null) {
@@ -253,11 +289,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
     const otherTeam = chairSetup.firstServingTeam === 1 ? 2 : 1;
 
     const parsePoint = (str: string) => {
-      if (str === '15') return 1;
-      if (str === '30') return 2;
-      if (str === '40') return 3;
-      if (str === 'A') return 4;
-      return 0;
+      if (str === '15') return 1; if (str === '30') return 2; if (str === '40') return 3; if (str === 'A') return 4; return 0;
     };
     const p1Pts = parsePoint(String(state?.gamePoint_p1 || '0'));
     const p2Pts = parsePoint(String(state?.gamePoint_p2 || '0'));
@@ -270,12 +302,11 @@ export const CourtCard: React.FC<CourtCardProps> = ({
       computedServerTeam = currentSetGames % 2 === 0 ? chairSetup.firstServingTeam : otherTeam;
       computedLeftTeam = (currentSetGames % 4 === 1 || currentSetGames % 4 === 2) ? (chairSetup.leftTeam === 1 ? 2 : 1) : chairSetup.leftTeam;
       
-      // YENİ: SAHA DEĞİŞİMİ ALGORİTMASI (Tie-break bitişini hesaplar)
+      // HAKEM UYARISI: Sahalar Değişiyor! 
       if (state?.gamePoint_p1 === '0' && state?.gamePoint_p2 === '0') {
         if (currentSetGames > 0 && currentSetGames % 2 === 1) {
-          isSideChangePoint = true; // Setteki tek sayılı (1, 3, 5) oyun sonları
+          isSideChangePoint = true; 
         } else if (currentSetGames === 0 && selectedSet > 1) {
-          // Yeni sete geçildi. Önceki set 7-6 (veya 5-4) tek sayıyla bittiyse saha değişir.
           const prevSetGames = selectedSet === 2 ? (s1_p1 + s1_p2) : (s2_p1 + s2_p2);
           if (prevSetGames % 2 === 1) {
             isSideChangePoint = true; 
@@ -287,11 +318,8 @@ export const CourtCard: React.FC<CourtCardProps> = ({
         const teamServiceRounds = Math.floor(currentSetGames / 2);
         currentT1ServerIdx = (chairSetup.t1ServerIdx + teamServiceRounds) % 2 as 0 | 1;
         currentT2ServerIdx = (chairSetup.t2ServerIdx + teamServiceRounds) % 2 as 0 | 1;
-        if (computedServerTeam === 1) {
-          activeServerName = t1Players[currentT1ServerIdx] || t1Players[0];
-        } else {
-          activeServerName = t2Players[currentT2ServerIdx] || t2Players[0];
-        }
+        if (computedServerTeam === 1) activeServerName = t1Players[currentT1ServerIdx] || t1Players[0];
+        else activeServerName = t2Players[currentT2ServerIdx] || t2Players[0];
       } else {
         activeServerName = match[`Oyuncu ${computedServerTeam}` as keyof MatchItem];
       }
@@ -325,11 +353,8 @@ export const CourtCard: React.FC<CourtCardProps> = ({
         currentT1ServerIdx = (chairSetup.t1ServerIdx + teamServicesBeforeTB + tbTeamBlocksT1) % 2 as 0 | 1;
         currentT2ServerIdx = (chairSetup.t2ServerIdx + teamServicesBeforeTB + tbTeamBlocksT2) % 2 as 0 | 1;
         
-        if (computedServerTeam === 1) {
-          activeServerName = t1Players[currentT1ServerIdx] || t1Players[0];
-        } else {
-          activeServerName = t2Players[currentT2ServerIdx] || t2Players[0];
-        }
+        if (computedServerTeam === 1) activeServerName = t1Players[currentT1ServerIdx] || t1Players[0];
+        else activeServerName = t2Players[currentT2ServerIdx] || t2Players[0];
       } else {
         activeServerName = match[`Oyuncu ${computedServerTeam}` as keyof MatchItem];
       }
