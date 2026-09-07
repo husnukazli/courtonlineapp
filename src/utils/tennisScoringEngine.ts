@@ -9,7 +9,7 @@ import {
 export function createInitialMatchState(
   server: 1 | 2 = 1,
   format: ScoreFormatType | string = '3 Normal Set',
-  isNoAd: boolean = false // YENİ EKLENDİ
+  isNoAd: boolean = false
 ): TennisMatchState {
   return {
     currentSet: 1,
@@ -43,7 +43,7 @@ export function createInitialMatchState(
     totalPoints_p2: 0,
     lastActionMessage: 'Maç başladı. Servis: Oyuncu ' + server,
     needsChangeover: false,
-    isNoAd, // YENİ EKLENDİ
+    isNoAd,
   };
 }
 
@@ -228,7 +228,6 @@ export function awardPoint(
   const p2Pt = state.gamePoint_p2;
   let gameWon: 1 | 2 | null = null;
 
-  // KRİTİK EKLENTİ: No-Ad (Karar Puanı) motor entegrasyonu
   if (playerWon === 1) {
     if (p1Pt === '0') state.gamePoint_p1 = '15';
     else if (p1Pt === '15') state.gamePoint_p1 = '30';
@@ -237,7 +236,7 @@ export function awardPoint(
     } else if (p1Pt === '40') {
       if (p2Pt === '40') {
         if (state.isNoAd) {
-          gameWon = 1; // NO-AD kuralı: 40-40'ta puanı alan oyunu bitirir!
+          gameWon = 1; 
         } else {
           state.gamePoint_p1 = 'AD';
         }
@@ -257,7 +256,7 @@ export function awardPoint(
     } else if (p2Pt === '40') {
       if (p1Pt === '40') {
         if (state.isNoAd) {
-          gameWon = 2; // NO-AD kuralı: 40-40'ta puanı alan oyunu bitirir!
+          gameWon = 2; 
         } else {
           state.gamePoint_p2 = 'AD';
         }
@@ -347,12 +346,22 @@ export function awardPoint(
 }
 
 function advanceToNextSet(state: TennisMatchState, format: string, previousSetWinner: 1 | 2) {
+  // YENİ EKLENEN TIE-BREAK SERVİS DÖNÜŞÜ KURALI
+  const wasTiebreak = state.isTiebreak;
+  const tbFirstServer = state.tiebreakFirstServer;
+
   state.currentSet = (state.currentSet + 1) as 1 | 2 | 3;
   state.isTiebreak = false;
   state.gamePoint_p1 = '0';
   state.gamePoint_p2 = '0';
   state.tiebreak_p1 = 0;
   state.tiebreak_p2 = 0;
+
+  // KRİTİK KURAL (Tie-Break Servis Dönüşü):
+  // Eğer set tie-break ile bitmişse, tie-break'te ilk servisi atan oyuncu, bir sonraki setin ilk oyununda karşılayan olur.
+  if (wasTiebreak && tbFirstServer) {
+    state.currentServer = tbFirstServer === 1 ? 2 : 1;
+  }
 
   const thirdSetMT = isMatchTiebreakThirdSet(format);
   if (state.currentSet === 3 && thirdSetMT.isMT) {
