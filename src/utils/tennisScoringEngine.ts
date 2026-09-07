@@ -206,6 +206,9 @@ export function awardPoint(
           else state.set3_p2++;
         }
 
+        // TIE-BREAK BİTTİĞİNDE SAHA DEĞİŞİMİ ZORUNLUDUR (7-6 Toplam 13 oyun yapar ve tektir)
+        state.needsChangeover = true;
+
         const matchResult = checkMatchWinner(state, format);
         if (matchResult.matchEnded) {
           matchEnded = true;
@@ -346,7 +349,7 @@ export function awardPoint(
 }
 
 function advanceToNextSet(state: TennisMatchState, format: string, previousSetWinner: 1 | 2) {
-  // YENİ EKLENEN TIE-BREAK SERVİS DÖNÜŞÜ KURALI
+  // TIE-BREAK BİTTİĞİNDE SERVİS KİMDE OLACAK KURALI
   const wasTiebreak = state.isTiebreak;
   const tbFirstServer = state.tiebreakFirstServer;
 
@@ -357,8 +360,7 @@ function advanceToNextSet(state: TennisMatchState, format: string, previousSetWi
   state.tiebreak_p1 = 0;
   state.tiebreak_p2 = 0;
 
-  // KRİTİK KURAL (Tie-Break Servis Dönüşü):
-  // Eğer set tie-break ile bitmişse, tie-break'te ilk servisi atan oyuncu, bir sonraki setin ilk oyununda karşılayan olur.
+  // KRİTİK KURAL: Tie-Break oynandıysa, Tie-Break'e servisle ilk başlayan, yeni setin ilk oyununda karşılayan (receiver) olur.
   if (wasTiebreak && tbFirstServer) {
     state.currentServer = tbFirstServer === 1 ? 2 : 1;
   }
