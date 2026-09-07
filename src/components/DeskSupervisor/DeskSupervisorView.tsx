@@ -22,7 +22,7 @@ export const DeskSupervisorView: React.FC = () => {
     matches,
     referees,
     categoryFormats,
-    categoryNoAdSettings, // YENİ EKLENDİ
+    categoryNoAdSettings,
     deskPin,
     cloudSyncStatus,
     lastCloudSync,
@@ -30,7 +30,7 @@ export const DeskSupervisorView: React.FC = () => {
     addReferee,
     deleteReferee,
     bulkApplyCategoryFormats,
-    bulkApplyCategoryNoAdSettings, // YENİ EKLENDİ
+    bulkApplyCategoryNoAdSettings,
     tournamentInfo,
     saveTournamentInfo,
     purgeOrphanMatches,
@@ -58,7 +58,7 @@ export const DeskSupervisorView: React.FC = () => {
   const [deskPinSuccessMsg, setDeskPinSuccessMsg] = useState<string>('');
 
   const [localFormats, setLocalFormats] = useState<Record<string, string>>(() => categoryFormats);
-  const [localNoAdSettings, setLocalNoAdSettings] = useState<Record<string, boolean>>(() => categoryNoAdSettings || {}); // YENİ EKLENDİ
+  const [localNoAdSettings, setLocalNoAdSettings] = useState<Record<string, boolean>>(() => categoryNoAdSettings || {});
   const [formatSavedMsg, setFormatSavedMsg] = useState<string>('');
 
   const [jsonInput, setJsonInput] = useState<string>('');
@@ -99,7 +99,6 @@ export const DeskSupervisorView: React.FC = () => {
     }
   }, [categoryFormats, categoryNoAdSettings]);
 
-  // YENİ EKLENDİ: Format ile birlikte No-Ad kararları da kaydediliyor
   const handleApplyFormats = () => {
     bulkApplyCategoryFormats(localFormats);
     bulkApplyCategoryNoAdSettings(localNoAdSettings);
@@ -224,6 +223,7 @@ export const DeskSupervisorView: React.FC = () => {
           <tbody>
     `;
 
+    // Buradaki rapor sıralaması değişmedi
     const sortedMatches = [...matches].sort((a, b) => a.Kort.localeCompare(b.Kort) || (a.Saat || '').localeCompare(b.Saat || ''));
 
     sortedMatches.forEach(m => {
@@ -341,9 +341,22 @@ export const DeskSupervisorView: React.FC = () => {
             
             <div className="flex flex-nowrap gap-4">
               {(selectedCourtFilter === 'ALL' ? distinctCourts : [selectedCourtFilter]).map((courtName) => {
+                
+                // YENİ AKILLI SIRALAMA: Bitmiş maçların yapısı bozulmaz. 
+                // Korta sonradan taşınan bir maç (Başlamadı veya Canlı) bitmişlerin arasına giremez, en alta düşer.
                 const courtMatches = filteredMatches
                   .filter((m) => m.Kort === courtName)
-                  .sort((a, b) => (a.Saat || '').localeCompare(b.Saat || ''));
+                  .sort((a, b) => {
+                    const aIsFinished = ['bitti', 'retired', 'walkover'].includes((a.Durum || '').toLowerCase());
+                    const bIsFinished = ['bitti', 'retired', 'walkover'].includes((b.Durum || '').toLowerCase());
+                    
+                    // Eğer biri bitmiş diğeri bitmemişse; "Bitmemiş" maç her zaman bitmiş maçın ALTINDA (sonrasında) yer almalı.
+                    if (aIsFinished && !bIsFinished) return -1; // a bitmiş, b bitmemiş -> a ÜSTTE
+                    if (!aIsFinished && bIsFinished) return 1;  // a bitmemiş, b bitmiş -> b ÜSTTE
+                    
+                    // İkisi de aynı durumdaysa normal saatlerine göre diz (orijinal işleyiş)
+                    return (a.Saat || '').localeCompare(b.Saat || '');
+                  });
 
                 return (
                   <div key={courtName} className="bg-slate-900 border border-slate-800 rounded-3xl p-3 sm:p-4 space-y-3 flex flex-col shadow-xl min-w-[280px] w-[300px]">
@@ -499,7 +512,6 @@ export const DeskSupervisorView: React.FC = () => {
           </div>
           {formatSavedMsg && <div className="p-3 bg-emerald-950/50 border border-emerald-500/40 rounded-xl text-emerald-300 text-xs font-bold">{formatSavedMsg}</div>}
           <div className="space-y-3 divide-y divide-slate-800">
-            {/* YENİ EKLENTİ: Kategori Listesine No-Ad Kutucuğu */}
             <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center text-[10px] font-extrabold uppercase text-slate-500 px-2 pb-2">
                <div className="sm:col-span-4">Kategori Adı</div>
                <div className="sm:col-span-5">Skor Formatı</div>
