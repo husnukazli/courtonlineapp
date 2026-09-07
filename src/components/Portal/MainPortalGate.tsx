@@ -114,7 +114,12 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
     if (!selectedRefName) { setErrorMsg('Lütfen hakem adınızı seçin.'); return; }
     if (!pin) { setErrorMsg('PIN şifresi boş olamaz.'); return; }
     const ok = loginReferee(selectedRefName, pin);
-    if (ok) { setSuccessMsg(`✅ Hoş geldiniz ${selectedRefName}! Yönlendiriliyorsunuz...`); setTimeout(closeModal, 800); }
+    if (ok) { 
+      setSuccessMsg(`✅ Hoş geldiniz ${selectedRefName}! Yönlendiriliyorsunuz...`); 
+      setTimeout(() => {
+        closeModal();
+      }, 600); 
+    }
     else setErrorMsg('❌ PIN hatalı. Lütfen tekrar deneyin.');
   };
 
@@ -149,7 +154,7 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
         
         setTimeout(() => {
           closeModal();
-          window.location.reload();
+          // window.location.reload(); SİLİNDİ: Sayfa yenilenmez, React anında ekrana geçirir.
         }, 600);
       } else {
         setSuccessMsg('');
@@ -230,7 +235,6 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
                 </span>
               )}
               
-              {/* YENİ EKLENDİ: Google Haritalar Rota Butonu */}
               {tournamentInfo.yer && (
                 <a 
                   href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(tournamentInfo.yer)}`}
@@ -369,7 +373,6 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
                     {m.Kategori || m.Skor_Formati || ''}
                   </span>
                   
-                  {/* YENİ EKLENDİ: Başlamamış maçlar için "Ajandama Ekle" Butonu */}
                   {isUpcoming && (
                     <a 
                       href={generateGoogleCalendarLink(m as MatchItem, tournamentInfo?.yer || '')}
@@ -443,7 +446,7 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
         )}
       </main>
 
-      {/* GİRİŞ MODALLARI KISMI (Değişmedi) */}
+      {/* GİRİŞ MODALLARI */}
       {activeModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md animate-in fade-in duration-150 overflow-y-auto">
           <div className="bg-slate-900 border-2 border-slate-700/80 rounded-3xl p-5 sm:p-7 w-full max-w-md shadow-2xl space-y-4 my-auto">
