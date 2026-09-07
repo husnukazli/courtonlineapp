@@ -15,6 +15,7 @@ interface MainPortalGateProps {
   onBackToList?: () => void;
 }
 
+// ─── GOOGLE CALENDAR LINK GENERATOR ──────────────────────────────────────────
 const generateGoogleCalendarLink = (match: MatchItem, location: string) => {
   const title = `🎾 Tenis Maçı: ${match['Oyuncu 1']} vs ${match['Oyuncu 2']}`;
   const details = `Kategori: ${match.Kategori} | Kort: ${match.Kort} | Format: ${match.Skor_Formati || '3 Normal Set'}`;
@@ -44,6 +45,7 @@ const generateGoogleCalendarLink = (match: MatchItem, location: string) => {
 
   return `https://calendar.google.com/calendar/render?${params.toString()}`;
 };
+// ─────────────────────────────────────────────────────────────────────────────
 
 export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) => {
   const {
@@ -187,7 +189,7 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
   };
 
   return (
-    <div className={`min-h-screen transition-colors duration-300 ${isLightMode ? 'bg-slate-50 text-slate-800 selection:bg-lime-400 selection:text-slate-900' : 'bg-slate-950 text-slate-100 selection:bg-lime-400 selection:text-slate-950'}`}>
+    <div className={`min-h-screen transition-colors duration-300 ${isLightMode ? 'bg-slate-50 text-slate-800 selection:bg-cyan-400 selection:text-slate-900' : 'bg-slate-950 text-slate-100 selection:bg-cyan-400 selection:text-slate-950'}`}>
       
       {/* HEADER */}
       <header className={`sticky top-0 z-30 backdrop-blur border-b transition-colors duration-300 ${isLightMode ? 'bg-white/90 border-slate-200 shadow-sm' : 'bg-slate-950/90 border-slate-800/60'}`}>
@@ -381,9 +383,9 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
                     { name: m['Oyuncu 1'] || m['Takım 1'] || '—', kazandi: isDone && (m.Kazanan === m['Oyuncu 1'] || m.Kazanan === m['Takım 1']) },
                     { name: m['Oyuncu 2'] || m['Takım 2'] || '—', kazandi: isDone && (m.Kazanan === m['Oyuncu 2'] || m.Kazanan === m['Takım 2']) },
                   ].map((p, i) => {
-                     // İsim ve skor rengi
+                     // YENİ BUZ MAVİSİ KAZANAN RENGİ
                      const nameColor = p.kazandi 
-                         ? (isLightMode ? 'text-lime-700' : 'text-lime-300') 
+                         ? (isLightMode ? 'text-cyan-600 drop-shadow-sm font-black' : 'text-cyan-300 drop-shadow-[0_0_8px_rgba(34,211,238,0.8)] font-black') 
                          : isDone 
                          ? (isLightMode ? 'text-slate-400 line-through' : 'text-slate-400') 
                          : (isLightMode ? 'text-slate-800' : 'text-slate-200');
@@ -393,7 +395,7 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
                      return (
                         <div key={i} className="flex items-center justify-between gap-1">
                           <span className={`text-xs font-bold truncate flex-1 leading-tight ${nameColor}`}>
-                            {p.kazandi && <span className={`${isLightMode ? 'text-lime-600' : 'text-lime-400'} mr-0.5`}>✓</span>}{p.name}
+                            {p.kazandi && <span className={`${isLightMode ? 'text-cyan-500' : 'text-cyan-300'} mr-0.5`}>✓</span>}{p.name}
                           </span>
                           {m.Skor && (
                             <span className={`font-mono text-xs shrink-0 ml-1 ${p.kazandi ? 'font-black' : 'font-medium'} ${scoreColor}`}>
@@ -484,7 +486,7 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
         )}
       </main>
 
-      {/* GİRİŞ MODALLARI KISMI (Tema desteksiz kalabilir, sadece yönetici için açılır) */}
+      {/* GİRİŞ MODALLARI KISMI */}
       {activeModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md animate-in fade-in duration-150 overflow-y-auto">
           <div className="bg-slate-900 border-2 border-slate-700/80 rounded-3xl p-5 sm:p-7 w-full max-w-md shadow-2xl space-y-4 my-auto">
