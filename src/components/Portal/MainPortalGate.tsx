@@ -208,7 +208,6 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
           </div>
 
           <div className="flex items-center gap-1.5 sm:gap-2">
-            {/* GECE GÜNDÜZ MODU BUTONU */}
             <button onClick={toggleTheme} className={`p-1.5 sm:p-2 rounded-xl border transition flex items-center justify-center ${isLightMode ? 'bg-white hover:bg-slate-100 border-slate-300 text-amber-600 shadow-sm' : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-amber-300'}`} title="Temayı Değiştir">
               {isLightMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </button>
@@ -345,23 +344,24 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
             const isDone = m.Durum === 'Bitti' || m.Durum === 'Retired' || m.Durum === 'Walkover';
             const isUpcoming = m.Durum === 'Baslamadi';
 
-            // KART TEMASI (Aydınlık / Karanlık Karar Mekanizması)
+            // KART TEMASI: Biten maçlar gri arka plan, yazısı parlak beyaz olan gül kurusu rozet.
             const cardBg = isLive 
                 ? (isLightMode ? 'bg-white border-[2px] border-emerald-500 shadow-lg ring-1 ring-emerald-500/20' : 'bg-emerald-950/30 border-emerald-700/50 shadow-emerald-900/20 shadow-lg')
                 : isDone 
-                ? (isLightMode ? 'bg-rose-50 border-rose-200 shadow-sm opacity-95 hover:opacity-100' : 'bg-rose-950/10 border-rose-900/30')
+                ? (isLightMode ? 'bg-slate-100 border-slate-300 hover:shadow-sm' : 'bg-slate-900/70 border-slate-700/50')
                 : (isLightMode ? 'bg-white border-slate-300 shadow-sm hover:shadow-md' : 'bg-slate-900/70 border-slate-700/50');
             
             const timeColor = isLive 
                 ? (isLightMode ? 'text-emerald-700' : 'text-emerald-400')
                 : isDone 
-                ? (isLightMode ? 'text-rose-500 font-bold' : 'text-rose-400/60')
+                ? (isLightMode ? 'text-slate-500 font-bold' : 'text-slate-500')
                 : (isLightMode ? 'text-slate-800' : 'text-cyan-400');
 
+            // BİTTİ YAZISI (Rozet): Tam dolu, sıcak Gül Kurusu ve Bembeyaz yazı!
             const badgeBg = isLive 
                 ? (isLightMode ? 'bg-emerald-600 text-white shadow-sm' : 'bg-emerald-500/20 text-emerald-400')
                 : isDone 
-                ? (isLightMode ? 'bg-rose-100 text-rose-800 border border-rose-300 shadow-sm font-black' : 'bg-rose-900/40 text-rose-100 border border-rose-700/50 font-black')
+                ? 'bg-rose-500 text-white shadow-sm font-black border border-rose-600'
                 : (isLightMode ? 'bg-amber-100 text-amber-800 border border-amber-300' : 'bg-amber-500/15 text-amber-400/70');
 
             return (
@@ -383,11 +383,11 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
                     { name: m['Oyuncu 1'] || m['Takım 1'] || '—', kazandi: isDone && (m.Kazanan === m['Oyuncu 1'] || m.Kazanan === m['Takım 1']) },
                     { name: m['Oyuncu 2'] || m['Takım 2'] || '—', kazandi: isDone && (m.Kazanan === m['Oyuncu 2'] || m.Kazanan === m['Takım 2']) },
                   ].map((p, i) => {
-                     // YENİ BUZ MAVİSİ (CYAN) KAZANAN RENGİ
+                     // KAZANAN RENGİ: Buz Mavisi (Cyan)
                      const nameColor = p.kazandi 
                          ? (isLightMode ? 'text-cyan-700 font-black' : 'text-cyan-300 drop-shadow-[0_0_8px_rgba(34,211,238,0.8)] font-black') 
                          : isDone 
-                         ? (isLightMode ? 'text-slate-500 line-through' : 'text-slate-400') 
+                         ? (isLightMode ? 'text-slate-400 line-through' : 'text-slate-400') 
                          : (isLightMode ? 'text-slate-900 font-bold' : 'text-slate-200');
                      
                      const scoreColor = isLightMode ? 'text-slate-900 font-black' : 'text-slate-300';
@@ -407,7 +407,8 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
                   })}
                 </div>
                 
-                <div className={`mt-auto pt-2 border-t flex flex-col sm:flex-row sm:items-center justify-between gap-2 ${isLightMode ? 'border-slate-200' : 'border-slate-800/50'}`}>
+                {/* min-h-[34px] EKLENDİ: Buton kaybolsa bile kart asla küçülmez! */}
+                <div className={`mt-auto pt-2 border-t flex flex-col sm:flex-row sm:items-center justify-between gap-2 min-h-[34px] ${isLightMode ? 'border-slate-200' : 'border-slate-800/50'}`}>
                   <span className={`text-[10px] truncate ${isLightMode ? 'text-slate-600 font-bold' : 'text-slate-500'}`}>
                     {m.Kategori || m.Skor_Formati || ''}
                   </span>
