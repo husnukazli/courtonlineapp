@@ -538,19 +538,22 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     });
   };
 
-  // İŞTE HATAYI ÇÖZEN O ALTIN VURUŞ: HAYALET TEMİZLEYİCİ!
+  // KESİN ÇÖZÜM (BUG FIX): Skor Değişikliğinde Hayalet Tie-Break Temizliği
+  // Motor asla kendi kendine 2. Setteyken 3. Setin (Maç Tie-Break) özelliklerini açamayacak.
   const checkSyncTiebreak = (dState: TennisMatchState, formatStr: string) => {
     if (!dState) return;
     
-    // BUG FIX: Eğer maç geri alınmışsa veya 3. setten 2. sete düşülmüşse,
-    // üzerindeki "Maç Tie-Break" hayaletini kesinlikle temizle!
-    dState.isMatchTiebreak = false;
-    dState.tiebreakTarget = 7;
+    const thirdSetMT = isMatchTiebreakThirdSet(formatStr);
+    
+    // Her işlemde önce hayaletleri kesin olarak sıfırlıyoruz. 
+    // Yalnızca ve sadece GERÇEKTEN 3. sette isek açılabilirler.
+    if (dState.currentSet !== 3) {
+      dState.isMatchTiebreak = false;
+      dState.tiebreakTarget = 7;
+    }
 
     const isSet1Tiebreak = (dState.set1_p1 === 6 && dState.set1_p2 === 6);
     const isSet2Tiebreak = (dState.set2_p1 === 6 && dState.set2_p2 === 6);
-    
-    const thirdSetMT = isMatchTiebreakThirdSet(formatStr);
 
     if (dState.currentSet === 1 && isSet1Tiebreak) {
         dState.isTiebreak = true;
@@ -625,8 +628,17 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
         let newDurum = m.Durum;
         let newKazanan = m.Kazanan;
-        if (!dState.matchEnded && (m.Durum === 'Bitti' || m.Durum === 'Walkover' || m.Durum === 'Retired')) {
-            newDurum = 'Oynaniyor'; newKazanan = 'Secilmedi';
+        
+        // BUG FIX: Kural dışı skorda maç kendi kendine "Bitti" olamaz!
+        if (dState.matchEnded) {
+            newDurum = 'Bitti';
+            if (dState.matchWinner === 1) newKazanan = m['Oyuncu 1'];
+            else if (dState.matchWinner === 2) newKazanan = m['Oyuncu 2'];
+        } else {
+            if (m.Durum === 'Bitti' || m.Durum === 'Walkover' || m.Durum === 'Retired') {
+                newDurum = 'Oynaniyor'; 
+                newKazanan = 'Secilmedi';
+            }
         }
 
         const res: MatchItem = {
@@ -693,8 +705,17 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
         let newDurum = m.Durum;
         let newKazanan = m.Kazanan;
-        if (!dState.matchEnded && (m.Durum === 'Bitti' || m.Durum === 'Walkover' || m.Durum === 'Retired')) {
-            newDurum = 'Oynaniyor'; newKazanan = 'Secilmedi';
+        
+        // BUG FIX: Kural dışı skorda maç kendi kendine "Bitti" olamaz!
+        if (dState.matchEnded) {
+            newDurum = 'Bitti';
+            if (dState.matchWinner === 1) newKazanan = m['Oyuncu 1'];
+            else if (dState.matchWinner === 2) newKazanan = m['Oyuncu 2'];
+        } else {
+            if (m.Durum === 'Bitti' || m.Durum === 'Walkover' || m.Durum === 'Retired') {
+                newDurum = 'Oynaniyor'; 
+                newKazanan = 'Secilmedi';
+            }
         }
 
         const res: MatchItem = {
