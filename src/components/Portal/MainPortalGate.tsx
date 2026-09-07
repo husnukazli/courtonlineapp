@@ -346,23 +346,22 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
             const isUpcoming = m.Durum === 'Baslamadi';
 
             // KART TEMASI (Aydınlık / Karanlık Karar Mekanizması)
-            // Gündüz Modunda Kartlar bembeyaz, bittiyse çok hafif gri. Çok net borderlar ve güçlü gölgeler var.
             const cardBg = isLive 
                 ? (isLightMode ? 'bg-white border-[2px] border-emerald-500 shadow-lg ring-1 ring-emerald-500/20' : 'bg-emerald-950/30 border-emerald-700/50 shadow-emerald-900/20 shadow-lg')
                 : isDone 
-                ? (isLightMode ? 'bg-slate-100 border-slate-300 opacity-95 hover:opacity-100' : 'bg-rose-950/20 border-rose-800/50')
+                ? (isLightMode ? 'bg-rose-50 border-rose-200 shadow-sm opacity-95 hover:opacity-100' : 'bg-rose-950/10 border-rose-900/30')
                 : (isLightMode ? 'bg-white border-slate-300 shadow-sm hover:shadow-md' : 'bg-slate-900/70 border-slate-700/50');
             
             const timeColor = isLive 
                 ? (isLightMode ? 'text-emerald-700' : 'text-emerald-400')
                 : isDone 
-                ? (isLightMode ? 'text-slate-600' : 'text-rose-400/70')
+                ? (isLightMode ? 'text-rose-500 font-bold' : 'text-rose-400/60')
                 : (isLightMode ? 'text-slate-800' : 'text-cyan-400');
 
             const badgeBg = isLive 
                 ? (isLightMode ? 'bg-emerald-600 text-white shadow-sm' : 'bg-emerald-500/20 text-emerald-400')
                 : isDone 
-                ? (isLightMode ? 'bg-slate-300 text-slate-800 border border-slate-400' : 'bg-rose-500/20 text-rose-400 border border-rose-500/30')
+                ? (isLightMode ? 'bg-rose-100 text-rose-800 border border-rose-300 shadow-sm font-black' : 'bg-rose-900/40 text-rose-100 border border-rose-700/50 font-black')
                 : (isLightMode ? 'bg-amber-100 text-amber-800 border border-amber-300' : 'bg-amber-500/15 text-amber-400/70');
 
             return (
