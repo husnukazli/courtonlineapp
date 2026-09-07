@@ -184,6 +184,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
     prevSetRef.current = selectedSet;
   }, [selectedSet, format]);
 
+  // DOĞRUDAN SENİN MANTIĞININ KODA DÖKÜLMÜŞ HALİ:
   useEffect(() => {
     if (selectedSet > 1 && !setupsBySet[selectedSet] && setupsBySet[selectedSet - 1]) {
       const prevSet = selectedSet - 1;
@@ -195,14 +196,16 @@ export const CourtCard: React.FC<CourtCardProps> = ({
       
       if (totalGamesPrevSet > 0) {
         const nextServerTeam = totalGamesPrevSet % 2 === 0 ? prevSetup.firstServingTeam : (prevSetup.firstServingTeam === 1 ? 2 : 1);
-        let finalLeftTeamPrevSet = prevSetup.leftTeam;
+        let nextLeftTeam = prevSetup.leftTeam;
         
         const isNormalTB = (prevS1 === 7 && prevS2 === 6) || (prevS1 === 6 && prevS2 === 7);
         const isShortTB = (prevS1 === 5 && prevS2 === 4) || (prevS1 === 4 && prevS2 === 5);
         const wasTiebreak = isNormalTB || isShortTB;
         
         if (wasTiebreak) {
-          let tbPoints = 0;
+          // KULLANICININ ZARİF ÇÖZÜMÜ:
+          // "Son sayı oynanmadan hemen önceki anı bul, ve tersine çevir!"
+          let finalTbPoints = 0;
           if (match.pointHistory && match.pointHistory.length > 0) {
             let maxTb1 = 0; let maxTb2 = 0;
             for (let i = match.pointHistory.length - 1; i >= 0; i--) {
@@ -212,25 +215,34 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                   maxTb2 = Math.max(maxTb2, snap.tiebreak_p2);
                }
             }
-            if (maxTb1 > 0 || maxTb2 > 0) tbPoints = maxTb1 + maxTb2 + 1; 
+            if (maxTb1 > 0 || maxTb2 > 0) finalTbPoints = maxTb1 + maxTb2; 
           }
-          if (tbPoints === 0) tbPoints = 12; 
+          if (finalTbPoints === 0) finalTbPoints = 12; // Sistem hafızası boşsa varsayılan 7-5 (12) bitti kabul et
           
-          const tbStartSide = (totalGamesPrevSet % 4 === 1 || totalGamesPrevSet % 4 === 2) ? (prevSetup.leftTeam === 1 ? 2 : 1) : prevSetup.leftTeam;
+          // Örn 9-7 (16 puan) bittiyse, biz 8-7 (15 puan) anındaki pozisyona bakacağız.
+          const pointsBeforeLastPoint = finalTbPoints - 1; 
           
+          const gamesBeforeTB = totalGamesPrevSet - 1;
+          const tbStartSide = (gamesBeforeTB % 4 === 1 || gamesBeforeTB % 4 === 2) ? (prevSetup.leftTeam === 1 ? 2 : 1) : prevSetup.leftTeam;
+          
+          let sideDuringLastPoint = tbStartSide;
           if (prevSetup.tbType === 'coman') {
-             const block = Math.floor((tbPoints - 1) / 4);
-             finalLeftTeamPrevSet = block % 2 === 0 ? tbStartSide : (tbStartSide === 1 ? 2 : 1);
+             const block = Math.floor(pointsBeforeLastPoint / 4);
+             sideDuringLastPoint = block % 2 === 0 ? tbStartSide : (tbStartSide === 1 ? 2 : 1);
           } else {
-             const block = Math.floor((tbPoints - 1) / 6);
-             finalLeftTeamPrevSet = block % 2 === 0 ? tbStartSide : (tbStartSide === 1 ? 2 : 1);
+             const block = Math.floor(pointsBeforeLastPoint / 6);
+             sideDuringLastPoint = block % 2 === 0 ? tbStartSide : (tbStartSide === 1 ? 2 : 1);
           }
-        } else {
-          finalLeftTeamPrevSet = ((totalGamesPrevSet - 1) % 4 === 1 || (totalGamesPrevSet - 1) % 4 === 2) ? (prevSetup.leftTeam === 1 ? 2 : 1) : prevSetup.leftTeam;
-        }
 
-        const changeEnds = totalGamesPrevSet % 2 !== 0; 
-        const nextLeftTeam = changeEnds ? (finalLeftTeamPrevSet === 1 ? 2 : 1) : finalLeftTeamPrevSet;
+          // Kural: Son oynadıkları sahanın TAM TERSİNE geçerler!
+          nextLeftTeam = sideDuringLastPoint === 1 ? 2 : 1;
+
+        } else {
+          // Normal set bitişi (Örn 6-3)
+          const sideDuringLastGame = ((totalGamesPrevSet - 1) % 4 === 1 || (totalGamesPrevSet - 1) % 4 === 2) ? (prevSetup.leftTeam === 1 ? 2 : 1) : prevSetup.leftTeam;
+          const changeEnds = totalGamesPrevSet % 2 !== 0; 
+          nextLeftTeam = changeEnds ? (sideDuringLastGame === 1 ? 2 : 1) : sideDuringLastGame;
+        }
 
         let nextT1ServerIdx = prevSetup.t1ServerIdx;
         let nextT2ServerIdx = prevSetup.t2ServerIdx;
@@ -276,24 +288,17 @@ export const CourtCard: React.FC<CourtCardProps> = ({
   let currentT1ServerIdx: 0 | 1 = 0;
   let currentT2ServerIdx: 0 | 1 = 0;
 
-  // ─── DOĞRUDAN MOTOR DESTEKLİ SAHA DEĞİŞİM KONTROLÜ (BUG FIX) ───
   let isSideChangePoint = false;
   const isGameStart = state?.gamePoint_p1 === '0' && state?.gamePoint_p2 === '0';
   
   if (isTB) {
-      // TB içindeyken Setup ekranına/onayına bağlı olmaksızın uyarıyı yakarız.
       isSideChangePoint = state?.needsChangeover || (tbPoints > 0 && tbPoints % 6 === 0);
-      
-      // Sadece Coman TB için özel geçersiz kılma:
       if (isSetupValid && chairSetup.tbType === 'coman') {
           isSideChangePoint = tbPoints > 0 && ((tbPoints - 1) % 4 === 0);
       }
   } else {
-      // Normal oyunlarda yalnızca 0-0 iken motorun "Değiş!" emrini dinler.
       if (isGameStart) {
           isSideChangePoint = state?.needsChangeover || false;
-          
-          // Fallback: Motor değeri yoksa (eski state vb.), matematikle teyit et:
           if (state?.needsChangeover === undefined) {
               if (currentSetGames > 0 && currentSetGames % 2 === 1) {
                   isSideChangePoint = true;
@@ -304,7 +309,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
           }
       }
   }
-  // ───────────────────────────────────────────────────────────────
 
   if (isSetupValid) {
     const isComan = chairSetup.tbType === 'coman';
