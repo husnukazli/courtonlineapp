@@ -18,7 +18,7 @@ import {
   Settings,
   LogOut,
   Info,
-  PenLine // YENİ EKLENDİ: Hızlı Skor İkonu
+  PenLine
 } from 'lucide-react';
 
 interface CourtCardProps {
@@ -39,7 +39,6 @@ type ChairSetup = {
   t2DeuceReceiverIdx: 0 | 1;
 };
 
-// Titreşim (Haptic Feedback) Yardımcısı
 const vibrateDevice = (pattern: number | number[] = 50) => {
   if (typeof navigator !== 'undefined' && navigator.vibrate) {
     navigator.vibrate(pattern);
@@ -270,7 +269,19 @@ export const CourtCard: React.FC<CourtCardProps> = ({
     if (!isTB) {
       computedServerTeam = currentSetGames % 2 === 0 ? chairSetup.firstServingTeam : otherTeam;
       computedLeftTeam = (currentSetGames % 4 === 1 || currentSetGames % 4 === 2) ? (chairSetup.leftTeam === 1 ? 2 : 1) : chairSetup.leftTeam;
-      if ((currentSetGames % 2 === 1) && (state?.gamePoint_p1 === '0' && state?.gamePoint_p2 === '0')) isSideChangePoint = true;
+      
+      // YENİ: SAHA DEĞİŞİMİ ALGORİTMASI (Tie-break bitişini hesaplar)
+      if (state?.gamePoint_p1 === '0' && state?.gamePoint_p2 === '0') {
+        if (currentSetGames > 0 && currentSetGames % 2 === 1) {
+          isSideChangePoint = true; // Setteki tek sayılı (1, 3, 5) oyun sonları
+        } else if (currentSetGames === 0 && selectedSet > 1) {
+          // Yeni sete geçildi. Önceki set 7-6 (veya 5-4) tek sayıyla bittiyse saha değişir.
+          const prevSetGames = selectedSet === 2 ? (s1_p1 + s1_p2) : (s2_p1 + s2_p2);
+          if (prevSetGames % 2 === 1) {
+            isSideChangePoint = true; 
+          }
+        }
+      }
       
       if (isDoubles) {
         const teamServiceRounds = Math.floor(currentSetGames / 2);
@@ -644,7 +655,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
             <div className="flex items-center gap-2 w-full">
               {onOpenSetup && <button type="button" onClick={(e) => { e.stopPropagation(); onOpenSetup(match); }} className="py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold text-xs border border-slate-700 transition" title="Kura Çek">🪙 Kura</button>}
               
-              {/* YENİ EKLENDİ: Başlamamış maçlar için Hızlı Skor Butonu */}
               {onEditScore && (
                 <button type="button" onClick={(e) => { e.stopPropagation(); onEditScore(match); }} className="py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-400 font-bold text-xs border border-slate-700 transition flex items-center gap-1.5" title="Hızlı Skor Gir">
                   <PenLine className="w-3.5 h-3.5" /> Skor
@@ -661,7 +671,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                 </button>
               )}
               
-              {/* YENİ EKLENDİ: Canlı maçlar için Hızlı Skor Butonu */}
               {onEditScore && (
                 <button type="button" onClick={(e) => { e.stopPropagation(); onEditScore(match); }} className="h-12 w-12 flex items-center justify-center shrink-0 bg-slate-800 hover:bg-slate-700 text-cyan-400 border border-cyan-500/30 rounded-xl transition active:scale-95" title="Doğrudan Skor Düzenle">
                   <PenLine className="w-5 h-5" />
