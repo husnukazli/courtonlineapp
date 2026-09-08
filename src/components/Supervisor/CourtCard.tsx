@@ -1,1104 +1,1024 @@
-import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
+import { MatchItem } from '../../types/tennis';
+import { useTennisData } from '../../context/TennisDataContext';
+import { parseScoreString, validateSingleSet } from '../../utils/tennisScoringEngine';
 import {
-  ChallengeRecord, MatchItem, MatchStatus, PointHistoryItem, PointType,
-  RefereeUser, ScoreFormatType, TennisMatchState,
-} from '../types/tennis';
-import { INITIAL_CATEGORY_FORMAT_MEMORY, INITIAL_MATCHES, INITIAL_REFEREES } from '../data/initialData';
-import {
-  awardPoint, buildScoreString, createInitialMatchState, determineWinnerFromScores,
-  formatScoreString, parseScoreString, canIncrementSetScore, validateFullMatchScores,
-  validateSingleSet, checkMatchWinner, isMatchTiebreakThirdSet
-} from '../utils/tennisScoringEngine';
-import { calculateMatchDurationSeconds } from '../utils/timerUtils';
-import {
-  pushSingleMatchToCloud, pushAllMatchesToCloud, replaceAllMatchesInCloud,
-  pushRefereesToCloud, pushCategoryFormatsToCloud, pushCategoryNoAdSettingsToCloud,
-  pushTournamentInfoToCloud, pushDeskPinToCloud, pushFullTournamentToCloud, 
-  subscribeToCloudTournament, fetchTournamentFromCloud, deleteAllMatchesFromCloud, purgeOrphanMatchesFromCloud,
-} from '../utils/firebaseSync';
+  Trophy, Clock, CheckCircle2, PlayCircle, Plus, Minus, RotateCcw,
+  Swords, PauseCircle, Timer, X, ArrowRightLeft, Settings, LogOut, Info, PenLine
+} from 'lucide-react';
 
-export type CloudSyncStatus = 'connected' | 'syncing' | 'offline';
-
-export const sanitizeMatchList = (rawList: any[]): MatchItem[] => {
-  if (!Array.isArray(rawList)) return [];
-  const existingIds = new Set<string>();
-  return rawList.map((item, index) => {
-    let rawId = item && item.id ? String(item.id).trim() : '';
-    if (!rawId || existingIds.has(rawId)) {
-      rawId = `m_${Date.now()}_${index + 1}_${Math.random().toString(36).substring(2, 7)}`;
-    }
-    existingIds.add(rawId);
-
-    const matchItem: MatchItem = {
-      Kort: item?.Kort || `KORT ${index + 1}`, Saat: item?.Saat || '09:30',
-      'Oyuncu 1': item?.['Oyuncu 1'] || 'Oyuncu 1', 'Oyuncu 2': item?.['Oyuncu 2'] || 'Oyuncu 2',
-      Kategori: item?.Kategori || 'Büyükler', Skor_Formati: item?.Skor_Formati || '3 Normal Set',
-      isNoAd: !!item?.isNoAd, Durum: item?.Durum || 'Baslamadi', Skor: item?.Skor || '-',
-      Kura_Kazanan: item?.Kura_Kazanan || 'Secilmedi', Kura_Tercih: item?.Kura_Tercih || 'Servis',
-      Saha_Tarafi: item?.Saha_Tarafi || 'Sandalyenin Sağı', Baslangic_Saati: item?.Baslangic_Saati || 'Secilmedi',
-      Bitis_Saati: item?.Bitis_Saati || 'Secilmedi', Son_Hakem: item?.Son_Hakem || 'Turnuva Masası',
-      Kazanan: item?.Kazanan || 'Secilmedi', ...item, id: rawId,
-    };
-    return matchItem;
-  });
-};
-
-interface TennisDataContextType {
-  matches: MatchItem[]; referees: RefereeUser[]; currentReferee: RefereeUser | null;
-  categoryFormats: Record<string, string>; categoryNoAdSettings: Record<string, boolean>;
-  activeMatchId: string | null; activeMatch: MatchItem | null;
-  authRole: 'none' | 'supervisor' | 'desk' | 'referee'; deskPin: string;
-  cloudSyncStatus: CloudSyncStatus; lastCloudSync: string | null;
-  syncWithCloudNow: () => void; pullFromCloudNow: () => Promise<boolean>;
-  forcePushAllToCloud: () => Promise<void>; clearLocalCacheAndResetFromCloud: () => Promise<boolean>;
-  wipeAllMatchesForTournament: () => Promise<boolean>; tournamentId: string;
-  setTournamentId: (id: string) => void; purgeOrphanMatches: () => Promise<number>;
-  resetAllScores: () => void; loginReferee: (name: string, pin: string) => boolean;
-  loginRefereeDirect: (name?: string) => void; loginSupervisorByPin: (pin: string, name?: string) => boolean;
-  loginDesk: (pin: string) => boolean; logoutReferee: () => void; logoutAuth: () => void;
-  setAuthRole: (role: 'none' | 'supervisor' | 'desk' | 'referee') => void; updateDeskPin: (newPin: string) => void;
-  setActiveMatchId: (id: string | null) => void; updateMatch: (match: MatchItem) => void;
-  updateGameScore: (matchId: string, setIndex: 1 | 2 | 3, player: 1 | 2, delta: number) => void;
-  setDirectSetScores: (matchId: string, s1_p1: number, s1_p2: number, s2_p1: number, s2_p2: number, s3_p1: number, s3_p2: number) => void;
-  saveDirectScoreAndStatus: (matchId: string, data: any) => void;
-  finishAndReportMatch: (matchId: string, winner: string, status?: MatchStatus, customScore?: string, startTime?: string, endTime?: string) => void;
-  saveMatchSetup: (matchId: string, data: any) => void;
-  awardPointToMatch: (matchId: string, playerWon: 1 | 2, pointType?: PointType) => void;
-  undoLastPoint: (matchId: string) => void;
-  recordChallenge: (matchId: string, player: 1 | 2, outcome: 'UPHELD' | 'OVERTURNED', reason: any, notes?: string, actionType?: any) => void;
-  setMatchStatus: (matchId: string, status: MatchItem['Durum'], winner?: string, endTime?: string) => void;
-  resumeMatchToLive: (matchId: string) => void; resetMatchScore: (matchId: string) => void;
-  manualUpdateScoreString: (matchId: string, skorStr: string, durum: MatchItem['Durum'], kazanan: string, bitisSaati: string) => void;
-  addReferee: (name: string, pin: string) => void; deleteReferee: (name: string) => void;
-  updateCategoryFormat: (category: string, format: string) => void; bulkApplyCategoryFormats: (formatMap: Record<string, string>) => void;
-  bulkApplyCategoryNoAdSettings: (noAdMap: Record<string, boolean>) => void;
-  tournamentInfo: { ad: string; yer: string; tarih: string; not: string; tbType?: 'standard' | 'coman' };
-  saveTournamentInfo: (info: { ad: string; yer: string; tarih: string; not: string; tbType?: 'standard' | 'coman' }) => void;
-  importMatchesList: (newMatches: MatchItem[]) => void; resetTournamentToDefault: () => void;
+interface CourtCardProps {
+  match: MatchItem;
+  onFinishMatch: (match: MatchItem) => void;
+  onEditScore?: (match: MatchItem) => void; 
+  onOpenSetup?: (match: MatchItem) => void;
 }
 
-const TennisDataContext = createContext<TennisDataContextType | null>(null);
-
-const BASE_STORAGE_KEYS = {
-  MATCHES: 'courtonline_matches_v2', REFEREES: 'courtonline_referees_v2', CURRENT_REF: 'courtonline_curr_ref_v2',
-  CATEGORY_FORMATS: 'courtonline_cat_formats_v2', CATEGORY_NOAD: 'courtonline_cat_noad_v2',
-  TOURNAMENT_INFO: 'courtonline_t_info_v2', ACTIVE_MATCH_ID: 'courtonline_active_match_id_v2',
-  DESK_PIN: 'courtonline_desk_pin_v2', AUTH_ROLE: 'courtonline_auth_role_v2', ACTIVE_TOURNAMENT: 'courtonline_active_tournament_id',
+type ChairSetup = {
+  setupSetNum: number;
+  firstServingTeam: 1 | 2;
+  leftTeam: 1 | 2;
+  tbType: 'standard' | 'coman';
+  t1ServerIdx: 0 | 1; 
+  t2ServerIdx: 0 | 1;
+  t1DeuceReceiverIdx: 0 | 1; 
+  t2DeuceReceiverIdx: 0 | 1;
 };
 
-const getStorageKey = (key: string, tId: string) => (tId ? `${key}_${tId}` : key);
+const vibrateDevice = (pattern: number | number[] = 50) => {
+  if (typeof navigator !== 'undefined' && navigator.vibrate) {
+    navigator.vibrate(pattern);
+  }
+};
 
-export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const initialTournamentId = typeof window !== 'undefined' ? (localStorage.getItem(BASE_STORAGE_KEYS.ACTIVE_TOURNAMENT) || '') : '';
-  const [tournamentId, setTournamentIdState] = useState<string>(initialTournamentId);
+export const CourtCard: React.FC<CourtCardProps> = ({
+  match,
+  onFinishMatch,
+  onEditScore,
+  onOpenSetup,
+}) => {
+  const { updateGameScore, setMatchStatus, awardPointToMatch, undoLastPoint, tournamentInfo } = useTennisData();
+  const lastScoreClickRef = useRef<number>(0);
 
-  const [deskPin, setDeskPin] = useState<string>(() => {
-    return localStorage.getItem(getStorageKey(BASE_STORAGE_KEYS.DESK_PIN, initialTournamentId)) || '2026';
+  const [selectedSet, setSelectedSet] = useState<1 | 2 | 3>(1);
+  const [isChairMode, setIsChairMode] = useState<boolean>(false);
+  const [isEditingSetup, setIsEditingSetup] = useState<boolean>(false);
+  
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  
+  const prevSetRef = useRef<number>(1);
+  const [thirdSetWarning, setThirdSetWarning] = useState<{show: boolean, text: string}>({show: false, text: ''});
+
+  const [setupsBySet, setSetupsBySet] = useState<Record<number, ChairSetup>>({});
+  const chairSetup = setupsBySet[selectedSet] || null;
+  const isSetupValid = !!chairSetup;
+  const showSetupOverlay = isEditingSetup || !isSetupValid;
+
+  // Masadan gelen varsayılan Tie-Break türünü alıyoruz
+  const globalTbType = (tournamentInfo?.tbType as 'standard' | 'coman') || 'standard';
+
+  const [setupForm, setSetupForm] = useState<{
+    firstServingTeam: 1 | 2 | null; 
+    leftTeam: 1 | 2 | null; 
+    tbType: 'standard' | 'coman'; 
+    t1ServerIdx: 0 | 1; 
+    t2ServerIdx: 0 | 1;
+    t1RecIdx: 0 | 1;
+    t2RecIdx: 0 | 1;
+  }>({ 
+    firstServingTeam: null, leftTeam: null, tbType: globalTbType, t1ServerIdx: 0, t2ServerIdx: 0, t1RecIdx: 0, t2RecIdx: 0 
   });
 
-  const [authRole, setAuthRoleState] = useState<'none' | 'supervisor' | 'desk' | 'referee'>(() => {
-    const savedRole = sessionStorage.getItem(getStorageKey(BASE_STORAGE_KEYS.AUTH_ROLE, initialTournamentId));
-    if (savedRole === 'supervisor' || savedRole === 'desk' || savedRole === 'referee') {
-      return savedRole as 'supervisor' | 'desk' | 'referee';
-    }
-    return 'none';
-  });
+  const [firstFault, setFirstFault] = useState<boolean>(false);
+  const [activeTimer, setActiveTimer] = useState<{ label: string; seconds: number } | null>(null);
 
-  const [cloudSyncStatus, setCloudSyncStatus] = useState<CloudSyncStatus>('connected');
-  const [lastCloudSync, setLastCloudSync] = useState<string | null>(null);
-  const cloudSyncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const parsed = parseScoreString(match.Skor);
+  const state = match.detailedState;
+  
+  const s1_p1 = Number(state?.set1_p1 ?? parsed.s1_p1 ?? 0);
+  const s1_p2 = Number(state?.set1_p2 ?? parsed.s1_p2 ?? 0);
+  const s2_p1 = Number(state?.set2_p1 ?? parsed.s2_p1 ?? 0);
+  const s2_p2 = Number(state?.set2_p2 ?? parsed.s2_p2 ?? 0);
+  const s3_p1 = Number(state?.set3_p1 ?? parsed.s3_p1 ?? 0);
+  const s3_p2 = Number(state?.set3_p2 ?? parsed.s3_p2 ?? 0);
 
-  useEffect(() => {
-    if (typeof document !== 'undefined') {
-      if (authRole === 'supervisor' || authRole === 'referee') {
-        document.body.classList.add('hakem-modu'); document.body.classList.remove('masa-modu');
-      } else if (authRole === 'desk') {
-        document.body.classList.add('masa-modu'); document.body.classList.remove('hakem-modu');
-      } else {
-        document.body.classList.remove('hakem-modu', 'masa-modu');
-      }
-    }
-  }, [authRole]);
+  const isLive = match.Durum === 'Oynaniyor';
+  const isFinished = match.Durum === 'Bitti' || match.Durum === 'Retired' || match.Durum === 'Walkover';
+  const isPaused = match.Durum === 'Duraklatildi';
+  const isUpcoming = match.Durum === 'Baslamadi';
+  const format = match.Skor_Formati || '3 Normal Set';
 
-  const setAuthRole = (role: 'none' | 'supervisor' | 'desk' | 'referee') => {
-    setAuthRoleState(role);
-    if (role === 'none') { sessionStorage.removeItem(getStorageKey(BASE_STORAGE_KEYS.AUTH_ROLE, tournamentId)); } 
-    else { sessionStorage.setItem(getStorageKey(BASE_STORAGE_KEYS.AUTH_ROLE, tournamentId), role); }
+  const isDoubles = match['Oyuncu 1'].includes('/') || match['Oyuncu 2'].includes('/');
+  const t1Players = isDoubles ? match['Oyuncu 1'].split('/').map(p => p.trim()) : [match['Oyuncu 1']];
+  const t2Players = isDoubles ? match['Oyuncu 2'].split('/').map(p => p.trim()) : [match['Oyuncu 2']];
+
+  const val1 = validateSingleSet(s1_p1, s1_p2, 1, format);
+  const val2 = validateSingleSet(s2_p1, s2_p2, 2, format);
+  const val3 = validateSingleSet(s3_p1, s3_p2, 3, format);
+  const isCurrentSetComplete = selectedSet === 1 ? val1.isComplete : selectedSet === 2 ? val2.isComplete : val3.isComplete;
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3000);
   };
 
-  const updateDeskPin = (newPin: string) => {
-    if (!newPin.trim() || newPin.trim().length < 2) return;
-    setDeskPin(newPin.trim());
-    localStorage.setItem(getStorageKey(BASE_STORAGE_KEYS.DESK_PIN, tournamentId), newPin.trim());
-    pushDeskPinToCloud(newPin.trim(), tournamentId);
-  };
-
-  const [matches, setMatches] = useState<MatchItem[]>(() => {
-    if (!initialTournamentId) return [];
-    const saved = localStorage.getItem(getStorageKey(BASE_STORAGE_KEYS.MATCHES, initialTournamentId));
-    try { return saved ? JSON.parse(saved) : []; } catch { return []; }
-  });
-
-  const [referees, setReferees] = useState<RefereeUser[]>(() => {
-    if (!initialTournamentId) return INITIAL_REFEREES;
-    const saved = localStorage.getItem(getStorageKey(BASE_STORAGE_KEYS.REFEREES, initialTournamentId));
-    try { return saved ? JSON.parse(saved) : INITIAL_REFEREES; } catch { return INITIAL_REFEREES; }
-  });
-
-  const [currentReferee, setCurrentReferee] = useState<RefereeUser | null>(() => {
-    const saved = sessionStorage.getItem(getStorageKey(BASE_STORAGE_KEYS.CURRENT_REF, initialTournamentId));
-    if (saved) { try { return JSON.parse(saved); } catch (e) {} }
-    return null;
-  });
-
-  const [categoryFormats, setCategoryFormats] = useState<Record<string, string>>(() => {
-    if (!initialTournamentId) return INITIAL_CATEGORY_FORMAT_MEMORY;
-    const saved = localStorage.getItem(getStorageKey(BASE_STORAGE_KEYS.CATEGORY_FORMATS, initialTournamentId));
-    try { return saved ? JSON.parse(saved) : INITIAL_CATEGORY_FORMAT_MEMORY; } catch { return INITIAL_CATEGORY_FORMAT_MEMORY; }
-  });
-
-  const [categoryNoAdSettings, setCategoryNoAdSettings] = useState<Record<string, boolean>>(() => {
-    if (!initialTournamentId) return {};
-    const saved = localStorage.getItem(getStorageKey(BASE_STORAGE_KEYS.CATEGORY_NOAD, initialTournamentId));
-    try { return saved ? JSON.parse(saved) : {}; } catch { return {}; }
-  });
-
-  const [tournamentInfoState, setTournamentInfoState] = useState(() => {
-    const defaultInfo = { ad: '', yer: '', tarih: '', not: '', tbType: 'standard' as const };
-    if (!initialTournamentId) return defaultInfo;
-    try {
-      const saved = localStorage.getItem(getStorageKey(BASE_STORAGE_KEYS.TOURNAMENT_INFO, initialTournamentId));
-      return saved ? { ...defaultInfo, ...JSON.parse(saved) } : defaultInfo;
-    } catch { return defaultInfo; }
-  });
-
-  const [activeMatchId, setActiveMatchId] = useState<string | null>(() => {
-    if (!initialTournamentId) return 'm-9';
-    return localStorage.getItem(getStorageKey(BASE_STORAGE_KEYS.ACTIVE_MATCH_ID, initialTournamentId)) || 'm-9';
-  });
-
-  const setTournamentId = (id: string) => {
-    setTournamentIdState(id);
-    localStorage.setItem(BASE_STORAGE_KEYS.ACTIVE_TOURNAMENT, id);
-    if (id) {
-      const cachedMatches = localStorage.getItem(getStorageKey(BASE_STORAGE_KEYS.MATCHES, id));
-      setMatches(cachedMatches ? JSON.parse(cachedMatches) : []);
-      const cachedReferees = localStorage.getItem(getStorageKey(BASE_STORAGE_KEYS.REFEREES, id));
-      setReferees(cachedReferees ? JSON.parse(cachedReferees) : INITIAL_REFEREES);
-      const cachedFormats = localStorage.getItem(getStorageKey(BASE_STORAGE_KEYS.CATEGORY_FORMATS, id));
-      setCategoryFormats(cachedFormats ? JSON.parse(cachedFormats) : INITIAL_CATEGORY_FORMAT_MEMORY);
-      const cachedNoAd = localStorage.getItem(getStorageKey(BASE_STORAGE_KEYS.CATEGORY_NOAD, id));
-      setCategoryNoAdSettings(cachedNoAd ? JSON.parse(cachedNoAd) : {});
-      const cachedInfo = localStorage.getItem(getStorageKey(BASE_STORAGE_KEYS.TOURNAMENT_INFO, id));
-      setTournamentInfoState(cachedInfo ? { ...{ tbType: 'standard' }, ...JSON.parse(cachedInfo) } : { ad: '', yer: '', tarih: '', not: '', tbType: 'standard' });
-    } else {
-      setMatches([]); setReferees([]); setTournamentInfoState({ ad: '', yer: '', tarih: '', not: '', tbType: 'standard' });
-    }
+  const handleExitChairMode = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (window.confirm('Kule hakemi modundan çıkıp genel maç ekranına dönmek istiyor musunuz?')) setIsChairMode(false);
   };
 
   useEffect(() => {
-    if (tournamentId) {
-      localStorage.setItem(getStorageKey(BASE_STORAGE_KEYS.MATCHES, tournamentId), JSON.stringify(matches));
-      localStorage.setItem(getStorageKey(BASE_STORAGE_KEYS.REFEREES, tournamentId), JSON.stringify(referees));
-      localStorage.setItem(getStorageKey(BASE_STORAGE_KEYS.CATEGORY_FORMATS, tournamentId), JSON.stringify(categoryFormats));
-      localStorage.setItem(getStorageKey(BASE_STORAGE_KEYS.CATEGORY_NOAD, tournamentId), JSON.stringify(categoryNoAdSettings));
-      localStorage.setItem(getStorageKey(BASE_STORAGE_KEYS.TOURNAMENT_INFO, tournamentId), JSON.stringify(tournamentInfoState));
-    }
-  }, [matches, referees, categoryFormats, categoryNoAdSettings, tournamentInfoState, tournamentId]);
-
-  useEffect(() => {
-    if (currentReferee) { sessionStorage.setItem(getStorageKey(BASE_STORAGE_KEYS.CURRENT_REF, tournamentId), JSON.stringify(currentReferee)); } 
-    else { sessionStorage.removeItem(getStorageKey(BASE_STORAGE_KEYS.CURRENT_REF, tournamentId)); }
-  }, [currentReferee, tournamentId]);
-
-  useEffect(() => {
-    if (tournamentId) {
-      if (activeMatchId) localStorage.setItem(getStorageKey(BASE_STORAGE_KEYS.ACTIVE_MATCH_ID, tournamentId), activeMatchId);
-      else localStorage.removeItem(getStorageKey(BASE_STORAGE_KEYS.ACTIVE_MATCH_ID, tournamentId));
-    }
-  }, [activeMatchId, tournamentId]);
-
-  const broadcastChannelRef = useRef<BroadcastChannel | null>(null);
-
-  useEffect(() => {
-    if (!tournamentId) return;
-    try {
-      const channelName = `courtonline_sync_channel_${tournamentId}`;
-      const channel = new BroadcastChannel(channelName);
-      broadcastChannelRef.current = channel;
-      channel.onmessage = (event) => {
-        if (event.data?.type === 'MATCHES_UPDATED' && Array.isArray(event.data.matches)) setMatches(event.data.matches);
-      };
-    } catch {}
-
-    const handleStorageEvent = (event: StorageEvent) => {
-      const currentMatchKey = getStorageKey(BASE_STORAGE_KEYS.MATCHES, tournamentId);
-      if (event.key === currentMatchKey && event.newValue) {
-        try {
-          const parsed = JSON.parse(event.newValue);
-          if (Array.isArray(parsed)) setMatches(parsed);
-        } catch (err) {}
+    const handlePopState = () => {
+      if (isChairMode) {
+        if (window.confirm('Kule hakemi modundan çıkmak istiyor musunuz?')) setIsChairMode(false);
+        else window.history.pushState(null, '', window.location.href);
       }
     };
-    window.addEventListener('storage', handleStorageEvent);
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => { if (isChairMode) { e.preventDefault(); e.returnValue = ''; } };
 
+    if (isChairMode) {
+      window.history.pushState(null, '', window.location.href);
+      window.addEventListener('popstate', handlePopState);
+      window.addEventListener('beforeunload', handleBeforeUnload);
+      document.body.style.overscrollBehaviorY = 'none';
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overscrollBehaviorY = 'auto';
+      document.body.style.overflow = 'auto';
+    }
     return () => {
-      if (broadcastChannelRef.current) { broadcastChannelRef.current.close(); broadcastChannelRef.current = null; }
-      window.removeEventListener('storage', handleStorageEvent);
+      window.removeEventListener('popstate', handlePopState);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      document.body.style.overscrollBehaviorY = 'auto';
+      document.body.style.overflow = 'auto';
     };
-  }, [tournamentId]);
+  }, [isChairMode]);
 
   useEffect(() => {
-    if (!tournamentId) return;
-
-    fetchTournamentFromCloud(tournamentId).then((remote) => {
-      if (remote) {
-        if (Array.isArray(remote.matches) && remote.matches.length > 0) setMatches(sanitizeMatchList(remote.matches));
-        if (remote.referees && remote.referees.length > 0) setReferees(remote.referees);
-        if (remote.categoryFormats) setCategoryFormats(remote.categoryFormats);
-        if (remote.categoryNoAdSettings) setCategoryNoAdSettings(remote.categoryNoAdSettings);
-        if (remote.deskPin) setDeskPin(remote.deskPin);
-        if (remote.tournamentInfo) setTournamentInfoState({ ...{ tbType: 'standard' }, ...remote.tournamentInfo });
-      }
-    }).catch(() => {});
-
-    const unsubscribe = subscribeToCloudTournament(
-      tournamentId,
-      (remoteMatches) => {
-        setCloudSyncStatus('connected');
-        setLastCloudSync(new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
-        if (Array.isArray(remoteMatches) && remoteMatches.length > 0) {
-          setMatches((prev) => {
-            let nextList: MatchItem[];
-            if (remoteMatches.length === 1 && prev.length > 1) {
-              const single = remoteMatches[0];
-              const exists = prev.some((m) => m.id === single.id);
-              if (exists) nextList = prev.map((m) => (m.id === single.id ? { ...m, ...single } : m));
-              else nextList = sanitizeMatchList([...prev, single]);
-            } else { nextList = sanitizeMatchList(remoteMatches); }
-            return nextList;
-          });
+    if (isLive) {
+      let activeSet: 1 | 2 | 3 = 1;
+      if (val1.isComplete) {
+        activeSet = 2;
+        if (val2.isComplete && val1.winner !== val2.winner) {
+          activeSet = 3;
         }
-      },
-      (meta) => {
-        if (Array.isArray(meta.referees) && meta.referees.length > 0) setReferees(meta.referees);
-        if (meta.categoryFormats && Object.keys(meta.categoryFormats).length > 0) setCategoryFormats(meta.categoryFormats);
-        if (meta.categoryNoAdSettings) setCategoryNoAdSettings(meta.categoryNoAdSettings);
-        if (meta.deskPin) setDeskPin(meta.deskPin);
-        if (meta.tournamentInfo) setTournamentInfoState({ ...{ tbType: 'standard' }, ...meta.tournamentInfo });
-      },
-      () => {}
-    );
-    return () => unsubscribe();
-  }, [deskPin, tournamentId]);
-
-  const broadcastAndSyncSingleMatch = (updatedMatch: MatchItem, allMatchesList?: MatchItem[]) => {
-    if (!tournamentId) return;
-    const fullList = allMatchesList || matches.map((m) => (m.id === updatedMatch.id ? updatedMatch : m));
-    try {
-      localStorage.setItem(getStorageKey(BASE_STORAGE_KEYS.MATCHES, tournamentId), JSON.stringify(fullList));
-      if (broadcastChannelRef.current) broadcastChannelRef.current.postMessage({ type: 'MATCH_UPDATED', match: updatedMatch, matches: fullList });
-    } catch {}
-
-    setCloudSyncStatus('syncing');
-    if (cloudSyncTimeoutRef.current) clearTimeout(cloudSyncTimeoutRef.current);
-
-    cloudSyncTimeoutRef.current = setTimeout(() => {
-      pushSingleMatchToCloud(updatedMatch, currentReferee?.name || 'Turnuva Masası', fullList, tournamentId)
-        .then(() => { setCloudSyncStatus('connected'); setLastCloudSync(new Date().toLocaleTimeString('tr-TR')); })
-        .catch(() => { setCloudSyncStatus('connected'); setLastCloudSync(new Date().toLocaleTimeString('tr-TR')); });
-    }, 2000); 
-  };
-
-  const broadcastAndSyncMatches = (newMatches: MatchItem[]) => {
-    if (!tournamentId) return;
-    try {
-      localStorage.setItem(getStorageKey(BASE_STORAGE_KEYS.MATCHES, tournamentId), JSON.stringify(newMatches));
-      if (broadcastChannelRef.current) broadcastChannelRef.current.postMessage({ type: 'MATCHES_UPDATED', matches: newMatches });
-    } catch {}
-
-    setCloudSyncStatus('syncing');
-    if (cloudSyncTimeoutRef.current) clearTimeout(cloudSyncTimeoutRef.current);
-
-    cloudSyncTimeoutRef.current = setTimeout(() => {
-      pushAllMatchesToCloud(newMatches, currentReferee?.name || 'Turnuva Masası', tournamentId)
-        .then(() => { setCloudSyncStatus('connected'); setLastCloudSync(new Date().toLocaleTimeString('tr-TR')); })
-        .catch(() => { setCloudSyncStatus('connected'); setLastCloudSync(new Date().toLocaleTimeString('tr-TR')); });
-    }, 2000); 
-  };
-
-  const pullFromCloudNow = async (): Promise<boolean> => {
-    setCloudSyncStatus('syncing');
-    try {
-      const remote = await fetchTournamentFromCloud(tournamentId);
-      if (remote) {
-        if (Array.isArray(remote.matches) && remote.matches.length > 0) setMatches(sanitizeMatchList(remote.matches));
-        if (remote.referees && remote.referees.length > 0) setReferees(remote.referees);
-        if (remote.categoryFormats) setCategoryFormats(remote.categoryFormats);
-        if (remote.categoryNoAdSettings) setCategoryNoAdSettings(remote.categoryNoAdSettings);
-        if (remote.deskPin) setDeskPin(remote.deskPin);
-        if (remote.tournamentInfo) setTournamentInfoState({ ...{ tbType: 'standard' }, ...remote.tournamentInfo }); 
-        
-        setCloudSyncStatus('connected');
-        setLastCloudSync(new Date().toLocaleTimeString('tr-TR'));
-        return true;
       }
-      setCloudSyncStatus('connected');
-      return true;
-    } catch (err) {
-      setCloudSyncStatus('offline');
-      return false;
+      setSelectedSet(activeSet);
     }
-  };
+  }, [val1.isComplete, val2.isComplete, val1.winner, isLive]);
 
-  const clearLocalCacheAndResetFromCloud = async (): Promise<boolean> => {
-    setCloudSyncStatus('syncing');
-    try {
-      localStorage.removeItem(getStorageKey(BASE_STORAGE_KEYS.MATCHES, tournamentId));
-      localStorage.removeItem(getStorageKey(BASE_STORAGE_KEYS.REFEREES, tournamentId));
-      localStorage.removeItem(getStorageKey(BASE_STORAGE_KEYS.CATEGORY_FORMATS, tournamentId));
-      localStorage.removeItem(getStorageKey(BASE_STORAGE_KEYS.CATEGORY_NOAD, tournamentId));
-      localStorage.removeItem(getStorageKey(BASE_STORAGE_KEYS.DESK_PIN, tournamentId));
-      localStorage.removeItem(getStorageKey(BASE_STORAGE_KEYS.TOURNAMENT_INFO, tournamentId));
+  useEffect(() => {
+    setSetupsBySet(prev => {
+      const next = { ...prev };
+      let changed = false;
+      if (!val1.isComplete) { if (next[2]) { delete next[2]; changed = true; } if (next[3]) { delete next[3]; changed = true; } } 
+      else if (!val2.isComplete) { if (next[3]) { delete next[3]; changed = true; } }
+      return changed ? next : prev;
+    });
+  }, [val1.isComplete, val2.isComplete]);
+
+  useEffect(() => {
+    if (selectedSet === 3 && prevSetRef.current !== 3) {
+      let msg = "3. Set NORMAL SET olarak planlanmıştır.";
+      if (format.includes('10 Puanlık')) msg = "3. Set 10 PUANLIK MAÇ TİE-BREAK olarak planlanmıştır.";
+      else if (format.includes('7 Puanlık')) msg = "3. Set 7 PUANLIK MAÇ TİE-BREAK olarak planlanmıştır.";
+      else if (format.includes('3 Kısa Set')) msg = "3. Set KISA SET olarak planlanmıştır.";
+
+      setThirdSetWarning({ show: true, text: msg });
+      vibrateDevice([100, 50, 100]); 
+      const timer = setTimeout(() => { setThirdSetWarning(prev => ({ ...prev, show: false })); }, 6000);
+      prevSetRef.current = selectedSet;
+      return () => clearTimeout(timer);
+    }
+    prevSetRef.current = selectedSet;
+  }, [selectedSet, format]);
+
+  useEffect(() => {
+    if (selectedSet > 1 && !setupsBySet[selectedSet] && setupsBySet[selectedSet - 1]) {
+      const prevSet = selectedSet - 1;
+      const prevSetup = setupsBySet[prevSet];
       
-      setMatches([]); setReferees([]);
+      const prevS1 = prevSet === 1 ? s1_p1 : prevSet === 2 ? s2_p1 : s3_p1;
+      const prevS2 = prevSet === 1 ? s1_p2 : prevSet === 2 ? s2_p2 : s3_p2;
+      const totalGamesPrevSet = prevS1 + prevS2;
+      
+      if (totalGamesPrevSet > 0) {
+        const nextServerTeam = totalGamesPrevSet % 2 === 0 ? prevSetup.firstServingTeam : (prevSetup.firstServingTeam === 1 ? 2 : 1);
+        let nextLeftTeam = prevSetup.leftTeam;
+        
+        const isNormalTB = (prevS1 === 7 && prevS2 === 6) || (prevS1 === 6 && prevS2 === 7);
+        const isShortTB = (prevS1 === 5 && prevS2 === 4) || (prevS1 === 4 && prevS2 === 5);
+        const wasTiebreak = isNormalTB || isShortTB;
+        
+        if (wasTiebreak) {
+          let finalTbPoints = 0;
+          if (match.pointHistory && match.pointHistory.length > 0) {
+            let maxTb1 = 0; let maxTb2 = 0;
+            for (let i = match.pointHistory.length - 1; i >= 0; i--) {
+               const snap = match.pointHistory[i].snapshot;
+               if (snap.currentSet === prevSet && snap.isTiebreak) {
+                  maxTb1 = Math.max(maxTb1, snap.tiebreak_p1);
+                  maxTb2 = Math.max(maxTb2, snap.tiebreak_p2);
+               }
+            }
+            if (maxTb1 > 0 || maxTb2 > 0) finalTbPoints = maxTb1 + maxTb2; 
+          }
+          if (finalTbPoints === 0) finalTbPoints = 12; 
+          
+          const pointsBeforeLastPoint = finalTbPoints - 1; 
+          
+          const gamesBeforeTB = totalGamesPrevSet - 1;
+          const tbStartSide = (gamesBeforeTB % 4 === 1 || gamesBeforeTB % 4 === 2) ? (prevSetup.leftTeam === 1 ? 2 : 1) : prevSetup.leftTeam;
+          
+          let sideDuringLastPoint = tbStartSide;
+          if (prevSetup.tbType === 'coman') {
+             const block = Math.floor((pointsBeforeLastPoint + 3) / 4);
+             sideDuringLastPoint = block % 2 === 1 ? (tbStartSide === 1 ? 2 : 1) : tbStartSide;
+          } else {
+             const block = Math.floor(pointsBeforeLastPoint / 6);
+             sideDuringLastPoint = block % 2 === 1 ? (tbStartSide === 1 ? 2 : 1) : tbStartSide;
+          }
 
-      const remote = await fetchTournamentFromCloud(tournamentId);
-      if (remote) {
-        if (Array.isArray(remote.matches) && remote.matches.length > 0) setMatches(sanitizeMatchList(remote.matches));
-        if (remote.referees && remote.referees.length > 0) setReferees(remote.referees);
-        if (remote.categoryFormats) setCategoryFormats(remote.categoryFormats);
-        if (remote.categoryNoAdSettings) setCategoryNoAdSettings(remote.categoryNoAdSettings);
-        if (remote.deskPin) setDeskPin(remote.deskPin);
-        if (remote.tournamentInfo) setTournamentInfoState({ ...{ tbType: 'standard' }, ...remote.tournamentInfo });
+          nextLeftTeam = sideDuringLastPoint === 1 ? 2 : 1;
+
+        } else {
+          const sideDuringLastGame = ((totalGamesPrevSet - 1) % 4 === 1 || (totalGamesPrevSet - 1) % 4 === 2) ? (prevSetup.leftTeam === 1 ? 2 : 1) : prevSetup.leftTeam;
+          const changeEnds = totalGamesPrevSet % 2 !== 0; 
+          nextLeftTeam = changeEnds ? (sideDuringLastGame === 1 ? 2 : 1) : sideDuringLastGame;
+        }
+
+        let nextT1ServerIdx = prevSetup.t1ServerIdx;
+        let nextT2ServerIdx = prevSetup.t2ServerIdx;
+
+        if (isDoubles) {
+          const teamServicesT1 = Math.floor(totalGamesPrevSet / 2) + (prevSetup.firstServingTeam === 1 && totalGamesPrevSet % 2 !== 0 ? 1 : 0);
+          const teamServicesT2 = Math.floor(totalGamesPrevSet / 2) + (prevSetup.firstServingTeam === 2 && totalGamesPrevSet % 2 !== 0 ? 1 : 0);
+          nextT1ServerIdx = (prevSetup.t1ServerIdx + teamServicesT1) % 2 as 0 | 1;
+          nextT2ServerIdx = (prevSetup.t2ServerIdx + teamServicesT2) % 2 as 0 | 1;
+        }
+
+        setSetupsBySet(prev => ({
+          ...prev,
+          [selectedSet]: {
+            ...prevSetup,
+            setupSetNum: selectedSet,
+            firstServingTeam: nextServerTeam,
+            leftTeam: nextLeftTeam,
+            t1ServerIdx: nextT1ServerIdx,
+            t2ServerIdx: nextT2ServerIdx
+          }
+        }));
+      }
+    }
+  }, [selectedSet, isDoubles, setupsBySet, s1_p1, s1_p2, s2_p1, s2_p2, s3_p1, s3_p2, match.pointHistory]);
+
+  useEffect(() => {
+    // Kurulum penceresi açılırken global ayarı otomatik seçer
+    if (showSetupOverlay && !isEditingSetup && setupForm.firstServingTeam === null) {
+      if (state?.currentServer === 1 || state?.currentServer === 2) {
+        setSetupForm(prev => ({ 
+            ...prev, 
+            firstServingTeam: state.currentServer as 1 | 2,
+            tbType: globalTbType 
+        }));
+      }
+    }
+  }, [showSetupOverlay, isEditingSetup, state?.currentServer, globalTbType]);
+
+  const currentSetGames = selectedSet === 1 ? s1_p1 + s1_p2 : selectedSet === 2 ? s2_p1 + s2_p2 : s3_p1 + s3_p2;
+  const isTB = state?.isTiebreak || false;
+  const tbPoints = isTB ? Number(state?.tiebreak_p1 || 0) + Number(state?.tiebreak_p2 || 0) : 0;
+  
+  let computedServerTeam: 1 | 2 = 1;
+  let computedLeftTeam: 1 | 2 = 1;
+  let activeServerName = '';
+  let activeReceiverName = '';
+  let currentT1ServerIdx: 0 | 1 = 0;
+  let currentT2ServerIdx: 0 | 1 = 0;
+
+  let isSideChangePoint = false;
+  const isGameStart = state?.gamePoint_p1 === '0' && state?.gamePoint_p2 === '0';
+  
+  if (isTB) {
+      isSideChangePoint = state?.needsChangeover || (tbPoints > 0 && tbPoints % 6 === 0);
+      if (isSetupValid && chairSetup.tbType === 'coman') {
+          isSideChangePoint = tbPoints > 0 && ((tbPoints - 1) % 4 === 0);
+      }
+  } else {
+      if (isGameStart) {
+          isSideChangePoint = state?.needsChangeover || false;
+          if (state?.needsChangeover === undefined) {
+              if (currentSetGames > 0 && currentSetGames % 2 === 1) {
+                  isSideChangePoint = true;
+              } else if (currentSetGames === 0 && selectedSet > 1) {
+                  const prevSetGames = selectedSet === 2 ? (s1_p1 + s1_p2) : (s2_p1 + s2_p2);
+                  if (prevSetGames % 2 === 1) isSideChangePoint = true;
+              }
+          }
+      }
+  }
+
+  if (isSetupValid) {
+    const isComan = chairSetup.tbType === 'coman';
+    const otherTeam = chairSetup.firstServingTeam === 1 ? 2 : 1;
+
+    const parsePoint = (str: string) => {
+      if (str === '15') return 1; if (str === '30') return 2; if (str === '40') return 3; if (str === 'A') return 4; return 0;
+    };
+    const p1Pts = parsePoint(String(state?.gamePoint_p1 || '0'));
+    const p2Pts = parsePoint(String(state?.gamePoint_p2 || '0'));
+    
+    let isDeuceCourt = true;
+    if (isTB) isDeuceCourt = tbPoints % 2 === 0;
+    else isDeuceCourt = (p1Pts + p2Pts) % 2 === 0;
+
+    if (!isTB) {
+      computedServerTeam = currentSetGames % 2 === 0 ? chairSetup.firstServingTeam : otherTeam;
+      computedLeftTeam = (currentSetGames % 4 === 1 || currentSetGames % 4 === 2) ? (chairSetup.leftTeam === 1 ? 2 : 1) : chairSetup.leftTeam;
+      
+      if (isDoubles) {
+        const teamServiceRounds = Math.floor(currentSetGames / 2);
+        currentT1ServerIdx = (chairSetup.t1ServerIdx + teamServiceRounds) % 2 as 0 | 1;
+        currentT2ServerIdx = (chairSetup.t2ServerIdx + teamServiceRounds) % 2 as 0 | 1;
+        if (computedServerTeam === 1) activeServerName = t1Players[currentT1ServerIdx] || t1Players[0];
+        else activeServerName = t2Players[currentT2ServerIdx] || t2Players[0];
       } else {
-        setMatches(sanitizeMatchList(INITIAL_MATCHES)); setReferees(INITIAL_REFEREES);
-        setCategoryFormats(INITIAL_CATEGORY_FORMAT_MEMORY); setCategoryNoAdSettings({});
-        setTournamentInfoState({ ad: '', yer: '', tarih: '', not: '', tbType: 'standard' });
+        activeServerName = match[`Oyuncu ${computedServerTeam}` as keyof MatchItem];
+      }
+    } else {
+      const tbGameServerTeam = currentSetGames % 2 === 0 ? chairSetup.firstServingTeam : otherTeam;
+      const tbOtherTeam = tbGameServerTeam === 1 ? 2 : 1;
+      
+      if (tbPoints === 0) computedServerTeam = tbGameServerTeam;
+      else {
+        const block = Math.floor((tbPoints - 1) / 2);
+        computedServerTeam = block % 2 === 0 ? tbOtherTeam : tbGameServerTeam;
       }
 
-      setCloudSyncStatus('connected');
-      setLastCloudSync(new Date().toLocaleTimeString('tr-TR'));
-      return true;
-    } catch (err) {
-      setCloudSyncStatus('offline');
-      return false;
-    }
-  };
+      const tbStartSide = (currentSetGames % 4 === 1 || currentSetGames % 4 === 2) ? (chairSetup.leftTeam === 1 ? 2 : 1) : chairSetup.leftTeam;
+      if (tbPoints === 0) computedLeftTeam = tbStartSide;
+      else if (isComan) {
+        const block = Math.floor((tbPoints + 3) / 4);
+        computedLeftTeam = block % 2 === 1 ? (tbStartSide === 1 ? 2 : 1) : tbStartSide;
+      } else {
+        const block = Math.floor(tbPoints / 6);
+        computedLeftTeam = block % 2 === 1 ? (tbStartSide === 1 ? 2 : 1) : tbStartSide;
+      }
 
-  const wipeAllMatchesForTournament = async (): Promise<boolean> => {
-    if (!tournamentId) return false;
-    setCloudSyncStatus('syncing');
-    try {
-      await deleteAllMatchesFromCloud(tournamentId);
-      setMatches([]);
-      localStorage.removeItem(getStorageKey(BASE_STORAGE_KEYS.MATCHES, tournamentId));
-      if (broadcastChannelRef.current) broadcastChannelRef.current.postMessage({ type: 'MATCHES_UPDATED', matches: [] });
-      setCloudSyncStatus('connected');
-      return true;
-    } catch (err) {
-      setCloudSyncStatus('offline');
-      return false;
-    }
-  };
-
-  const forcePushAllToCloud = async () => {
-    setCloudSyncStatus('syncing');
-    try {
-      await replaceAllMatchesInCloud(matches, currentReferee?.name || 'Turnuva Masası', tournamentId);
-      await pushRefereesToCloud(referees, tournamentId);
-      await pushCategoryFormatsToCloud(categoryFormats, tournamentId);
-      await pushCategoryNoAdSettingsToCloud(categoryNoAdSettings, tournamentId);
-      await pushTournamentInfoToCloud(tournamentInfoState, tournamentId);
-      await pushDeskPinToCloud(deskPin, tournamentId);
-      setCloudSyncStatus('connected');
-      setLastCloudSync(new Date().toLocaleTimeString('tr-TR'));
-    } catch (err) {
-      setCloudSyncStatus('offline');
-      throw err;
-    }
-  };
-
-  const resetAllScores = () => {
-    const cleanMatches = matches.map((m) => {
-      const format = m.Skor_Formati || '3 Normal Set';
-      const cleanState = createInitialMatchState(1, format, !!m.isNoAd);
-      return {
-        ...m, Durum: 'Baslamadi' as MatchStatus, Skor: '-', Kura_Kazanan: 'Secilmedi', Kura_Tercih: 'Servis',
-        Saha_Tarafi: 'Sandalyenin Sağı', Baslangic_Saati: 'Secilmedi', Bitis_Saati: 'Secilmedi', Kazanan: 'Secilmedi',
-        detailedState: cleanState, pointHistory: [], disputeHistory: [], pausedAccumulatedMs: 0,
-        startTimeTimestamp: undefined, totalDurationSeconds: 0, Son_Guncelleme: new Date().toISOString(), Son_Hakem: currentReferee?.name || 'Turnuva Masası',
-      };
-    });
-    setMatches(cleanMatches);
-    localStorage.setItem(getStorageKey(BASE_STORAGE_KEYS.MATCHES, tournamentId), JSON.stringify(cleanMatches));
-    if (broadcastChannelRef.current) broadcastChannelRef.current.postMessage({ type: 'MATCHES_UPDATED', matches: cleanMatches });
-    replaceAllMatchesInCloud(cleanMatches, currentReferee?.name || 'Turnuva Masası', tournamentId);
-  };
-
-  const syncWithCloudNow = () => pullFromCloudNow();
-
-  const loginReferee = (name: string, pin: string): boolean => {
-    const found = referees.find((r) => r.name.toLowerCase() === name.toLowerCase() && r.pin === pin);
-    if (found) { setCurrentReferee(found); setAuthRole('referee'); return true; }
-    return false;
-  };
-
-  const loginRefereeDirect = (name?: string) => {};
-
-  const loginSupervisorByPin = (pin: string, name?: string): boolean => {
-    const cleanPin = pin.trim();
-    if (!cleanPin) return false;
-    if (name) {
-      const found = referees.find((r) => r.name.toLowerCase() === name.toLowerCase() && r.pin === cleanPin);
-      if (found) { setCurrentReferee(found); setAuthRole('supervisor'); return true; }
-    }
-    const matchingRef = referees.find((r) => r.pin === cleanPin);
-    if (matchingRef) { setCurrentReferee(matchingRef); setAuthRole('supervisor'); return true; }
-    return false;
-  };
-
-  const loginDesk = (pin: string): boolean => {
-    const cleanPin = pin.trim();
-    if (!cleanPin) return false;
-    return cleanPin === deskPin || cleanPin === '2026' || cleanPin === '1923';
-  };
-
-  const logoutReferee = () => setCurrentReferee(null);
-  const logoutAuth = () => { setCurrentReferee(null); setAuthRole('none'); };
-
-  const updateMatch = (updated: MatchItem) => {
-    setMatches((prev) => {
-      const next = prev.map((m) => (m.id === updated.id ? updated : m));
-      broadcastAndSyncSingleMatch(updated, next);
-      return next;
-    });
-  };
-
-  const saveMatchSetup = (matchId: string, data: any) => {
-    if (!matchId) return;
-    setMatches((prev) => {
-      let updatedItem: MatchItem | null = null;
-      const next = prev.map((m) => {
-        if (!m.id || m.id !== matchId) return m;
-
-        let detState = m.detailedState;
-        const chosenFormat = data.skorFormati || m.Skor_Formati || '3 Normal Set';
-        const chosenNoAd = data.isNoAd !== undefined ? data.isNoAd : !!m.isNoAd;
-
-        if (!detState || (m.Durum === 'Baslamadi' && data.durum === 'Oynaniyor')) {
-          let server: 1 | 2 = 1;
-          if (data.kuraKazanan && data.kuraTercih) {
-            if (data.kuraTercih === 'Servis') server = data.kuraKazanan === m['Oyuncu 1'] ? 1 : 2;
-            else if (data.kuraTercih === 'Karşılama') server = data.kuraKazanan === m['Oyuncu 1'] ? 2 : 1;
-          }
-          if (data.ilkServisOyuncusu) server = data.ilkServisOyuncusu;
-          detState = createInitialMatchState(server, chosenFormat, chosenNoAd);
-        } else {
-          detState.isNoAd = chosenNoAd;
-        }
-
-        let setupStartTs = m.startTimeTimestamp;
-        if (data.baslangicSaati && data.baslangicSaati !== 'Secilmedi') {
-          const parts = data.baslangicSaati.split(':');
-          if (parts.length >= 2) {
-            const d = new Date(); d.setHours(parseInt(parts[0], 10), parseInt(parts[1], 10), 0, 0);
-            const candidate = d.getTime();
-            setupStartTs = candidate <= Date.now() ? candidate : candidate - 86400000;
-          }
-        }
-        if (!setupStartTs) setupStartTs = Date.now();
-
-        let setupEndTs: number | undefined = undefined;
-        if (data.bitisSaati && data.bitisSaati !== 'Secilmedi') {
-          const parts = data.bitisSaati.split(':');
-          if (parts.length >= 2) {
-            const d = new Date(); d.setHours(parseInt(parts[0], 10), parseInt(parts[1], 10), 0, 0);
-            setupEndTs = d.getTime();
-            if (setupEndTs < setupStartTs) setupEndTs += 86400000;
-          }
-        }
-
-        const res: MatchItem = {
-          ...m,
-          Kort: data.yeniKort || m.Kort,
-          Durum: data.durum, Kura_Kazanan: data.kuraKazanan, Kura_Tercih: data.kuraTercih,
-          Saha_Tarafi: data.sahaTarafi, Baslangic_Saati: data.baslangicSaati, startTimeTimestamp: setupStartTs,
-          Bitis_Saati: data.bitisSaati, lastPausedTimestamp: setupEndTs,
-          totalDurationSeconds: (data.durum === 'Bitti' || data.durum === 'Retired' || data.durum === 'Walkover') && setupEndTs ? Math.floor(Math.max(0, setupEndTs - setupStartTs) / 1000) : undefined,
-          Skor_Formati: chosenFormat, isNoAd: chosenNoAd, Son_Hakem: currentReferee ? currentReferee.name : 'Turnuva Masası',
-          detailedState: detState,
-        };
-        updatedItem = res;
-        return res;
-      });
-
-      if (updatedItem) broadcastAndSyncSingleMatch(updatedItem, next);
-      else broadcastAndSyncMatches(next);
-      return next;
-    });
-  };
-
-  const checkSyncTiebreak = (dState: TennisMatchState, formatStr: string) => {
-    if (!dState) return;
-    
-    const thirdSetMT = isMatchTiebreakThirdSet(formatStr);
-    
-    if (dState.currentSet !== 3) {
-      dState.isMatchTiebreak = false;
-      dState.tiebreakTarget = 7;
+      if (isDoubles) {
+        const teamServicesBeforeTB = Math.floor(currentSetGames / 2);
+        const tbTeamBlocksT1 = Math.floor((tbPoints + (tbGameServerTeam === 1 ? 3 : 1)) / 4);
+        const tbTeamBlocksT2 = Math.floor((tbPoints + (tbGameServerTeam === 2 ? 3 : 1)) / 4);
+        
+        currentT1ServerIdx = (chairSetup.t1ServerIdx + teamServicesBeforeTB + tbTeamBlocksT1) % 2 as 0 | 1;
+        currentT2ServerIdx = (chairSetup.t2ServerIdx + teamServicesBeforeTB + tbTeamBlocksT2) % 2 as 0 | 1;
+        
+        if (computedServerTeam === 1) activeServerName = t1Players[currentT1ServerIdx] || t1Players[0];
+        else activeServerName = t2Players[currentT2ServerIdx] || t2Players[0];
+      } else {
+        activeServerName = match[`Oyuncu ${computedServerTeam}` as keyof MatchItem];
+      }
     }
 
-    const isSet1Tiebreak = (dState.set1_p1 === 6 && dState.set1_p2 === 6);
-    const isSet2Tiebreak = (dState.set2_p1 === 6 && dState.set2_p2 === 6);
+    if (isDoubles) {
+      const receivingTeam = computedServerTeam === 1 ? 2 : 1;
+      const recPlayers = receivingTeam === 1 ? t1Players : t2Players;
+      const deuceRecIdx = receivingTeam === 1 ? chairSetup.t1DeuceReceiverIdx : chairSetup.t2DeuceReceiverIdx;
+      const adRecIdx = deuceRecIdx === 0 ? 1 : 0;
+      const activeRecIdx = isDeuceCourt ? deuceRecIdx : adRecIdx;
+      activeReceiverName = recPlayers[activeRecIdx] || recPlayers[0];
+    }
+  }
 
-    if (dState.currentSet === 1 && isSet1Tiebreak) {
-        dState.isTiebreak = true;
-    } else if (dState.currentSet === 2 && isSet2Tiebreak) {
-        dState.isTiebreak = true;
-    } else if (dState.currentSet === 3) {
-        if (thirdSetMT.isMT) {
-            dState.isTiebreak = true;
-            dState.isMatchTiebreak = true;
-            dState.tiebreakTarget = thirdSetMT.target;
-        } else if (dState.set3_p1 === 6 && dState.set3_p2 === 6) {
-            dState.isTiebreak = true;
-        } else {
-            dState.isTiebreak = false;
-        }
+  const leftTeamId = computedLeftTeam;
+  const rightTeamId = computedLeftTeam === 1 ? 2 : 1;
+
+  const handleCancelSetup = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isSetupValid) {
+      setIsEditingSetup(false);
     } else {
-        dState.isTiebreak = false;
+      if (selectedSet > 1 && setupsBySet[selectedSet - 1]) {
+        setSelectedSet((selectedSet - 1) as 1 | 2 | 3);
+      } else {
+        setIsChairMode(false);
+      }
     }
   };
 
-  const updateGameScore = (matchId: string, setIndex: 1 | 2 | 3, player: 1 | 2, delta: number) => {
-    if (!matchId) return;
-    setMatches((prev) => {
-      let updatedItem: MatchItem | null = null;
-      const next = prev.map((m) => {
-        if (m.id !== matchId) return m;
-        const format = m.Skor_Formati || '3 Normal Set';
-        const dState = JSON.parse(JSON.stringify(m.detailedState || createInitialMatchState(1, format, !!m.isNoAd)));
-        dState.isNoAd = !!m.isNoAd; 
+  const handleSaveSetup = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!setupForm.firstServingTeam || !setupForm.leftTeam) return;
 
-        if (setIndex === 1) {
-          if (player === 1) dState.set1_p1 = Math.max(0, dState.set1_p1 + delta); else dState.set1_p2 = Math.max(0, dState.set1_p2 + delta);
-        } else if (setIndex === 2) {
-          if (player === 1) dState.set2_p1 = Math.max(0, dState.set2_p1 + delta); else dState.set2_p2 = Math.max(0, dState.set2_p2 + delta);
-        } else if (setIndex === 3) {
-          if (player === 1) dState.set3_p1 = Math.max(0, dState.set3_p1 + delta); else dState.set3_p2 = Math.max(0, dState.set3_p2 + delta);
-        }
+    let initialServer: 1 | 2 = setupForm.firstServingTeam;
+    let initialLeft: 1 | 2 = setupForm.leftTeam;
 
-        const v1 = validateSingleSet(dState.set1_p1, dState.set1_p2, 1, format);
-        if (v1.isComplete) {
-          dState.set1_winner = v1.winner;
-          const v2 = validateSingleSet(dState.set2_p1, dState.set2_p2, 2, format);
-          if (v2.isComplete) {
-            dState.set2_winner = v2.winner;
-            if (v1.winner !== v2.winner) {
-                dState.currentSet = 3;
-                dState.currentSetNum = 3;
-                const v3 = validateSingleSet(dState.set3_p1, dState.set3_p2, 3, format);
-                dState.set3_winner = v3.isComplete ? v3.winner : undefined;
-            } else {
-                dState.currentSet = 2; dState.currentSetNum = 2;
-                dState.set3_p1 = 0; dState.set3_p2 = 0; dState.set3_winner = undefined;
-            }
-          } else {
-            dState.set2_winner = undefined; dState.set3_p1 = 0; dState.set3_p2 = 0; dState.set3_winner = undefined;
-            dState.currentSet = 2; dState.currentSetNum = 2;
-          }
+    if (!isTB) {
+      initialServer = currentSetGames % 2 === 0 ? setupForm.firstServingTeam : (setupForm.firstServingTeam === 1 ? 2 : 1);
+      initialLeft = (currentSetGames % 4 === 1 || currentSetGames % 4 === 2) ? (setupForm.leftTeam === 1 ? 2 : 1) : setupForm.leftTeam;
+    } else {
+      let tbGameServer = setupForm.firstServingTeam;
+      if (tbPoints > 0) {
+        const block = Math.floor((tbPoints - 1) / 2);
+        tbGameServer = block % 2 === 0 ? setupForm.firstServingTeam : (setupForm.firstServingTeam === 1 ? 2 : 1);
+      }
+      initialServer = currentSetGames % 2 === 0 ? tbGameServer : (tbGameServer === 1 ? 2 : 1);
+
+      let tbStartSide = setupForm.leftTeam;
+      if (tbPoints > 0) {
+        if (setupForm.tbType === 'coman') {
+          const block = Math.floor((tbPoints + 3) / 4);
+          tbStartSide = block % 2 === 1 ? (setupForm.leftTeam === 1 ? 2 : 1) : setupForm.leftTeam;
         } else {
-          dState.set1_winner = undefined; dState.set2_p1 = 0; dState.set2_p2 = 0; dState.set2_winner = undefined;
-          dState.set3_p1 = 0; dState.set3_p2 = 0; dState.set3_winner = undefined;
-          dState.currentSet = 1; dState.currentSetNum = 1;
+          const block = Math.floor(tbPoints / 6);
+          tbStartSide = block % 2 === 1 ? (setupForm.leftTeam === 1 ? 2 : 1) : setupForm.leftTeam;
         }
+      }
+      initialLeft = (currentSetGames % 4 === 1 || currentSetGames % 4 === 2) ? (tbStartSide === 1 ? 2 : 1) : tbStartSide;
+    }
 
-        checkSyncTiebreak(dState, format);
+    let t1InitSrvIdx = setupForm.t1ServerIdx;
+    let t2InitSrvIdx = setupForm.t2ServerIdx;
 
-        const matchSafetyCheck = checkMatchWinner(dState, format);
-        dState.matchEnded = matchSafetyCheck.matchEnded;
-        dState.matchWinner = matchSafetyCheck.matchWinner;
+    if (isDoubles) {
+      let teamServicesBeforeNowT1 = Math.floor(currentSetGames / 2);
+      let teamServicesBeforeNowT2 = Math.floor(currentSetGames / 2);
+      if (isTB) {
+        teamServicesBeforeNowT1 += Math.floor((tbPoints + (initialServer === 1 ? 3 : 1)) / 4);
+        teamServicesBeforeNowT2 += Math.floor((tbPoints + (initialServer === 2 ? 3 : 1)) / 4);
+      }
+      t1InitSrvIdx = ((setupForm.t1ServerIdx - teamServicesBeforeNowT1) % 2 + 2) % 2 as 0 | 1;
+      t2InitSrvIdx = ((setupForm.t2ServerIdx - teamServicesBeforeNowT2) % 2 + 2) % 2 as 0 | 1;
+    }
 
-        dState.gamePoint_p1 = '0'; dState.gamePoint_p2 = '0';
-        dState.tiebreak_p1 = 0; dState.tiebreak_p2 = 0;
-
-        let newDurum = m.Durum;
-        let newKazanan = m.Kazanan;
-        
-        if (dState.matchEnded) {
-            newDurum = 'Bitti';
-            if (dState.matchWinner === 1) newKazanan = m['Oyuncu 1'];
-            else if (dState.matchWinner === 2) newKazanan = m['Oyuncu 2'];
-        } else {
-            if (m.Durum === 'Bitti' || m.Durum === 'Walkover' || m.Durum === 'Retired') {
-                newDurum = 'Oynaniyor'; 
-                newKazanan = 'Secilmedi';
-            }
-        }
-
-        const res: MatchItem = {
-          ...m, Durum: newDurum, Kazanan: newKazanan, detailedState: dState,
-          Skor: buildScoreString(dState.set1_p1, dState.set1_p2, dState.set2_p1, dState.set2_p2, dState.set3_p1, dState.set3_p2),
-        };
-        updatedItem = res;
-        return res;
-      });
-
-      if (updatedItem) broadcastAndSyncSingleMatch(updatedItem, next);
-      else broadcastAndSyncMatches(next);
-      return next;
-    });
-  };
-
-  const setDirectSetScores = (matchId: string, s1_p1: number, s1_p2: number, s2_p1: number, s2_p2: number, s3_p1: number, s3_p2: number) => {
-    if (!matchId) return;
-    setMatches((prev) => {
-      let updatedItem: MatchItem | null = null;
-      const next = prev.map((m) => {
-        if (m.id !== matchId) return m;
-        const format = m.Skor_Formati || '3 Normal Set';
-        const dState = JSON.parse(JSON.stringify(m.detailedState || createInitialMatchState(1, format, !!m.isNoAd)));
-        dState.isNoAd = !!m.isNoAd;
-
-        dState.set1_p1 = s1_p1; dState.set1_p2 = s1_p2;
-        const v1 = validateSingleSet(dState.set1_p1, dState.set1_p2, 1, format);
-
-        if (v1.isComplete) {
-          dState.set1_winner = v1.winner;
-          dState.set2_p1 = s2_p1; dState.set2_p2 = s2_p2;
-          const v2 = validateSingleSet(dState.set2_p1, dState.set2_p2, 2, format);
-          
-          if (v2.isComplete) {
-            dState.set2_winner = v2.winner;
-            if (v1.winner !== v2.winner) {
-                dState.currentSet = 3;
-                dState.currentSetNum = 3;
-                dState.set3_p1 = s3_p1; dState.set3_p2 = s3_p2;
-                const v3 = validateSingleSet(dState.set3_p1, dState.set3_p2, 3, format);
-                dState.set3_winner = v3.isComplete ? v3.winner : undefined;
-            } else {
-                dState.currentSet = 2; dState.currentSetNum = 2; dState.set3_p1 = 0; dState.set3_p2 = 0; dState.set3_winner = undefined;
-            }
-          } else {
-            dState.set2_winner = undefined; dState.set3_p1 = 0; dState.set3_p2 = 0; dState.set3_winner = undefined;
-            dState.currentSet = 2; dState.currentSetNum = 2;
-          }
-        } else {
-          dState.set1_winner = undefined; dState.set2_p1 = 0; dState.set2_p2 = 0; dState.set2_winner = undefined;
-          dState.set3_p1 = 0; dState.set3_p2 = 0; dState.set3_winner = undefined;
-          dState.currentSet = 1; dState.currentSetNum = 1;
-        }
-
-        checkSyncTiebreak(dState, format);
-
-        const matchSafetyCheck = checkMatchWinner(dState, format);
-        dState.matchEnded = matchSafetyCheck.matchEnded;
-        dState.matchWinner = matchSafetyCheck.matchWinner;
-
-        dState.gamePoint_p1 = '0'; dState.gamePoint_p2 = '0';
-        dState.tiebreak_p1 = 0; dState.tiebreak_p2 = 0;
-
-        let newDurum = m.Durum;
-        let newKazanan = m.Kazanan;
-        
-        if (dState.matchEnded) {
-            newDurum = 'Bitti';
-            if (dState.matchWinner === 1) newKazanan = m['Oyuncu 1'];
-            else if (dState.matchWinner === 2) newKazanan = m['Oyuncu 2'];
-        } else {
-            if (m.Durum === 'Bitti' || m.Durum === 'Walkover' || m.Durum === 'Retired') {
-                newDurum = 'Oynaniyor'; 
-                newKazanan = 'Secilmedi';
-            }
-        }
-
-        const res: MatchItem = {
-          ...m, Durum: newDurum, Kazanan: newKazanan, detailedState: dState,
-          Skor: buildScoreString(dState.set1_p1, dState.set1_p2, dState.set2_p1, dState.set2_p2, dState.set3_p1, dState.set3_p2),
-        };
-        updatedItem = res;
-        return res;
-      });
-
-      if (updatedItem) broadcastAndSyncSingleMatch(updatedItem, next);
-      else broadcastAndSyncMatches(next);
-      return next;
-    });
-  };
-
-  const saveDirectScoreAndStatus = (matchId: string, data: any) => {
-    if (!matchId) return;
-    setMatches((prev) => {
-      let updatedItem: MatchItem | null = null;
-      const next = prev.map((m) => {
-        if (m.id !== matchId) return m;
-        const format = m.Skor_Formati || '3 Normal Set';
-        const dState = JSON.parse(JSON.stringify(m.detailedState || createInitialMatchState(1, format, !!m.isNoAd)));
-        dState.isNoAd = !!m.isNoAd;
-
-        dState.set1_p1 = data.s1_p1; dState.set1_p2 = data.s1_p2;
-        const v1 = validateSingleSet(dState.set1_p1, dState.set1_p2, 1, format);
-
-        if (v1.isComplete) {
-          dState.set1_winner = v1.winner;
-          dState.set2_p1 = data.s2_p1; dState.set2_p2 = data.s2_p2;
-          const v2 = validateSingleSet(dState.set2_p1, dState.set2_p2, 2, format);
-          
-          if (v2.isComplete) {
-            dState.set2_winner = v2.winner;
-            if (v1.winner !== v2.winner) {
-                dState.currentSet = 3;
-                dState.currentSetNum = 3;
-                dState.set3_p1 = data.s3_p1; dState.set3_p2 = data.s3_p2;
-                const v3 = validateSingleSet(dState.set3_p1, dState.set3_p2, 3, format);
-                dState.set3_winner = v3.isComplete ? v3.winner : undefined;
-            } else {
-                dState.currentSet = 2; dState.currentSetNum = 2; dState.set3_p1 = 0; dState.set3_p2 = 0; dState.set3_winner = undefined;
-            }
-          } else {
-            dState.set2_winner = undefined; dState.set3_p1 = 0; dState.set3_p2 = 0; dState.set3_winner = undefined;
-            dState.currentSet = 2; dState.currentSetNum = 2;
-          }
-        } else {
-          dState.set1_winner = undefined; dState.set2_p1 = 0; dState.set2_p2 = 0; dState.set2_winner = undefined;
-          dState.set3_p1 = 0; dState.set3_p2 = 0; dState.set3_winner = undefined;
-          dState.currentSet = 1; dState.currentSetNum = 1;
-        }
-        
-        checkSyncTiebreak(dState, format);
-
-        const matchSafetyCheck = checkMatchWinner(dState, format);
-        dState.matchEnded = matchSafetyCheck.matchEnded;
-        dState.matchWinner = matchSafetyCheck.matchWinner;
-
-        dState.gamePoint_p1 = '0'; dState.gamePoint_p2 = '0';
-        dState.tiebreak_p1 = 0; dState.tiebreak_p2 = 0;
-
-        const res: MatchItem = {
-          ...m, Durum: data.status, Kazanan: data.winner || m.Kazanan,
-          Baslangic_Saati: data.startTime || m.Baslangic_Saati, Bitis_Saati: data.endTime || m.Bitis_Saati,
-          detailedState: dState,
-          Skor: buildScoreString(dState.set1_p1, dState.set1_p2, dState.set2_p1, dState.set2_p2, dState.set3_p1, dState.set3_p2),
-        };
-        updatedItem = res;
-        return res;
-      });
-
-      if (updatedItem) broadcastAndSyncSingleMatch(updatedItem, next);
-      else broadcastAndSyncMatches(next);
-      return next;
-    });
-  };
-
-  const awardPointToMatch = (matchId: string, playerWon: 1 | 2, pointType: PointType = 'NORMAL') => {
-    if (!matchId) return;
-    setMatches((prev) => {
-      let updatedItem: MatchItem | null = null;
-      const next = prev.map((m) => {
-        if (!m.id || m.id !== matchId) return m;
-
-        const currState = m.detailedState || createInitialMatchState(1, m.Skor_Formati || '3 Normal Set', !!m.isNoAd);
-        currState.isNoAd = !!m.isNoAd; 
-        const format = m.Skor_Formati || '3 Normal Set';
-        const matchSafetyCheck = checkMatchWinner(currState, format);
-
-        if (matchSafetyCheck.matchEnded || m.Durum === 'Bitti' || m.Durum === 'Retired' || m.Durum === 'Walkover') {
-          return m; 
-        }
-
-        const p1Name = m['Oyuncu 1'];
-        const p2Name = m['Oyuncu 2'];
-
-        const historyItem: PointHistoryItem = {
-          id: 'pt-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4),
-          timestamp: new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-          playerWon, playerName: playerWon === 1 ? p1Name : p2Name, pointType,
-          description: `${playerWon === 1 ? p1Name : p2Name} (+1 Puan, ${pointType})`,
-          snapshot: JSON.parse(JSON.stringify(currState)),
-          scoreDisplay: formatScoreString(currState) + ` [${currState.gamePoint_p1}-${currState.gamePoint_p2}]`,
-        };
-
-        const { nextState, matchEnded, matchWinner } = awardPoint(currState, playerWon, pointType, format, p1Name, p2Name);
-
-        const newScoreStr = formatScoreString(nextState);
-        const updatedHistory = [...(m.pointHistory || []), historyItem];
-
-        let newDurum = m.Durum;
-        let newKazanan = m.Kazanan;
-        let bitis = m.Bitis_Saati;
-        let startTs = m.startTimeTimestamp;
-        let startFormatted = m.Baslangic_Saati;
-        let totalDuration = m.totalDurationSeconds;
-
-        if (matchEnded) {
-          newDurum = 'Bitti';
-          newKazanan = matchWinner === 1 ? p1Name : p2Name;
-          bitis = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
-          totalDuration = calculateMatchDurationSeconds({ ...m, Bitis_Saati: bitis });
-        } else if (newDurum === 'Baslamadi') {
-          newDurum = 'Oynaniyor';
-          if (!startTs) startTs = Date.now();
-          if (!startFormatted) startFormatted = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
-        }
-
-        if (newDurum === 'Oynaniyor' || newDurum === 'Duraklatildi') {
-          totalDuration = undefined;
-        }
-
-        const res: MatchItem = {
-          ...m, Skor: newScoreStr, Durum: newDurum, Kazanan: newKazanan,
-          Baslangic_Saati: startFormatted, startTimeTimestamp: startTs,
-          Bitis_Saati: bitis, totalDurationSeconds: totalDuration,
-          Son_Hakem: currentReferee ? currentReferee.name : m.Son_Hakem,
-          detailedState: nextState, pointHistory: updatedHistory,
-        };
-        updatedItem = res;
-        return res;
-      });
-
-      if (updatedItem) broadcastAndSyncSingleMatch(updatedItem, next);
-      else broadcastAndSyncMatches(next);
-      return next;
-    });
-  };
-
-  const undoLastPoint = (matchId: string) => {
-    if (!matchId) return;
-    setMatches((prev) => {
-      let updatedItem: MatchItem | null = null;
-      const next = prev.map((m) => {
-        if (!m.id || m.id !== matchId) return m;
-        if (!m.pointHistory || m.pointHistory.length === 0) return m;
-
-        const history = [...m.pointHistory];
-        const lastItem = history.pop();
-        if (!lastItem) return m;
-
-        const restoredState = lastItem.snapshot;
-        restoredState.lastActionMessage = `Geri alındı: ${lastItem.description}`;
-
-        const res: MatchItem = {
-          ...m, Skor: formatScoreString(restoredState),
-          Durum: m.Durum === 'Bitti' ? 'Oynaniyor' : m.Durum,
-          Kazanan: m.Durum === 'Bitti' ? 'Secilmedi' : m.Kazanan,
-          detailedState: restoredState, pointHistory: history,
-        };
-        updatedItem = res;
-        return res;
-      });
-
-      if (updatedItem) broadcastAndSyncSingleMatch(updatedItem, next);
-      else broadcastAndSyncMatches(next);
-      return next;
-    });
-  };
-
-  const recordChallenge = (matchId: string, player: 1 | 2, outcome: 'UPHELD' | 'OVERTURNED', reason: 'LINE_CALL' | 'OVERRULE' | 'SERVICE_FAULT' | 'TOUCH_NET' | 'LET_POINT', notes?: string, actionType?: 'REPLAY_POINT' | 'AWARD_POINT' | 'KEEP_DECISION') => {
-    if (!matchId) return;
-    setMatches((prev) => {
-      const next = prev.map((m) => {
-        if (m.id !== matchId) return m;
-        const stateCopy = JSON.parse(JSON.stringify(m.detailedState || {}));
-        if (outcome === 'UPHELD') {
-          if (player === 1) stateCopy.p1ChallengesLeft = Math.max(0, (stateCopy.p1ChallengesLeft ?? 3) - 1);
-          else stateCopy.p2ChallengesLeft = Math.max(0, (stateCopy.p2ChallengesLeft ?? 3) - 1);
-        }
-        const record: ChallengeRecord = {
-          id: 'ch-' + Date.now(), timestamp: new Date().toLocaleTimeString('tr-TR'),
-          player, outcome, reason, notes: notes || '',
-        };
-        return {
-          ...m, detailedState: stateCopy, disputeHistory: [...(m.disputeHistory || []), record],
-          Son_Hakem: currentReferee ? currentReferee.name : m.Son_Hakem,
-        };
-      });
-      broadcastAndSyncMatches(next);
-      return next;
-    });
-  };
-
-  const setMatchStatus = (matchId: string, status: MatchItem['Durum'], winner?: string, endTime?: string) => {
-    if (!matchId) return;
-    setMatches((prev) => {
-      let updatedItem: MatchItem | null = null;
-      const next = prev.map((m) => {
-        if (m.id !== matchId) return m;
-        const isEnding = ['Bitti', 'Retired', 'Walkover'].includes(status);
-        const format = m.Skor_Formati || '3 Normal Set';
-        const dState = JSON.parse(JSON.stringify(m.detailedState || createInitialMatchState(1, format, !!m.isNoAd)));
-        
-        if (isEnding) {
-           dState.matchEnded = true;
-           if (winner === m['Oyuncu 1']) dState.matchWinner = 1;
-           else if (winner === m['Oyuncu 2']) dState.matchWinner = 2;
-        } else {
-            const matchSafetyCheck = checkMatchWinner(dState, format);
-            dState.matchEnded = matchSafetyCheck.matchEnded;
-            dState.matchWinner = matchSafetyCheck.matchWinner;
-        }
-
-        const res: MatchItem = {
-          ...m, Durum: status, Kazanan: winner || m.Kazanan,
-          Bitis_Saati: endTime || (isEnding ? new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }) : m.Bitis_Saati),
-          totalDurationSeconds: isEnding ? calculateMatchDurationSeconds({ ...m, Durum: status, Bitis_Saati: endTime || new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }) }) : m.totalDurationSeconds,
-          Son_Hakem: currentReferee ? currentReferee.name : m.Son_Hakem, detailedState: dState,
-        };
-        updatedItem = res;
-        return res;
-      });
-      if (updatedItem) broadcastAndSyncSingleMatch(updatedItem, next);
-      return next;
-    });
-  };
-
-  const resumeMatchToLive = (matchId: string) => {
-    if (!matchId) return;
-    setMatches((prev) => {
-      const next = prev.map((m) => {
-          if (m.id === matchId) {
-             const format = m.Skor_Formati || '3 Normal Set';
-             const dState = JSON.parse(JSON.stringify(m.detailedState || createInitialMatchState(1, format, !!m.isNoAd)));
-             dState.matchEnded = false; dState.matchWinner = undefined;
-             return { ...m, Durum: 'Oynaniyor' as MatchStatus, Kazanan: 'Secilmedi', Bitis_Saati: 'Secilmedi', detailedState: dState };
-          }
-          return m;
-      });
-      broadcastAndSyncMatches(next);
-      return next;
-    });
-  };
-
-  const resetMatchScore = (matchId: string) => {
-    if (!matchId) return;
-    setMatches((prev) => {
-      const next = prev.map((m) => (m.id === matchId ? { ...m, Skor: '-', Durum: 'Baslamadi' as MatchStatus, Kazanan: 'Secilmedi', detailedState: createInitialMatchState(1, m.Skor_Formati || '3 Normal Set', !!m.isNoAd), pointHistory: [], disputeHistory: [] } : m));
-      broadcastAndSyncMatches(next);
-      return next;
-    });
-  };
-
-  const manualUpdateScoreString = (matchId: string, skorStr: string, durum: MatchItem['Durum'], kazanan: string, bitisSaati: string) => {
-    if (!matchId) return;
-    setMatches((prev) => {
-      const next = prev.map((m) => (m.id === matchId ? { ...m, Skor: skorStr, Durum: durum, Kazanan: kazanan, Bitis_Saati: bitisSaati } : m));
-      broadcastAndSyncMatches(next);
-      return next;
-    });
-  };
-
-  const addReferee = (name: string, pin: string) => {
-    if (!name.trim() || !pin.trim()) return;
-    setReferees((prev) => [...prev, { name: name.trim(), pin: pin.trim() }]);
-  };
-
-  const deleteReferee = (name: string) => {
-    setReferees((prev) => prev.filter((r) => r.name !== name));
-  };
-
-  const updateCategoryFormat = (category: string, format: string) => {
-    setCategoryFormats((prev) => ({ ...prev, [category]: format }));
-  };
-
-  const bulkApplyCategoryFormats = (formatMap: Record<string, string>) => {
-    setCategoryFormats((prev) => ({ ...prev, ...formatMap }));
-  };
-
-  const bulkApplyCategoryNoAdSettings = (noAdMap: Record<string, boolean>) => {
-    setCategoryNoAdSettings((prev) => ({ ...prev, ...noAdMap }));
-  };
-
-  const saveTournamentInfo = (info: { ad: string; yer: string; tarih: string; not: string; tbType?: 'standard' | 'coman' }) => {
-    setTournamentInfoState(info);
-    if (tournamentId) { pushTournamentInfoToCloud(info, tournamentId); }
-  };
-
-  const importMatchesList = (newMatches: MatchItem[]) => {
-    if (!tournamentId) return;
-    const localizedMatches = newMatches.map(m => ({
-      ...m, tournamentId: tournamentId, Son_Guncelleme: new Date().toISOString()
+    setSetupsBySet(prev => ({
+      ...prev,
+      [selectedSet]: {
+        setupSetNum: selectedSet,
+        firstServingTeam: initialServer,
+        leftTeam: initialLeft,
+        tbType: setupForm.tbType,
+        t1ServerIdx: t1InitSrvIdx,
+        t2ServerIdx: t2InitSrvIdx,
+        t1DeuceReceiverIdx: setupForm.t1RecIdx,
+        t2DeuceReceiverIdx: setupForm.t2RecIdx
+      }
     }));
-    const sanitized = sanitizeMatchList(localizedMatches);
-    setMatches(sanitized);
 
-    setCloudSyncStatus('syncing');
-    replaceAllMatchesInCloud(sanitized, currentReferee?.name || 'Turnuva Masası', tournamentId)
-      .then(() => setCloudSyncStatus('connected'))
-      .catch(e => console.error("JSON cloud import error:", e));
+    setIsEditingSetup(false);
   };
 
-  const purgeOrphanMatches = async (): Promise<number> => {
-    if (!tournamentId) return 0;
-    setCloudSyncStatus('syncing');
-    try {
-      const activeIds = matches.map((m) => m.id).filter(Boolean) as string[];
-      const deletedCount = await purgeOrphanMatchesFromCloud(activeIds, tournamentId);
-      await pullFromCloudNow();
-      return deletedCount;
-    } catch (e) {
-      console.error("Purge error:", e);
-      setCloudSyncStatus('connected');
-      return 0;
+  useEffect(() => {
+    let interval: any;
+    if (activeTimer && activeTimer.seconds > 0) {
+      interval = setInterval(() => setActiveTimer((prev) => prev ? { ...prev, seconds: prev.seconds - 1 } : null), 1000);
+    }
+    return () => clearInterval(interval);
+  }, [activeTimer]);
+
+  const handleQuickScore = (e: React.MouseEvent, player: 1 | 2, delta: number) => {
+    e.stopPropagation();
+    const now = Date.now();
+    if (now - lastScoreClickRef.current < 400) return; 
+    lastScoreClickRef.current = now;
+    vibrateDevice(40); 
+    updateGameScore(match.id, selectedSet, player, delta);
+  };
+
+  const handlePointScore = (e: React.MouseEvent, teamId: 1 | 2) => {
+    e.stopPropagation();
+    const now = Date.now();
+    if (now - lastScoreClickRef.current < 400) return; 
+    lastScoreClickRef.current = now;
+    vibrateDevice(50); 
+    setFirstFault(false); 
+    awardPointToMatch(match.id, teamId, 'NORMAL'); 
+  };
+
+  const handleFault = (e: React.MouseEvent, serverTeamId: 1 | 2) => {
+    e.stopPropagation();
+    vibrateDevice(50); 
+    if (!firstFault) setFirstFault(true);
+    else {
+      const receiverTeamId = serverTeamId === 1 ? 2 : 1;
+      setFirstFault(false);
+      awardPointToMatch(match.id, receiverTeamId, 'NORMAL');
     }
   };
 
-  const finishAndReportMatch = (matchId: string, winner: string, status: MatchStatus = 'Bitti', customScore?: string, startTime?: string, endTime?: string) => {
-    if (!matchId) return;
-    setMatches((prev) => {
-      let updatedItem: MatchItem | null = null;
-      const next = prev.map((m) => {
-        if (m.id !== matchId) return m;
-
-        const endStr = endTime || new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
-        const startStr = startTime || m.Baslangic_Saati;
-
-        const format = m.Skor_Formati || '3 Normal Set';
-        const dState = JSON.parse(JSON.stringify(m.detailedState || createInitialMatchState(1, format, !!m.isNoAd)));
-        dState.matchEnded = true;
-        if (winner === m['Oyuncu 1']) dState.matchWinner = 1;
-        else if (winner === m['Oyuncu 2']) dState.matchWinner = 2;
-
-        const res: MatchItem = {
-          ...m, Durum: status, Kazanan: winner, Skor: customScore || m.Skor,
-          Baslangic_Saati: startStr, Bitis_Saati: endStr,
-          totalDurationSeconds: calculateMatchDurationSeconds({ ...m, Durum: status, Bitis_Saati: endStr }),
-          Son_Hakem: currentReferee ? currentReferee.name : m.Son_Hakem, detailedState: dState,
-        };
-        updatedItem = res;
-        return res;
-      });
-
-      if (updatedItem) broadcastAndSyncSingleMatch(updatedItem, next);
-      return next;
-    });
+  const handleUndo = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    vibrateDevice(60); 
+    setFirstFault(false); 
+    undoLastPoint(match.id);
   };
 
-  const resetTournamentToDefault = () => {};
+  const startTimer = (e: React.MouseEvent, label: string, seconds: number) => {
+    e.stopPropagation();
+    setActiveTimer({ label, seconds });
+  };
+
+  const toggleSuspend = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isLive) setMatchStatus(match.id, 'Duraklatildi');
+    else if (isPaused) setMatchStatus(match.id, 'Oynaniyor');
+  };
+
+  const handleCardClick = () => { if (isUpcoming && onOpenSetup) onOpenSetup(match); };
+
+  const handleStartMatchDirect = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onOpenSetup) onOpenSetup(match);
+    else setMatchStatus(match.id, 'Oynaniyor', undefined, undefined);
+  };
+
+  const currentSetP1Games = selectedSet === 1 ? s1_p1 : selectedSet === 2 ? s2_p1 : s3_p1;
+  const currentSetP2Games = selectedSet === 1 ? s1_p2 : selectedSet === 2 ? s2_p2 : s3_p2;
+
+  let isP1PlusDisabled = isPaused || isFinished || isCurrentSetComplete;
+  let isP2PlusDisabled = isPaused || isFinished || isCurrentSetComplete;
+
+  if (selectedSet === 3) {
+      if (format.includes('10 Puanlık') || format.includes('7 Puanlık')) {
+          const target = format.includes('10 Puanlık') ? 10 : 7;
+          if ((s3_p1 >= target && s3_p1 - s3_p2 >= 2) || (s3_p2 >= target && s3_p2 - s3_p1 >= 2)) {
+             isP1PlusDisabled = true;
+             isP2PlusDisabled = true;
+          } else {
+             isP1PlusDisabled = false;
+             isP2PlusDisabled = false;
+          }
+      } else {
+          isP1PlusDisabled = isPaused || isFinished || val3.isComplete;
+          isP2PlusDisabled = isPaused || isFinished || val3.isComplete;
+      }
+  }
 
   return (
-    <TennisDataContext.Provider
-      value={{
-        matches, referees, currentReferee, categoryFormats, categoryNoAdSettings, 
-        activeMatchId, activeMatch: matches.find((m) => m.id === activeMatchId) || null,
-        authRole, deskPin, cloudSyncStatus, lastCloudSync, syncWithCloudNow,
-        pullFromCloudNow, forcePushAllToCloud, clearLocalCacheAndResetFromCloud,
-        wipeAllMatchesForTournament, tournamentId, setTournamentId, purgeOrphanMatches,
-        resetAllScores, loginReferee, loginRefereeDirect, loginSupervisorByPin, loginDesk,
-        logoutReferee, logoutAuth, setAuthRole, updateDeskPin, setActiveMatchId, updateMatch,
-        updateGameScore, setDirectSetScores, saveDirectScoreAndStatus, finishAndReportMatch,
-        saveMatchSetup, awardPointToMatch, undoLastPoint, recordChallenge, setMatchStatus,
-        resumeMatchToLive, resetMatchScore, manualUpdateScoreString, addReferee, deleteReferee,
-        updateCategoryFormat, bulkApplyCategoryFormats, bulkApplyCategoryNoAdSettings, 
-        tournamentInfo: tournamentInfoState, saveTournamentInfo, importMatchesList, resetTournamentToDefault,
-      }}
-    >
-      {children}
-    </TennisDataContext.Provider>
-  );
-};
+    <>
+      {thirdSetWarning.show && (
+        <div className="fixed inset-0 z-[100000] bg-slate-950/95 flex flex-col items-center justify-center p-6 animate-in fade-in zoom-in duration-300" style={{ touchAction: 'none' }}>
+          <div className="bg-slate-900 border-4 border-amber-500 rounded-3xl p-6 sm:p-8 w-full max-w-lg text-center shadow-[0_0_80px_rgba(245,158,11,0.2)]">
+            <span className="text-6xl sm:text-7xl mb-3 sm:mb-4 block animate-bounce">⚠️</span>
+            <div className="text-amber-500 font-extrabold text-sm sm:text-base tracking-widest mb-1">{match.Kort}</div>
+            <h2 className="text-2xl sm:text-4xl font-black text-amber-400 uppercase tracking-widest mb-4">3. SETE GEÇİLİYOR</h2>
+            <p className="text-base sm:text-xl text-white font-bold mb-2">Lütfen planlanan maça formatına dikkat ediniz:</p>
+            <div className="bg-amber-500/20 border border-amber-500/50 rounded-2xl p-4 sm:p-5 my-4 sm:my-6 shadow-inner">
+              <span className="text-lg sm:text-2xl font-black text-amber-300">{thirdSetWarning.text}</span>
+            </div>
+            <p className="text-xs sm:text-sm text-slate-400 mb-6 sm:mb-8 font-medium px-2 sm:px-4">Yanlışlık olduğunu düşünüyorsanız, Ayarlar (⚙️) menüsünden formatı düzeltebilirsiniz.</p>
+            <button 
+              onClick={(e) => { e.stopPropagation(); setThirdSetWarning({show: false, text: ''}); }}
+              className="w-full py-4 sm:py-5 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black text-base sm:text-xl rounded-2xl shadow-xl transition active:scale-95"
+            >
+              Anladım, Maça Dön
+            </button>
+          </div>
+        </div>
+      )}
 
-export const useTennisData = () => {
-  const context = useContext(TennisDataContext);
-  if (!context) throw new Error('useTennisData must be used within a TennisDataProvider');
-  return context;
+      {/* 1. KORT HAKEMİ KART GÖRÜNÜMÜ */}
+      <div
+        onClick={handleCardClick}
+        className={`rounded-3xl transition-all duration-200 overflow-hidden flex flex-col justify-between shadow-lg relative ${
+          isLive || isPaused ? 'bg-slate-900/95 border-2 border-emerald-400 shadow-[0_0_25px_rgba(52,211,153,0.18)]'
+          : isUpcoming ? 'bg-gradient-to-b from-slate-900 to-amber-950/20 border-2 border-amber-500/50 cursor-pointer'
+          : 'bg-rose-950/20 border border-rose-800/50'
+        }`}
+      >
+        <div className={`h-1.5 w-full ${isLive ? 'bg-gradient-to-r from-emerald-400 to-emerald-500 animate-pulse' : isPaused ? 'bg-gradient-to-r from-amber-400 to-amber-600' : isUpcoming ? 'bg-gradient-to-r from-amber-400 to-yellow-500' : 'bg-gradient-to-r from-rose-500 to-rose-700'}`} />
+
+        <div className="px-4 sm:px-5 pt-4 pb-2 flex items-center justify-between border-b border-slate-800/80">
+          <div className="flex items-center gap-2.5">
+            <span className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-xs ${isLive || isPaused ? 'bg-emerald-400 text-slate-950 shadow-emerald-400/30' : isUpcoming ? 'bg-amber-400/20 text-amber-300 border-amber-400/30' : 'bg-rose-500/20 text-rose-300'}`}>
+              {match.Kort.replace('KORT', 'K').trim()}
+            </span>
+            <div className="min-w-0">
+              <h3 className="font-extrabold text-white text-base sm:text-lg flex items-center gap-1.5 truncate">
+                <span>{match.Kort}</span>
+                {isLive && <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-400 animate-pulse shrink-0">CANLI</span>}
+              </h3>
+              <p className="text-xs text-slate-400 font-medium truncate max-w-[180px]">{match.Kategori}</p>
+            </div>
+          </div>
+          <span className={`px-2.5 py-1 rounded-xl text-xs font-black tracking-wide uppercase shrink-0 ${isLive ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' : isPaused ? 'bg-amber-500/20 text-amber-300' : isUpcoming ? 'bg-amber-500/20 text-amber-300' : 'bg-rose-500/20 text-rose-300'}`}>
+            {match.Durum === 'Retired' ? '✕ RET' : match.Durum === 'Walkover' ? '✕ W/O' : match.Durum === 'Bitti' ? '✕ BİTTİ' : match.Durum === 'Duraklatildi' ? 'ASKIYA' : match.Durum}
+          </span>
+        </div>
+
+        <div className="px-4 sm:px-5 py-2.5 sm:py-3 bg-slate-950/90 border-b border-slate-800/80 flex items-center justify-between font-mono shadow-inner">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="flex items-center gap-1.5 bg-slate-800/50 px-2.5 py-1 rounded-lg border border-slate-700/50">
+              <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400" />
+              {match.Saat && (
+                <span className="text-white font-black text-sm sm:text-lg tracking-widest drop-shadow-md">
+                  {match.Saat}
+                </span>
+              )}
+            </div>
+            
+            {(isLive || isPaused || isFinished) && (
+               <div className="flex flex-col justify-center border-l border-slate-700/80 pl-2 sm:pl-3">
+                 <span className="text-[9px] sm:text-[10px] text-slate-500 font-bold uppercase leading-none mb-0.5">Fiili Başlama</span>
+                 <strong className="text-slate-300 text-xs sm:text-sm leading-none">{match.Baslangic_Saati && match.Baslangic_Saati !== 'Secilmedi' ? match.Baslangic_Saati : '--:--'}</strong>
+               </div>
+            )}
+          </div>
+          <div className="text-slate-400 font-sans text-[11px] sm:text-xs font-bold truncate pl-2 max-w-[120px] sm:max-w-[150px] text-right leading-tight">
+            {match.Skor_Formati}
+          </div>
+        </div>
+
+        <div className="p-4 sm:p-5 space-y-3">
+          <div className="bg-slate-950 rounded-2xl border border-slate-800/90 overflow-hidden">
+            <div className="grid grid-cols-12 bg-slate-900/80 text-[10px] font-extrabold uppercase text-slate-400 py-1.5 px-3 border-b border-slate-800">
+              <div className="col-span-6">Oyuncu / Takım</div><div className="col-span-2 text-center">1. Set</div><div className="col-span-2 text-center">2. Set</div><div className="col-span-2 text-center">3. Set</div>
+            </div>
+            
+            <div className={`grid grid-cols-12 items-center py-2 px-3 border-b border-slate-800/50 ${match.Kazanan === match['Oyuncu 1'] && isFinished ? 'bg-lime-500/10' : ''}`}>
+              <div className="col-span-6 flex items-center gap-2 pr-2 min-w-0">
+                <span className="w-2.5 h-2.5 rounded-full bg-lime-400 shrink-0"></span>
+                <span className="text-xs sm:text-sm font-bold text-white leading-tight flex items-center gap-1.5 min-w-0 flex-1">
+                    {computedServerTeam === 1 && computedLeftTeam === 1 && (isLive || isPaused) && (
+                        <span className="text-amber-400 animate-bounce text-[10px] sm:text-xs shrink-0" title="Servis Atan (Sol Saha)">🎾</span>
+                    )}
+                    <span className="truncate">{match['Oyuncu 1']}</span>
+                    {computedServerTeam === 1 && computedLeftTeam !== 1 && (isLive || isPaused) && (
+                        <span className="text-amber-400 animate-bounce text-[10px] sm:text-xs shrink-0" title="Servis Atan (Sağ Saha)">🎾</span>
+                    )}
+                </span>
+              </div>
+              <div className="col-span-2 text-center font-mono font-black text-lime-300">{isUpcoming ? '-' : s1_p1}</div><div className="col-span-2 text-center font-mono font-black text-lime-300">{isUpcoming ? '-' : s2_p1}</div><div className="col-span-2 text-center font-mono font-black text-lime-300">{isUpcoming ? '-' : s3_p1}</div>
+            </div>
+            
+            <div className={`grid grid-cols-12 items-center py-2 px-3 ${match.Kazanan === match['Oyuncu 2'] && isFinished ? 'bg-cyan-500/10' : ''}`}>
+              <div className="col-span-6 flex items-center gap-2 pr-2 min-w-0">
+                <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 shrink-0"></span>
+                <span className="text-xs sm:text-sm font-bold text-white leading-tight flex items-center gap-1.5 min-w-0 flex-1">
+                    {computedServerTeam === 2 && computedLeftTeam === 2 && (isLive || isPaused) && (
+                        <span className="text-amber-400 animate-bounce text-[10px] sm:text-xs shrink-0" title="Servis Atan (Sol Saha)">🎾</span>
+                    )}
+                    <span className="truncate">{match['Oyuncu 2']}</span>
+                    {computedServerTeam === 2 && computedLeftTeam !== 2 && (isLive || isPaused) && (
+                        <span className="text-amber-400 animate-bounce text-[10px] sm:text-xs shrink-0" title="Servis Atan (Sağ Saha)">🎾</span>
+                    )}
+                </span>
+              </div>
+              <div className="col-span-2 text-center font-mono font-black text-cyan-300">{isUpcoming ? '-' : s1_p2}</div><div className="col-span-2 text-center font-mono font-black text-cyan-300">{isUpcoming ? '-' : s2_p2}</div><div className="col-span-2 text-center font-mono font-black text-cyan-300">{isUpcoming ? '-' : s3_p2}</div>
+            </div>
+          </div>
+
+          {(isLive || isPaused) && (
+            <div className="bg-slate-900 border border-slate-700/80 rounded-2xl p-3 mt-2 shadow-inner">
+              <button type="button" onClick={(e) => { e.stopPropagation(); setIsChairMode(true); }} className="w-full py-3 mb-3 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black rounded-xl shadow-md transition active:scale-95 flex items-center justify-center gap-2">
+                <Swords className="w-4 h-4" /> Kule Hakemi Moduna Geç
+              </button>
+
+              <div className="animate-in fade-in zoom-in-95 duration-200">
+                <div className="flex bg-slate-950 p-1 rounded-xl mb-3 border border-slate-800">
+                  <button type="button" onClick={(e) => { e.stopPropagation(); setSelectedSet(1); }} className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-colors ${selectedSet === 1 ? 'bg-slate-800 text-white shadow' : 'text-slate-400 hover:text-slate-300'}`}>1. SET</button>
+                  <button type="button" onClick={(e) => { e.stopPropagation(); setSelectedSet(2); }} className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-colors ${selectedSet === 2 ? 'bg-slate-800 text-white shadow' : 'text-slate-400 hover:text-slate-300'}`}>2. SET</button>
+                  <button type="button" onClick={(e) => { e.stopPropagation(); setSelectedSet(3); }} className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-colors ${selectedSet === 3 ? 'bg-slate-800 text-white shadow' : 'text-slate-400 hover:text-slate-300'}`}>3. SET</button>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="flex flex-col gap-1.5">
+                    <button type="button" disabled={isP1PlusDisabled} onClick={(e) => handleQuickScore(e, 1, 1)} className="w-full py-3 rounded-xl bg-lime-400 hover:bg-lime-300 text-slate-950 font-black text-sm flex items-center justify-center gap-1 transition disabled:opacity-50 disabled:cursor-not-allowed"><Plus className="w-5 h-5" />+1 OYUN</button>
+                    <button type="button" disabled={isPaused} onClick={(e) => handleQuickScore(e, 1, -1)} className="w-full py-2 rounded-xl bg-rose-500/10 text-rose-400 font-bold text-xs flex items-center justify-center gap-1 transition disabled:opacity-50"><Minus className="w-4 h-4" />-1 Düş</button>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <button type="button" disabled={isP2PlusDisabled} onClick={(e) => handleQuickScore(e, 2, 1)} className="w-full py-3 rounded-xl bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-black text-sm flex items-center justify-center gap-1 transition disabled:opacity-50 disabled:cursor-not-allowed"><Plus className="w-5 h-5" />+1 OYUN</button>
+                    <button type="button" disabled={isPaused} onClick={(e) => handleQuickScore(e, 2, -1)} className="w-full py-2 rounded-xl bg-rose-500/10 text-cyan-400 font-bold text-xs flex items-center justify-center gap-1 transition disabled:opacity-50"><Minus className="w-4 h-4" />-1 Düş</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="p-3 sm:p-4 bg-slate-950/70 border-t border-slate-800 flex items-center gap-2">
+          {isUpcoming ? (
+            <div className="flex items-center gap-2 w-full">
+              {onOpenSetup && <button type="button" onClick={(e) => { e.stopPropagation(); onOpenSetup(match); }} className="py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold text-xs border border-slate-700 transition" title="Kura Çek">🪙 Kura</button>}
+              
+              {onEditScore && (
+                <button type="button" onClick={(e) => { e.stopPropagation(); onEditScore(match); }} className="py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-400 font-bold text-xs border border-slate-700 transition flex items-center gap-1.5" title="Hızlı Skor Gir">
+                  <PenLine className="w-3.5 h-3.5" /> Skor
+                </button>
+              )}
+
+              <button type="button" onClick={handleStartMatchDirect} className="flex-1 py-2.5 bg-gradient-to-r from-amber-400 to-yellow-400 hover:from-amber-300 hover:to-yellow-300 text-slate-950 font-black text-xs sm:text-sm rounded-xl flex items-center justify-center gap-1.5 transition active:scale-95"><PlayCircle className="w-4 h-4" /> Maçı Başlat</button>
+            </div>
+          ) : isLive || isPaused ? (
+            <div className="flex items-center gap-2 w-full">
+              {onOpenSetup && (
+                <button type="button" onClick={(e) => { e.stopPropagation(); onOpenSetup(match); }} className="h-12 w-12 flex items-center justify-center shrink-0 bg-slate-800 hover:bg-slate-700 text-amber-400 border border-amber-500/30 rounded-xl transition active:scale-95" title="Maç Formatı ve Kura Ayarları">
+                  <Settings className="w-5 h-5" />
+                </button>
+              )}
+              
+              {onEditScore && (
+                <button type="button" onClick={(e) => { e.stopPropagation(); onEditScore(match); }} className="h-12 w-12 flex items-center justify-center shrink-0 bg-slate-800 hover:bg-slate-700 text-cyan-400 border border-cyan-500/30 rounded-xl transition active:scale-95" title="Doğrudan Skor Düzenle">
+                  <PenLine className="w-5 h-5" />
+                </button>
+              )}
+
+              <button type="button" onClick={(e) => { e.stopPropagation(); onFinishMatch(match); }} className="flex-1 h-12 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-sm rounded-xl flex justify-center items-center gap-2 transition active:scale-95"><Trophy className="w-4 h-4 text-cyan-400" /> Maçı Sonlandır</button>
+            </div>
+          ) : null}
+        </div>
+      </div>
+
+      {isChairMode && (
+        <div className="fixed inset-0 z-[50000] bg-slate-950 flex flex-col animate-in fade-in zoom-in-95 duration-200 select-none" style={{ touchAction: 'none' }}>
+          
+          {toastMessage && (
+            <div className="absolute top-16 left-1/2 -translate-x-1/2 z-[50000] bg-slate-800 text-white px-5 py-3 rounded-2xl border border-slate-700 shadow-2xl animate-in fade-in slide-in-from-top-4 flex items-center gap-3">
+              <Info className="w-5 h-5 text-amber-400 shrink-0" />
+              <span className="font-bold text-[11px] sm:text-sm">{toastMessage}</span>
+            </div>
+          )}
+
+          <div className="bg-slate-900 border-b border-slate-800 px-3 sm:px-4 py-3 flex items-center justify-between shadow-md shrink-0">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <span className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center font-black text-xs sm:text-sm bg-emerald-400 text-slate-950 shadow-md shadow-emerald-400/30 shrink-0">
+                {match.Kort.replace('KORT', 'K').trim()}
+              </span>
+              <div className="flex flex-col">
+                <span className="text-white font-extrabold text-sm sm:text-base leading-none mb-1">Kule Hakemi</span>
+                <span className="text-[9px] sm:text-[10px] text-emerald-400 font-black tracking-widest uppercase flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>Canlı</span>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-2">
+               {isSetupValid && (
+                  <button type="button" onClick={(e) => { 
+                    e.stopPropagation(); 
+                    if (chairSetup) {
+                      setSetupForm({
+                        firstServingTeam: computedServerTeam,
+                        leftTeam: computedLeftTeam,
+                        tbType: chairSetup.tbType,
+                        t1ServerIdx: isDoubles ? currentT1ServerIdx : 0,
+                        t2ServerIdx: isDoubles ? currentT2ServerIdx : 0,
+                        t1RecIdx: chairSetup.t1DeuceReceiverIdx,
+                        t2RecIdx: chairSetup.t2DeuceReceiverIdx,
+                      });
+                    }
+                    setIsEditingSetup(true); 
+                  }} className="p-2 sm:px-3 sm:py-2 rounded-xl bg-slate-800 text-slate-400 hover:text-white border border-slate-700 transition flex items-center gap-1.5" title="Saha ve Servis Rotasyonunu Düzenle">
+                    <RotateCcw className="w-4 h-4" /> <span className="hidden sm:inline text-xs font-bold">Rotasyon</span>
+                  </button>
+                )}
+                {onOpenSetup && (
+                  <button type="button" onClick={(e) => { 
+                    e.stopPropagation(); 
+                    onOpenSetup(match); 
+                    showToast('Ayarlara geçmek için lütfen Kule Hakemi modundan çıkış yapınız.');
+                  }} className="p-2 sm:px-3 sm:py-2 rounded-xl bg-amber-500/20 text-amber-400 hover:bg-amber-500 hover:text-slate-950 border border-amber-500/30 transition flex items-center gap-1.5" title="Maç Formatı ve Kura Ayarları">
+                    <Settings className="w-4 h-4" /> <span className="hidden sm:inline text-xs font-bold">Kurulum</span>
+                  </button>
+                )}
+                <button type="button" onClick={handleExitChairMode} className="px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl bg-rose-500/20 hover:bg-rose-500 text-rose-300 hover:text-slate-950 font-black text-xs sm:text-sm flex items-center gap-2 transition active:scale-95 shadow-sm border border-rose-500/30">
+                  <LogOut className="w-4 h-4" /> Çıkış Yap
+                </button>
+            </div>
+          </div>
+
+          <div className="flex-1 p-2 sm:p-6 w-full max-w-5xl mx-auto flex flex-col justify-center gap-3 overflow-y-auto">
+              
+              {showSetupOverlay ? (
+                <div className="bg-slate-900 p-4 sm:p-6 rounded-3xl border border-slate-800 text-center space-y-4 sm:space-y-6 shadow-2xl relative animate-in fade-in zoom-in-95 duration-150">
+                  
+                  <button 
+                    type="button" 
+                    onClick={handleCancelSetup} 
+                    className="absolute top-4 right-4 p-2.5 rounded-xl bg-slate-800 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 border border-slate-700/80 transition active:scale-95 flex items-center justify-center"
+                    title="İptal Et / Kapat"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+
+                  <div>
+                    <h4 className="text-amber-400 font-black text-base sm:text-xl mb-1 sm:mb-2 flex items-center justify-center gap-2">⚙️ {selectedSet}. Set Anlık Kurulumu</h4>
+                    <p className="text-[11px] sm:text-sm text-slate-400">Lütfen sahadaki <strong>ŞU ANKİ</strong> durumu seçin. Sistem geri kalanını hesaplar.</p>
+                  </div>
+                  
+                  {isDoubles ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 flex flex-col gap-3">
+                         <h5 className="text-lime-400 font-black text-sm uppercase mb-1">1. Takım (Lime)</h5>
+                         <div className="text-left">
+                           <label className="text-[10px] text-slate-500 font-bold uppercase block mb-1.5">Şu Anki (Sıradaki) Servisçi:</label>
+                           <div className="flex gap-2">
+                             {t1Players.map((player, idx) => (
+                                <button key={`s1-${idx}`} type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, t1ServerIdx: idx as 0|1}); }} className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition border ${setupForm.t1ServerIdx === idx ? 'bg-lime-500 border-lime-400 text-slate-950 shadow-md' : 'bg-slate-900 border-slate-700 text-slate-300'}`}>{player.split(' ')[0]}</button>
+                             ))}
+                           </div>
+                         </div>
+                         <div className="text-left">
+                           <label className="text-[10px] text-slate-500 font-bold uppercase block mb-1.5">Sağda (Berabere) Karşılayan Kişi:</label>
+                           <div className="flex gap-2">
+                             {t1Players.map((player, idx) => (
+                                <button key={`r1-${idx}`} type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, t1RecIdx: idx as 0|1}); }} className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition border ${setupForm.t1RecIdx === idx ? 'bg-emerald-500 border-emerald-400 text-slate-950 shadow-md' : 'bg-slate-900 border-slate-700 text-slate-300'}`}>{player.split(' ')[0]}</button>
+                             ))}
+                           </div>
+                         </div>
+                      </div>
+
+                      <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 flex flex-col gap-3">
+                         <h5 className="text-cyan-400 font-black text-sm uppercase mb-1">2. Takım (Mavi)</h5>
+                         <div className="text-left">
+                           <label className="text-[10px] text-slate-500 font-bold uppercase block mb-1.5">Şu Anki (Sıradaki) Servisçi:</label>
+                           <div className="flex gap-2">
+                             {t2Players.map((player, idx) => (
+                                <button key={`s2-${idx}`} type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, t2ServerIdx: idx as 0|1}); }} className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition border ${setupForm.t2ServerIdx === idx ? 'bg-cyan-500 border-cyan-400 text-slate-950 shadow-md' : 'bg-slate-900 border-slate-700 text-slate-300'}`}>{player.split(' ')[0]}</button>
+                             ))}
+                           </div>
+                         </div>
+                         <div className="text-left">
+                           <label className="text-[10px] text-slate-500 font-bold uppercase block mb-1.5">Sağda (Berabere) Karşılayan Kişi:</label>
+                           <div className="flex gap-2">
+                             {t2Players.map((player, idx) => (
+                                <button key={`r2-${idx}`} type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, t2RecIdx: idx as 0|1}); }} className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition border ${setupForm.t2RecIdx === idx ? 'bg-blue-500 border-blue-400 text-slate-950 shadow-md' : 'bg-slate-900 border-slate-700 text-slate-300'}`}>{player.split(' ')[0]}</button>
+                             ))}
+                           </div>
+                         </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <div className="text-[10px] sm:text-xs font-black uppercase text-slate-500 tracking-wider">Şu An Servisi Kim Atıyor?</div>
+                      <div className="flex gap-2">
+                        <button type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, firstServingTeam: 1}); }} className={`flex-1 py-3 sm:py-4 rounded-xl text-xs sm:text-sm font-black transition active:scale-95 border-2 ${setupForm.firstServingTeam === 1 ? 'bg-lime-500 border-lime-400 text-slate-950 shadow-lg' : 'bg-slate-950 border-slate-800 text-slate-300'}`}>{match['Oyuncu 1']}</button>
+                        <button type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, firstServingTeam: 2}); }} className={`flex-1 py-3 sm:py-4 rounded-xl text-xs sm:text-sm font-black transition active:scale-95 border-2 ${setupForm.firstServingTeam === 2 ? 'bg-cyan-500 border-cyan-400 text-slate-950 shadow-lg' : 'bg-slate-950 border-slate-800 text-slate-300'}`}>{match['Oyuncu 2']}</button>
+                      </div>
+                    </div>
+                  )}
+
+                  {isDoubles && (
+                    <div className="space-y-2 pt-3 border-t border-slate-800/80">
+                      <div className="text-[10px] sm:text-xs font-black uppercase text-slate-500 tracking-wider">Genel: Şu An Hangi Takım Servis Atıyor?</div>
+                      <div className="flex gap-2">
+                        <button type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, firstServingTeam: 1}); }} className={`flex-1 py-3 rounded-xl text-xs font-black transition border-2 ${setupForm.firstServingTeam === 1 ? 'bg-lime-500 border-lime-400 text-slate-950 shadow-md' : 'bg-slate-950 border-slate-800 text-slate-300'}`}>1. Takım (Lime)</button>
+                        <button type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, firstServingTeam: 2}); }} className={`flex-1 py-3 rounded-xl text-xs font-black transition border-2 ${setupForm.firstServingTeam === 2 ? 'bg-cyan-500 border-cyan-400 text-slate-950 shadow-md' : 'bg-slate-950 border-slate-800 text-slate-300'}`}>2. Takım (Mavi)</button>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="space-y-2 pt-3 border-t border-slate-800/80">
+                    <div className="text-[10px] sm:text-xs font-black uppercase text-slate-500 tracking-wider">Şu An Sandalyenin Solunda Kim (Hangi Takım) Var?</div>
+                    <div className="flex gap-2">
+                      <button type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, leftTeam: 1}); }} className={`flex-1 py-3 sm:py-4 rounded-xl text-xs sm:text-sm font-black transition active:scale-95 border-2 ${setupForm.leftTeam === 1 ? 'bg-lime-500 border-lime-400 text-slate-950 shadow-lg' : 'bg-slate-950 border-slate-800 text-slate-300'}`}>{isDoubles ? '1. Takım' : match['Oyuncu 1']}</button>
+                      <button type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, leftTeam: 2}); }} className={`flex-1 py-3 sm:py-4 rounded-xl text-xs sm:text-sm font-black transition active:scale-95 border-2 ${setupForm.leftTeam === 2 ? 'bg-cyan-500 border-cyan-400 text-slate-950 shadow-lg' : 'bg-slate-950 border-slate-800 text-slate-300'}`}>{isDoubles ? '2. Takım' : match['Oyuncu 2']}</button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 pt-3 border-t border-slate-800/80">
+                    <div className="text-[10px] sm:text-xs font-black uppercase text-slate-500 tracking-wider">Tie-Break Kuralı</div>
+                    <div className="flex gap-2">
+                      <button type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, tbType: 'standard'}); }} className={`flex-1 py-3 rounded-xl text-xs font-black transition active:scale-95 border-2 ${setupForm.tbType === 'standard' ? 'bg-amber-500 border-amber-400 text-slate-950 shadow-lg' : 'bg-slate-950 border-slate-800 text-slate-300'}`}>Standart (6'da Bir)</button>
+                      <button type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, tbType: 'coman'}); }} className={`flex-1 py-3 rounded-xl text-xs font-black transition active:scale-95 border-2 ${setupForm.tbType === 'coman' ? 'bg-amber-500 border-amber-400 text-slate-950 shadow-lg' : 'bg-slate-950 border-slate-800 text-slate-300'}`}>Coman (1-5-9)</button>
+                    </div>
+                  </div>
+
+                  <div className="pt-4 flex gap-3">
+                    <button type="button" onClick={handleCancelSetup} className="px-5 py-4 sm:py-5 bg-slate-800 hover:bg-rose-500/20 text-slate-300 hover:text-rose-400 font-black text-sm sm:text-lg rounded-xl transition active:scale-95 shadow-md border border-slate-700">İptal</button>
+                    <button type="button" disabled={!setupForm.firstServingTeam || !setupForm.leftTeam || (isDoubles && (setupForm.t1ServerIdx === undefined || setupForm.t2ServerIdx === undefined))} onClick={handleSaveSetup} className="flex-1 py-4 sm:py-5 bg-gradient-to-r from-emerald-500 to-emerald-400 hover:from-emerald-400 text-slate-950 font-black text-sm sm:text-lg rounded-xl disabled:opacity-50 transition active:scale-95 shadow-xl">Kaydet ve Devam Et</button>
+                  </div>
+                </div>
+              ) : (
+                
+                <div className="flex flex-col h-full gap-2 sm:gap-4">
+                  <div className="flex flex-col sm:flex-row justify-between items-center bg-slate-900 rounded-2xl px-3 sm:px-4 py-2 sm:py-3 border border-slate-800 shadow-md gap-2 shrink-0">
+                    <div className="flex flex-col items-center sm:flex-row gap-2 sm:gap-3 text-[10px] sm:text-sm font-bold w-full sm:w-auto">
+                      
+                      <div className="flex flex-col items-center justify-center bg-slate-950 px-3.5 py-1.5 rounded-xl border border-slate-700/80 shadow-inner">
+                        <span className="text-amber-400 font-extrabold text-xs sm:text-sm tracking-wider uppercase">{selectedSet}. SET</span>
+                        {selectedSet > 1 && (
+                          <div className="flex items-center gap-2.5 mt-1 text-xs sm:text-sm font-mono">
+                            {selectedSet >= 2 && <span className="text-slate-300 font-bold">S1: <strong className="text-lime-300 font-black">{s1_p1}-{s1_p2}</strong></span>}
+                            {selectedSet >= 3 && <span className="text-slate-300 font-bold">S2: <strong className="text-cyan-300 font-black">{s2_p1}-{s2_p2}</strong></span>}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2 w-full justify-center">
+                        <span className="text-lime-400 font-extrabold truncate max-w-[90px] sm:max-w-[150px]">{String(match['Oyuncu 1'] || '')}</span>
+                        <span className="text-white font-mono text-lg sm:text-2xl font-black px-3 py-1 bg-slate-950 rounded-xl border-2 border-slate-700 shadow-inner">
+                          {currentSetP1Games} - {currentSetP2Games}
+                        </span>
+                        <span className="text-cyan-400 font-extrabold truncate max-w-[90px] sm:max-w-[150px]">{String(match['Oyuncu 2'] || '')}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+                       {isTB && <div className="px-2 sm:px-3 py-1 bg-amber-500/20 text-amber-400 text-[9px] sm:text-xs font-black uppercase rounded-lg animate-pulse border border-amber-500/30">{chairSetup.tbType === 'coman' ? 'Coman Tie-Break' : 'Standart Tie-Break'}</div>}
+                       {isSideChangePoint && <div className="flex items-center gap-1.5 text-rose-300 font-black text-[9px] sm:text-sm uppercase animate-pulse bg-rose-500/20 border border-rose-500/40 px-2 sm:px-3 py-1 rounded-lg"><ArrowRightLeft className="w-3 h-3 sm:w-4 sm:h-4"/> Saha Değişimi!</div>}
+                    </div>
+                  </div>
+
+                  {activeTimer && (
+                    <div className="bg-amber-500/10 border border-amber-500/30 p-2 sm:p-4 rounded-2xl flex items-center justify-between shadow-lg shrink-0">
+                      <span className="text-amber-400 font-black text-sm sm:text-base flex items-center gap-2"><Timer className="w-4 h-4 sm:w-5 sm:h-5" />{activeTimer.label}</span>
+                      <div className="flex items-center gap-3 sm:gap-4">
+                        <span className={`font-mono font-black text-2xl sm:text-4xl ${activeTimer.seconds === 0 ? 'text-rose-400 animate-pulse' : 'text-amber-300'}`}>
+                          {Math.floor(activeTimer.seconds / 60)}:{(activeTimer.seconds % 60).toString().padStart(2, '0')}
+                        </span>
+                        <button type="button" onClick={(e) => { e.stopPropagation(); setActiveTimer(null); }} className="text-amber-500 hover:text-amber-300 p-2 bg-amber-500/10 rounded-xl"><X className="w-5 h-5 sm:w-6 sm:h-6" /></button>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-2 sm:gap-6 flex-1 min-h-0">
+                    <div className={`bg-slate-900 rounded-3xl p-2 sm:p-5 border-4 flex flex-col justify-between shadow-2xl overflow-hidden ${computedServerTeam === leftTeamId ? 'border-amber-400 shadow-[0_0_30px_rgba(251,191,36,0.15)]' : 'border-slate-800'}`}>
+                      <div className="flex flex-col items-center justify-center min-h-[4rem] sm:min-h-[5.5rem] border-b border-slate-800/80 pb-2 mb-2">
+                        <div className={`flex items-start justify-center gap-1 w-full ${leftTeamId === 1 ? 'text-lime-400' : 'text-cyan-400'}`}>
+                           {computedServerTeam === leftTeamId && <span className="text-amber-400 animate-bounce mt-0.5 sm:mt-1.5 shrink-0 text-sm sm:text-xl">🎾</span>}
+                           <div className="flex flex-col items-center">
+                             <span className="font-black text-xs sm:text-xl text-center leading-tight line-clamp-3 break-words whitespace-normal px-1">
+                               {isDoubles ? String(match[`Oyuncu ${leftTeamId}` as keyof MatchItem] || '') : (leftTeamId === computedServerTeam ? activeServerName : String(match[`Oyuncu ${leftTeamId}` as keyof MatchItem] || ''))}
+                             </span>
+                             <div className="flex flex-wrap justify-center gap-1 mt-1">
+                               {isDoubles && computedServerTeam === leftTeamId && (
+                                 <span className="text-[9px] sm:text-xs bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded font-black uppercase border border-amber-500/30">Servis: {activeServerName.split(' ')[0]}</span>
+                               )}
+                               {isDoubles && computedServerTeam !== leftTeamId && (
+                                 <span className="text-[9px] sm:text-xs bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded font-black uppercase border border-blue-500/30">Karşılama: {activeReceiverName.split(' ')[0]}</span>
+                               )}
+                             </div>
+                           </div>
+                        </div>
+                        <div className="text-[8px] sm:text-xs text-slate-500 uppercase font-black mt-1">Sol Saha</div>
+                      </div>
+                      
+                      <div className="flex-1 flex justify-center items-center py-2 sm:py-4 min-h-0">
+                         <span className="text-[4.5rem] sm:text-[9rem] font-mono font-black tracking-tighter text-white leading-none">
+                           {isTB ? (leftTeamId === 1 ? state?.tiebreak_p1 : state?.tiebreak_p2) || '0' : (leftTeamId === 1 ? state?.gamePoint_p1 : state?.gamePoint_p2) || '0'}
+                         </span>
+                      </div>
+
+                      <div className="flex flex-col gap-1.5 sm:gap-2 shrink-0">
+                        <button type="button" disabled={isPaused || isFinished || isCurrentSetComplete} onClick={(e) => handlePointScore(e, leftTeamId)} className="w-full py-8 sm:py-12 bg-gradient-to-t from-emerald-600 to-emerald-400 hover:to-emerald-300 text-slate-950 font-black text-xl sm:text-3xl rounded-2xl shadow-lg active:scale-95 transition disabled:opacity-50 disabled:cursor-not-allowed">
+                          +1 PUAN
+                        </button>
+                        <div className="h-10 sm:h-14 w-full">
+                           {computedServerTeam === leftTeamId ? (
+                             <button type="button" disabled={isPaused || isFinished || isCurrentSetComplete} onClick={(e) => handleFault(e, leftTeamId)} className={`w-full h-full rounded-xl text-[10px] sm:text-base font-black transition active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed ${firstFault ? 'bg-rose-500 border-2 border-rose-400 text-white animate-pulse' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>
+                               {firstFault ? '2. Hata (Rakibe Puan)' : '1. Servis Hatası'}
+                             </button>
+                           ) : (
+                             <div className="w-full h-full invisible"></div>
+                           )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className={`bg-slate-900 rounded-3xl p-2 sm:p-5 border-4 flex flex-col justify-between shadow-2xl overflow-hidden ${computedServerTeam === rightTeamId ? 'border-amber-400 shadow-[0_0_30px_rgba(251,191,36,0.15)]' : 'border-slate-800'}`}>
+                      <div className="flex flex-col items-center justify-center min-h-[4rem] sm:min-h-[5.5rem] border-b border-slate-800/80 pb-2 mb-2">
+                        <div className={`flex items-start justify-center gap-1 w-full ${rightTeamId === 1 ? 'text-lime-400' : 'text-cyan-400'}`}>
+                           {computedServerTeam === rightTeamId && <span className="text-amber-400 animate-bounce mt-0.5 sm:mt-1.5 shrink-0 text-sm sm:text-xl">🎾</span>}
+                           <div className="flex flex-col items-center">
+                             <span className="font-black text-xs sm:text-xl text-center leading-tight line-clamp-3 break-words whitespace-normal px-1">
+                               {isDoubles ? String(match[`Oyuncu ${rightTeamId}` as keyof MatchItem] || '') : (rightTeamId === computedServerTeam ? activeServerName : String(match[`Oyuncu ${rightTeamId}` as keyof MatchItem] || ''))}
+                             </span>
+                             <div className="flex flex-wrap justify-center gap-1 mt-1">
+                               {isDoubles && computedServerTeam === rightTeamId && (
+                                 <span className="text-[9px] sm:text-xs bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded font-black uppercase border border-amber-500/30">Servis: {activeServerName.split(' ')[0]}</span>
+                               )}
+                               {isDoubles && computedServerTeam !== rightTeamId && (
+                                 <span className="text-[9px] sm:text-xs bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded font-black uppercase border border-blue-500/30">Karşılama: {activeReceiverName.split(' ')[0]}</span>
+                               )}
+                             </div>
+                           </div>
+                        </div>
+                        <div className="text-[8px] sm:text-xs text-slate-500 uppercase font-black mt-1">Sağ Saha</div>
+                      </div>
+                      
+                      <div className="flex-1 flex justify-center items-center py-2 sm:py-4 min-h-0">
+                         <span className="text-[4.5rem] sm:text-[9rem] font-mono font-black tracking-tighter text-white leading-none">
+                           {isTB ? (rightTeamId === 1 ? state?.tiebreak_p1 : state?.tiebreak_p2) || '0' : (rightTeamId === 1 ? state?.gamePoint_p1 : state?.gamePoint_p2) || '0'}
+                         </span>
+                      </div>
+
+                      <div className="flex flex-col gap-1.5 sm:gap-2 shrink-0">
+                        <button type="button" disabled={isPaused || isFinished || isCurrentSetComplete} onClick={(e) => handlePointScore(e, rightTeamId)} className="w-full py-8 sm:py-12 bg-gradient-to-t from-emerald-600 to-emerald-400 hover:to-emerald-300 text-slate-950 font-black text-xl sm:text-3xl rounded-2xl shadow-lg active:scale-95 transition disabled:opacity-50 disabled:cursor-not-allowed">
+                          +1 PUAN
+                        </button>
+                        <div className="h-10 sm:h-14 w-full">
+                           {computedServerTeam === rightTeamId ? (
+                             <button type="button" disabled={isPaused || isFinished || isCurrentSetComplete} onClick={(e) => handleFault(e, rightTeamId)} className={`w-full h-full rounded-xl text-[10px] sm:text-base font-black transition active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed ${firstFault ? 'bg-rose-500 border-2 border-rose-400 text-white animate-pulse' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>
+                               {firstFault ? '2. Hata (Rakibe Puan)' : '1. Servis Hatası'}
+                             </button>
+                           ) : (
+                             <div className="w-full h-full invisible"></div>
+                           )}
+                        </div>
+                      </div>
+                    </div>
+
+                  </div>
+
+                  <div className="pt-2 border-t border-slate-800 flex flex-col gap-2 sm:gap-3 shrink-0 pb-4">
+                    <div className="flex gap-2 sm:gap-3">
+                      <button type="button" onClick={(e) => startTimer(e, 'Saha Değişimi', 90)} className="flex-1 py-3 sm:py-4 bg-slate-900 border border-slate-700 text-slate-300 hover:text-white text-[10px] sm:text-sm font-black rounded-xl transition shadow-md">90s Değişim</button>
+                      <button type="button" onClick={(e) => startTimer(e, 'Set Arası', 120)} className="flex-1 py-3 sm:py-4 bg-slate-900 border border-slate-700 text-slate-300 hover:text-white text-[10px] sm:text-sm font-black rounded-xl transition shadow-md">120s Set</button>
+                      <button type="button" onClick={(e) => startTimer(e, 'Sağlık Molası', 180)} className="flex-1 py-3 sm:py-4 bg-slate-900 border border-slate-700 text-slate-300 hover:text-white text-[10px] sm:text-sm font-black rounded-xl transition shadow-md">3dk MTO</button>
+                    </div>
+
+                    <div className="flex gap-2 sm:gap-3">
+                      <button type="button" onClick={handleUndo} disabled={isPaused} className="flex-1 flex items-center justify-center gap-1.5 py-3 sm:py-4 bg-rose-500/10 border border-rose-500/20 hover:bg-rose-500/20 text-rose-400 text-[11px] sm:text-base font-black rounded-xl transition active:scale-95 shadow-sm disabled:opacity-50">
+                        <RotateCcw className="w-4 h-4 sm:w-5 sm:h-5" /> Geri Al
+                      </button>
+                      <button type="button" onClick={toggleSuspend} className={`flex-1 flex items-center justify-center gap-1.5 py-3 sm:py-4 text-[11px] sm:text-base font-black rounded-xl transition active:scale-95 shadow-sm ${isPaused ? 'bg-emerald-500/20 border border-emerald-500/30 text-emerald-400' : 'bg-amber-500/10 border border-amber-500/20 text-amber-400'}`}>
+                        {isPaused ? <><PlayCircle className="w-4 h-4 sm:w-5 sm:h-5" /> Devam Et</> : <><PauseCircle className="w-4 h-4 sm:w-5 sm:h-5" /> Askıya Al</>}
+                      </button>
+                    </div>
+                  </div>
+
+                </div>
+              )}
+          </div>
+        </div>
+      )}
+    </>
+  );
 };
