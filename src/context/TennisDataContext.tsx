@@ -72,8 +72,8 @@ interface TennisDataContextType {
   addReferee: (name: string, pin: string) => void; deleteReferee: (name: string) => void;
   updateCategoryFormat: (category: string, format: string) => void; bulkApplyCategoryFormats: (formatMap: Record<string, string>) => void;
   bulkApplyCategoryNoAdSettings: (noAdMap: Record<string, boolean>) => void;
-  tournamentInfo: { ad: string; yer: string; tarih: string; not: string };
-  saveTournamentInfo: (info: { ad: string; yer: string; tarih: string; not: string }) => void;
+  tournamentInfo: { ad: string; yer: string; tarih: string; not: string; tbType?: 'standard' | 'coman' };
+  saveTournamentInfo: (info: { ad: string; yer: string; tarih: string; not: string; tbType?: 'standard' | 'coman' }) => void;
   importMatchesList: (newMatches: MatchItem[]) => void; resetTournamentToDefault: () => void;
 }
 
@@ -164,11 +164,12 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   });
 
   const [tournamentInfoState, setTournamentInfoState] = useState(() => {
-    if (!initialTournamentId) return { ad: '', yer: '', tarih: '', not: '' };
+    const defaultInfo = { ad: '', yer: '', tarih: '', not: '', tbType: 'standard' as const };
+    if (!initialTournamentId) return defaultInfo;
     try {
       const saved = localStorage.getItem(getStorageKey(BASE_STORAGE_KEYS.TOURNAMENT_INFO, initialTournamentId));
-      return saved ? JSON.parse(saved) : { ad: '', yer: '', tarih: '', not: '' };
-    } catch { return { ad: '', yer: '', tarih: '', not: '' }; }
+      return saved ? { ...defaultInfo, ...JSON.parse(saved) } : defaultInfo;
+    } catch { return defaultInfo; }
   });
 
   const [activeMatchId, setActiveMatchId] = useState<string | null>(() => {
@@ -189,9 +190,9 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       const cachedNoAd = localStorage.getItem(getStorageKey(BASE_STORAGE_KEYS.CATEGORY_NOAD, id));
       setCategoryNoAdSettings(cachedNoAd ? JSON.parse(cachedNoAd) : {});
       const cachedInfo = localStorage.getItem(getStorageKey(BASE_STORAGE_KEYS.TOURNAMENT_INFO, id));
-      setTournamentInfoState(cachedInfo ? JSON.parse(cachedInfo) : { ad: '', yer: '', tarih: '', not: '' });
+      setTournamentInfoState(cachedInfo ? { ...{ tbType: 'standard' }, ...JSON.parse(cachedInfo) } : { ad: '', yer: '', tarih: '', not: '', tbType: 'standard' });
     } else {
-      setMatches([]); setReferees([]); setTournamentInfoState({ ad: '', yer: '', tarih: '', not: '' });
+      setMatches([]); setReferees([]); setTournamentInfoState({ ad: '', yer: '', tarih: '', not: '', tbType: 'standard' });
     }
   };
 
@@ -257,7 +258,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         if (remote.categoryFormats) setCategoryFormats(remote.categoryFormats);
         if (remote.categoryNoAdSettings) setCategoryNoAdSettings(remote.categoryNoAdSettings);
         if (remote.deskPin) setDeskPin(remote.deskPin);
-        if (remote.tournamentInfo) setTournamentInfoState(remote.tournamentInfo);
+        if (remote.tournamentInfo) setTournamentInfoState({ ...{ tbType: 'standard' }, ...remote.tournamentInfo });
       }
     }).catch(() => {});
 
@@ -284,7 +285,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         if (meta.categoryFormats && Object.keys(meta.categoryFormats).length > 0) setCategoryFormats(meta.categoryFormats);
         if (meta.categoryNoAdSettings) setCategoryNoAdSettings(meta.categoryNoAdSettings);
         if (meta.deskPin) setDeskPin(meta.deskPin);
-        if (meta.tournamentInfo) setTournamentInfoState(meta.tournamentInfo);
+        if (meta.tournamentInfo) setTournamentInfoState({ ...{ tbType: 'standard' }, ...meta.tournamentInfo });
       },
       () => {}
     );
@@ -336,7 +337,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         if (remote.categoryFormats) setCategoryFormats(remote.categoryFormats);
         if (remote.categoryNoAdSettings) setCategoryNoAdSettings(remote.categoryNoAdSettings);
         if (remote.deskPin) setDeskPin(remote.deskPin);
-        if (remote.tournamentInfo) setTournamentInfoState(remote.tournamentInfo); 
+        if (remote.tournamentInfo) setTournamentInfoState({ ...{ tbType: 'standard' }, ...remote.tournamentInfo }); 
         
         setCloudSyncStatus('connected');
         setLastCloudSync(new Date().toLocaleTimeString('tr-TR'));
@@ -369,11 +370,11 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         if (remote.categoryFormats) setCategoryFormats(remote.categoryFormats);
         if (remote.categoryNoAdSettings) setCategoryNoAdSettings(remote.categoryNoAdSettings);
         if (remote.deskPin) setDeskPin(remote.deskPin);
-        if (remote.tournamentInfo) setTournamentInfoState(remote.tournamentInfo);
+        if (remote.tournamentInfo) setTournamentInfoState({ ...{ tbType: 'standard' }, ...remote.tournamentInfo });
       } else {
         setMatches(sanitizeMatchList(INITIAL_MATCHES)); setReferees(INITIAL_REFEREES);
         setCategoryFormats(INITIAL_CATEGORY_FORMAT_MEMORY); setCategoryNoAdSettings({});
-        setTournamentInfoState({ ad: '', yer: '', tarih: '', not: '' });
+        setTournamentInfoState({ ad: '', yer: '', tarih: '', not: '', tbType: 'standard' });
       }
 
       setCloudSyncStatus('connected');
@@ -538,15 +539,11 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     });
   };
 
-  // KESİN ÇÖZÜM (BUG FIX): Skor Değişikliğinde Hayalet Tie-Break Temizliği
-  // Motor asla kendi kendine 2. Setteyken 3. Setin (Maç Tie-Break) özelliklerini açamayacak.
   const checkSyncTiebreak = (dState: TennisMatchState, formatStr: string) => {
     if (!dState) return;
     
     const thirdSetMT = isMatchTiebreakThirdSet(formatStr);
     
-    // Her işlemde önce hayaletleri kesin olarak sıfırlıyoruz. 
-    // Yalnızca ve sadece GERÇEKTEN 3. sette isek açılabilirler.
     if (dState.currentSet !== 3) {
       dState.isMatchTiebreak = false;
       dState.tiebreakTarget = 7;
@@ -629,7 +626,6 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         let newDurum = m.Durum;
         let newKazanan = m.Kazanan;
         
-        // BUG FIX: Kural dışı skorda maç kendi kendine "Bitti" olamaz!
         if (dState.matchEnded) {
             newDurum = 'Bitti';
             if (dState.matchWinner === 1) newKazanan = m['Oyuncu 1'];
@@ -706,7 +702,6 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         let newDurum = m.Durum;
         let newKazanan = m.Kazanan;
         
-        // BUG FIX: Kural dışı skorda maç kendi kendine "Bitti" olamaz!
         if (dState.matchEnded) {
             newDurum = 'Bitti';
             if (dState.matchWinner === 1) newKazanan = m['Oyuncu 1'];
@@ -1013,7 +1008,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setCategoryNoAdSettings((prev) => ({ ...prev, ...noAdMap }));
   };
 
-  const saveTournamentInfo = (info: { ad: string; yer: string; tarih: string; not: string }) => {
+  const saveTournamentInfo = (info: { ad: string; yer: string; tarih: string; not: string; tbType?: 'standard' | 'coman' }) => {
     setTournamentInfoState(info);
     if (tournamentId) { pushTournamentInfoToCloud(info, tournamentId); }
   };
