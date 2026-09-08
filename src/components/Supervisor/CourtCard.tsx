@@ -184,7 +184,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
     prevSetRef.current = selectedSet;
   }, [selectedSet, format]);
 
-  // DOĞRUDAN SENİN MANTIĞININ KODA DÖKÜLMÜŞ HALİ:
   useEffect(() => {
     if (selectedSet > 1 && !setupsBySet[selectedSet] && setupsBySet[selectedSet - 1]) {
       const prevSet = selectedSet - 1;
@@ -203,8 +202,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
         const wasTiebreak = isNormalTB || isShortTB;
         
         if (wasTiebreak) {
-          // KULLANICININ ZARİF ÇÖZÜMÜ:
-          // "Son sayı oynanmadan hemen önceki anı bul, ve tersine çevir!"
           let finalTbPoints = 0;
           if (match.pointHistory && match.pointHistory.length > 0) {
             let maxTb1 = 0; let maxTb2 = 0;
@@ -217,9 +214,8 @@ export const CourtCard: React.FC<CourtCardProps> = ({
             }
             if (maxTb1 > 0 || maxTb2 > 0) finalTbPoints = maxTb1 + maxTb2; 
           }
-          if (finalTbPoints === 0) finalTbPoints = 12; // Sistem hafızası boşsa varsayılan 7-5 (12) bitti kabul et
+          if (finalTbPoints === 0) finalTbPoints = 12; 
           
-          // Örn 9-7 (16 puan) bittiyse, biz 8-7 (15 puan) anındaki pozisyona bakacağız.
           const pointsBeforeLastPoint = finalTbPoints - 1; 
           
           const gamesBeforeTB = totalGamesPrevSet - 1;
@@ -227,18 +223,19 @@ export const CourtCard: React.FC<CourtCardProps> = ({
           
           let sideDuringLastPoint = tbStartSide;
           if (prevSetup.tbType === 'coman') {
-             const block = Math.floor(pointsBeforeLastPoint / 4);
-             sideDuringLastPoint = block % 2 === 0 ? tbStartSide : (tbStartSide === 1 ? 2 : 1);
+             // KUSURSUZ COMAN MATEMATİĞİ (1, 5, 9, 13 kaydırması)
+             const block = Math.floor((pointsBeforeLastPoint + 3) / 4);
+             sideDuringLastPoint = block % 2 === 1 ? (tbStartSide === 1 ? 2 : 1) : tbStartSide;
           } else {
+             // STANDART TB MATEMATİĞİ
              const block = Math.floor(pointsBeforeLastPoint / 6);
-             sideDuringLastPoint = block % 2 === 0 ? tbStartSide : (tbStartSide === 1 ? 2 : 1);
+             sideDuringLastPoint = block % 2 === 1 ? (tbStartSide === 1 ? 2 : 1) : tbStartSide;
           }
 
-          // Kural: Son oynadıkları sahanın TAM TERSİNE geçerler!
+          // Son puanın oynandığı sahanın TERSİ
           nextLeftTeam = sideDuringLastPoint === 1 ? 2 : 1;
 
         } else {
-          // Normal set bitişi (Örn 6-3)
           const sideDuringLastGame = ((totalGamesPrevSet - 1) % 4 === 1 || (totalGamesPrevSet - 1) % 4 === 2) ? (prevSetup.leftTeam === 1 ? 2 : 1) : prevSetup.leftTeam;
           const changeEnds = totalGamesPrevSet % 2 !== 0; 
           nextLeftTeam = changeEnds ? (sideDuringLastGame === 1 ? 2 : 1) : sideDuringLastGame;
@@ -348,10 +345,10 @@ export const CourtCard: React.FC<CourtCardProps> = ({
       }
 
       const tbStartSide = (currentSetGames % 4 === 1 || currentSetGames % 4 === 2) ? (chairSetup.leftTeam === 1 ? 2 : 1) : chairSetup.leftTeam;
-      if (tbPoints === 0) computedLeftTeam = tbStartSide;
-      else if (isComan) {
-        const block = Math.floor((tbPoints - 1) / 4);
-        computedLeftTeam = block % 2 === 0 ? (tbStartSide === 1 ? 2 : 1) : tbStartSide;
+      if (isComan) {
+        // CANLI COMAN MATEMATİĞİ (Anlık oynanan sayı)
+        const block = Math.floor((tbPoints + 3) / 4);
+        computedLeftTeam = block % 2 === 1 ? (tbStartSide === 1 ? 2 : 1) : tbStartSide;
       } else {
         const block = Math.floor(tbPoints / 6);
         computedLeftTeam = block % 2 === 1 ? (tbStartSide === 1 ? 2 : 1) : tbStartSide;
@@ -419,8 +416,9 @@ export const CourtCard: React.FC<CourtCardProps> = ({
       let tbStartSide = setupForm.leftTeam;
       if (tbPoints > 0) {
         if (setupForm.tbType === 'coman') {
-          const block = Math.floor((tbPoints - 1) / 4);
-          tbStartSide = block % 2 === 0 ? setupForm.leftTeam : (setupForm.leftTeam === 1 ? 2 : 1);
+          // SETUP KAYIT EKRANI COMAN MATEMATİĞİ
+          const block = Math.floor((tbPoints + 3) / 4);
+          tbStartSide = block % 2 === 1 ? (setupForm.leftTeam === 1 ? 2 : 1) : setupForm.leftTeam;
         } else {
           const block = Math.floor(tbPoints / 6);
           tbStartSide = block % 2 === 1 ? (setupForm.leftTeam === 1 ? 2 : 1) : setupForm.leftTeam;
