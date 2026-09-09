@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useTennisData } from '../../context/TennisDataContext';
 import { ShareRefereeLinkModal } from '../Common/ShareRefereeLinkModal';
 import {
@@ -103,6 +103,41 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
   const [now, setNow] = useState(Date.now());
 
   const [deskRefName, setDeskRefName] = useState<string>('');
+
+  // SÜRÜKLE KAYDIR (DRAG-TO-SCROLL) - Sadece Masaüstü
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const isDragging = useRef(false);
+  const dragStartX = useRef(0);
+  const dragStartY = useRef(0);
+  const scrollStartX = useRef(0);
+  const scrollStartY = useRef(0);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (window.innerWidth < 768 || isMonitorMode) return; // Mobilde veya TV modunda devre dışı
+    isDragging.current = true;
+    dragStartX.current = e.pageX;
+    dragStartY.current = e.pageY;
+    if (scrollContainerRef.current) {
+      scrollStartX.current = scrollContainerRef.current.scrollLeft;
+      scrollStartY.current = scrollContainerRef.current.scrollTop;
+      scrollContainerRef.current.style.userSelect = 'none';
+    }
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (window.innerWidth < 768 || !isDragging.current || !scrollContainerRef.current || isMonitorMode) return;
+    const dx = e.pageX - dragStartX.current;
+    const dy = e.pageY - dragStartY.current;
+    scrollContainerRef.current.scrollLeft = scrollStartX.current - dx;
+    scrollContainerRef.current.scrollTop = scrollStartY.current - dy;
+  };
+
+  const handleMouseUpOrLeave = () => {
+    isDragging.current = false;
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.style.userSelect = 'auto';
+    }
+  };
 
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 30000);
@@ -243,7 +278,8 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
             </div>
 
             <div className="flex items-center gap-1.5 sm:gap-2">
-              <button onClick={toggleMonitorMode} className={`p-1.5 sm:p-2 rounded-xl border transition flex items-center justify-center ${isLightMode ? 'bg-indigo-50 hover:bg-indigo-100 border-indigo-200 text-indigo-600 shadow-sm' : 'bg-indigo-900/30 hover:bg-indigo-800/50 border-indigo-500/30 text-indigo-400'}`} title="Monitör (TV) Modunu Aç">
+              {/* TV Modu Butonu - Sadece Masaüstünde (md:flex) görünür */}
+              <button onClick={toggleMonitorMode} className={`hidden md:flex p-1.5 sm:p-2 rounded-xl border transition items-center justify-center ${isLightMode ? 'bg-indigo-50 hover:bg-indigo-100 border-indigo-200 text-indigo-600 shadow-sm' : 'bg-indigo-900/30 hover:bg-indigo-800/50 border-indigo-500/30 text-indigo-400'}`} title="Monitör (TV) Modunu Aç">
                 <Maximize className="w-4 h-4" />
               </button>
               
@@ -273,14 +309,14 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
         </header>
       )}
 
-      {/* MAIN CONTENT (Monitör modunda tam ekran genişliği kullanır) */}
-      <main className={`${isMonitorMode ? 'w-full px-4 sm:px-8' : 'max-w-7xl mx-auto px-3 sm:px-6'} py-4 space-y-5`}>
+      {/* MAIN CONTENT */}
+      <main className={`${isMonitorMode ? 'w-full h-screen overflow-hidden flex flex-col p-4 sm:p-6' : 'max-w-7xl mx-auto px-3 sm:px-6 py-4 space-y-5'}`}>
         
-        {/* TURNUVA BAŞLIĞI (Monitör modunda daha büyük ve sade) */}
+        {/* TURNUVA BAŞLIĞI */}
         {(tournamentInfo.ad || tournamentInfo.yer || tournamentInfo.tarih) && (
-          <div className={`text-center ${isMonitorMode ? 'py-6 mb-6' : 'py-4'} border-b space-y-1 ${isLightMode ? 'border-slate-300' : 'border-slate-800/60'}`}>
+          <div className={`text-center ${isMonitorMode ? 'shrink-0 mb-4' : 'py-4 border-b space-y-1'} ${isLightMode ? 'border-slate-300' : 'border-slate-800/60'}`}>
             {tournamentInfo.ad && (
-              <h1 className={`${isMonitorMode ? 'text-3xl sm:text-5xl drop-shadow-md' : 'text-base sm:text-lg'} font-black tracking-tight ${isLightMode ? 'text-slate-900' : 'text-white'}`}>{tournamentInfo.ad}</h1>
+              <h1 className={`${isMonitorMode ? 'text-4xl sm:text-5xl drop-shadow-md mb-2' : 'text-base sm:text-lg'} font-black tracking-tight ${isLightMode ? 'text-slate-900' : 'text-white'}`}>{tournamentInfo.ad}</h1>
             )}
             
             {!isMonitorMode && (
@@ -376,7 +412,7 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
         )}
 
         {matches.length === 0 ? (
-          <div className="text-center py-20 text-slate-500">
+          <div className="text-center py-20 text-slate-500 flex-1">
             <Activity className={`w-10 h-10 mx-auto mb-3 opacity-30 ${isLightMode ? 'text-slate-500' : 'text-slate-500'}`} />
             <p className="font-bold">Henüz maç yüklenmedi</p>
             <p className="text-xs mt-1">Başhakem fikstürü yükledikten sonra maçlar burada görünecek.</p>
@@ -411,7 +447,7 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
                 : (isLightMode ? 'bg-amber-100 text-amber-800 border border-amber-300' : 'bg-amber-500/15 text-amber-400/70');
 
             return (
-              <div className={`rounded-2xl border p-3 space-y-2 flex flex-col transition-all duration-200 ${cardBg} ${isMonitorMode ? 'h-full' : ''}`}>
+              <div className={`rounded-2xl border p-3 space-y-2 flex flex-col transition-all duration-200 ${cardBg}`}>
                 
                 <div className="flex items-center justify-between gap-1">
                   <span className={`font-mono font-black text-sm tracking-wide ${timeColor}`}>
@@ -475,13 +511,20 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
           };
 
           return (
-            <div className={`${isMonitorMode ? 'w-full' : 'overflow-x-auto -mx-3 sm:mx-0'} pb-4`}>
-              <div className={`flex gap-3 sm:gap-4 pb-2 ${isMonitorMode ? 'flex-wrap justify-center w-full' : 'min-w-max px-3 sm:px-0'}`}>
+            <div 
+              ref={scrollContainerRef}
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUpOrLeave}
+              onMouseLeave={handleMouseUpOrLeave}
+              className={`${isMonitorMode ? 'flex-1 w-full flex items-center justify-center' : 'overflow-x-auto -mx-3 sm:mx-0 pb-4 md:cursor-grab md:active:cursor-grabbing md:[&::-webkit-scrollbar]:hidden md:[-ms-overflow-style:none] md:[scrollbar-width:none]'}`}
+            >
+              <div className={`flex gap-3 sm:gap-4 pb-2 ${isMonitorMode ? 'flex-wrap justify-center content-center items-start w-full h-full' : 'min-w-max px-3 sm:px-0'}`}>
                 {kortlar.map((kort: string) => {
                   const kortMaclari = matches
                     .filter((m: any) => m.Kort === kort)
                     .filter((m: any) => {
-                      if (isMonitorMode) return true; // Monitörde filtreleri yoksay
+                      if (isMonitorMode) return true;
                       if (filterDurum === 'TUMU') return true;
                       if (filterDurum === 'Oynaniyor') return m.Durum === 'Oynaniyor';
                       if (filterDurum === 'Baslamadi') return m.Durum === 'Baslamadi';
@@ -491,7 +534,7 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
                     .sort((a: any, b: any) => (a.Saat || '99:99').localeCompare(b.Saat || '99:99'));
                   
                   return (
-                    <div key={kort} className={`flex-shrink-0 space-y-2.5 ${isMonitorMode ? 'w-[calc(50%-0.5rem)] sm:w-[calc(33.333%-0.75rem)] lg:w-[calc(25%-0.75rem)] xl:w-[calc(20%-0.75rem)]' : 'w-[220px] sm:w-[260px]'}`}>
+                    <div key={kort} className={`flex-shrink-0 flex flex-col space-y-2.5 ${isMonitorMode ? 'w-[240px] xl:w-[260px]' : 'w-[220px] sm:w-[260px]'}`}>
                       <div className={`border rounded-xl px-3 py-2.5 flex items-center justify-between shadow-sm ${isLightMode ? 'bg-white border-slate-300' : 'bg-slate-800 border-slate-700'}`}>
                         <span className={`font-black text-sm ${isLightMode ? 'text-slate-900' : 'text-white'}`}>{kort}</span>
                         <span className={`text-[10px] font-mono font-bold ${isLightMode ? 'text-slate-500' : 'text-slate-400'}`}>{kortMaclari.length} maç</span>
