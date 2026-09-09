@@ -5,7 +5,7 @@ import {
   Shield, Smartphone, Tv, Lock, KeyRound, CheckCircle2,
   AlertCircle, X, User, Eye, EyeOff, ChevronRight,
   RefreshCw, Trash2, Cloud, QrCode, Activity, Clock,
-  Trophy, Circle, MapPin, CalendarPlus, Sun, Moon
+  Trophy, Circle, MapPin, CalendarPlus, Sun, Moon, Maximize, Minimize
 } from 'lucide-react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../utils/firebase';
@@ -58,6 +58,9 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
     return localStorage.getItem('courtonline_light_mode') === 'true';
   });
 
+  // MONİTÖR (TV) MODU
+  const [isMonitorMode, setIsMonitorMode] = useState(false);
+
   const toggleTheme = () => {
     setIsLightMode(prev => {
       const newVal = !prev;
@@ -65,6 +68,26 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
       return newVal;
     });
   };
+
+  const toggleMonitorMode = async () => {
+    if (!isMonitorMode) {
+      setIsMonitorMode(true);
+      try { await document.documentElement.requestFullscreen(); } catch (err) {}
+    } else {
+      setIsMonitorMode(false);
+      try { await document.exitFullscreen(); } catch (err) {}
+    }
+  };
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      if (!document.fullscreenElement) {
+        setIsMonitorMode(false);
+      }
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
 
   const [activeModal, setActiveModal] = useState<'referee' | 'desk' | null>(null);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
@@ -191,105 +214,129 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
   return (
     <div className={`min-h-screen transition-colors duration-300 ${isLightMode ? 'bg-slate-100 text-slate-900 selection:bg-cyan-400 selection:text-slate-900' : 'bg-slate-950 text-slate-100 selection:bg-cyan-400 selection:text-slate-950'}`}>
       
-      {/* HEADER */}
-      <header className={`sticky top-0 z-30 backdrop-blur border-b transition-colors duration-300 ${isLightMode ? 'bg-white/95 border-slate-300 shadow-sm' : 'bg-slate-950/90 border-slate-800/60'}`}>
-        <div className="max-w-7xl mx-auto px-3 sm:px-6 h-14 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5 shrink-0">
-            <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-black text-base shadow-md ${isLightMode ? 'bg-gradient-to-tr from-lime-400 to-emerald-500 text-white' : 'bg-gradient-to-tr from-lime-400 to-emerald-400 text-slate-950 shadow-lime-400/20'}`}>
-              🎾
+      {/* Çıkış Butonu (Sadece Monitör Modunda ve üzerine gelince görünür) */}
+      {isMonitorMode && (
+        <button 
+          onClick={toggleMonitorMode} 
+          className="fixed bottom-6 right-6 z-50 p-4 bg-rose-600/50 hover:bg-rose-600 text-white rounded-full shadow-2xl opacity-10 hover:opacity-100 transition-all duration-300 backdrop-blur-sm"
+          title="Monitör Modundan Çık"
+        >
+          <Minimize className="w-6 h-6" />
+        </button>
+      )}
+
+      {/* HEADER (Monitör modundaysa tamamen gizlenir) */}
+      {!isMonitorMode && (
+        <header className={`sticky top-0 z-30 backdrop-blur border-b transition-colors duration-300 ${isLightMode ? 'bg-white/95 border-slate-300 shadow-sm' : 'bg-slate-950/90 border-slate-800/60'}`}>
+          <div className="max-w-7xl mx-auto px-3 sm:px-6 h-14 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5 shrink-0">
+              <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-black text-base shadow-md ${isLightMode ? 'bg-gradient-to-tr from-lime-400 to-emerald-500 text-white' : 'bg-gradient-to-tr from-lime-400 to-emerald-400 text-slate-950 shadow-lime-400/20'}`}>
+                🎾
+              </div>
+              <span className={`font-extrabold text-base tracking-tight hidden sm:block ${isLightMode ? 'text-slate-900' : 'text-white'}`}>CourtOnline</span>
+              {onBackToList && (
+                <button onClick={onBackToList} className={`text-[10px] px-2 py-1 rounded-lg transition font-bold ${isLightMode ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-200' : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800'}`}>← Turnuvalar</button>
+              )}
+              <span className={`flex items-center gap-1 text-[10px] font-black uppercase px-2 py-0.5 rounded-full border shadow-sm ${isLightMode ? 'bg-emerald-600 text-white border-emerald-700' : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'}`}>
+                <Activity className="w-2.5 h-2.5" /> Canlı
+              </span>
             </div>
-            <span className={`font-extrabold text-base tracking-tight hidden sm:block ${isLightMode ? 'text-slate-900' : 'text-white'}`}>CourtOnline</span>
-            {onBackToList && (
-              <button onClick={onBackToList} className={`text-[10px] px-2 py-1 rounded-lg transition font-bold ${isLightMode ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-200' : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800'}`}>← Turnuvalar</button>
-            )}
-            <span className={`flex items-center gap-1 text-[10px] font-black uppercase px-2 py-0.5 rounded-full border shadow-sm ${isLightMode ? 'bg-emerald-600 text-white border-emerald-700' : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'}`}>
-              <Activity className="w-2.5 h-2.5" /> Canlı
-            </span>
-          </div>
 
-          <div className="flex items-center gap-1.5 sm:gap-2">
-            <button onClick={toggleTheme} className={`p-1.5 sm:p-2 rounded-xl border transition flex items-center justify-center ${isLightMode ? 'bg-white hover:bg-slate-100 border-slate-300 text-amber-600 shadow-sm' : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-amber-300'}`} title="Temayı Değiştir">
-              {isLightMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-            </button>
-            
-            <button onClick={openRefereeModal}
-              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-black transition active:scale-95 border ${isLightMode ? 'bg-white hover:bg-lime-50 border-lime-500 text-lime-700 shadow-sm' : 'bg-lime-400/15 hover:bg-lime-400/25 border-lime-400/30 text-lime-300'}`}>
-              <Smartphone className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Hakem Girişi</span>
-              <span className="sm:hidden">Hakem</span>
-            </button>
-            <button onClick={openDeskModal}
-              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-black transition active:scale-95 border ${isLightMode ? 'bg-white hover:bg-cyan-50 border-cyan-500 text-cyan-700 shadow-sm' : 'bg-cyan-400/15 hover:bg-cyan-400/25 border-cyan-400/30 text-cyan-300'}`}>
-              <Tv className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Başhakem Girişi</span>
-              <span className="sm:hidden">Masa</span>
-            </button>
-            <button onClick={() => setIsShareModalOpen(true)}
-              className={`p-1.5 sm:p-2 rounded-xl transition border ${isLightMode ? 'bg-white hover:bg-slate-100 border-slate-300 text-slate-700 hover:text-slate-900 shadow-sm' : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-400 hover:text-white'}`}
-              title="Hakem Linki & QR">
-              <QrCode className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-      </header>
-
-      {/* MAIN CONTENT */}
-      <main className="max-w-7xl mx-auto px-3 sm:px-6 py-4 space-y-5">
-        {(tournamentInfo.ad || tournamentInfo.yer || tournamentInfo.tarih) && (
-          <div className={`text-center py-4 border-b space-y-1 ${isLightMode ? 'border-slate-300' : 'border-slate-800/60'}`}>
-            {tournamentInfo.ad && (
-              <h1 className={`text-base sm:text-lg font-black tracking-tight ${isLightMode ? 'text-slate-900' : 'text-white'}`}>{tournamentInfo.ad}</h1>
-            )}
-            
-            <div className={`flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-6 pt-1 text-xs font-medium ${isLightMode ? 'text-slate-700' : 'text-slate-400'}`}>
-              {tournamentInfo.tarih && (
-                <span className="flex items-center gap-1.5">
-                  <Clock className="w-3.5 h-3.5 opacity-80" />
-                  {tournamentInfo.tarih}
-                </span>
-              )}
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <button onClick={toggleMonitorMode} className={`p-1.5 sm:p-2 rounded-xl border transition flex items-center justify-center ${isLightMode ? 'bg-indigo-50 hover:bg-indigo-100 border-indigo-200 text-indigo-600 shadow-sm' : 'bg-indigo-900/30 hover:bg-indigo-800/50 border-indigo-500/30 text-indigo-400'}`} title="Monitör (TV) Modunu Aç">
+                <Maximize className="w-4 h-4" />
+              </button>
               
-              {tournamentInfo.yer && (
-                <a 
-                  href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(tournamentInfo.yer)}`}
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg transition font-bold shadow-sm ${isLightMode ? 'bg-emerald-100 hover:bg-emerald-200 text-emerald-800 border border-emerald-300' : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400'}`}
-                  title="Haritada Yol Tarifi Al"
-                >
-                  <MapPin className="w-3.5 h-3.5" />
-                  <span>{tournamentInfo.yer} (Yol Tarifi Al)</span>
-                </a>
-              )}
+              <button onClick={toggleTheme} className={`p-1.5 sm:p-2 rounded-xl border transition flex items-center justify-center ${isLightMode ? 'bg-white hover:bg-slate-100 border-slate-300 text-amber-600 shadow-sm' : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-amber-300'}`} title="Temayı Değiştir">
+                {isLightMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+              </button>
+              
+              <button onClick={openRefereeModal}
+                className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-black transition active:scale-95 border ${isLightMode ? 'bg-white hover:bg-lime-50 border-lime-500 text-lime-700 shadow-sm' : 'bg-lime-400/15 hover:bg-lime-400/25 border-lime-400/30 text-lime-300'}`}>
+                <Smartphone className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Hakem Girişi</span>
+                <span className="sm:hidden">Hakem</span>
+              </button>
+              <button onClick={openDeskModal}
+                className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-black transition active:scale-95 border ${isLightMode ? 'bg-white hover:bg-cyan-50 border-cyan-500 text-cyan-700 shadow-sm' : 'bg-cyan-400/15 hover:bg-cyan-400/25 border-cyan-400/30 text-cyan-300'}`}>
+                <Tv className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Başhakem Girişi</span>
+                <span className="sm:hidden">Masa</span>
+              </button>
+              <button onClick={() => setIsShareModalOpen(true)}
+                className={`p-1.5 sm:p-2 rounded-xl transition border ${isLightMode ? 'bg-white hover:bg-slate-100 border-slate-300 text-slate-700 hover:text-slate-900 shadow-sm' : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-400 hover:text-white'}`}
+                title="Hakem Linki & QR">
+                <QrCode className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </header>
+      )}
+
+      {/* MAIN CONTENT (Monitör modunda tam ekran genişliği kullanır) */}
+      <main className={`${isMonitorMode ? 'w-full px-4 sm:px-8' : 'max-w-7xl mx-auto px-3 sm:px-6'} py-4 space-y-5`}>
+        
+        {/* TURNUVA BAŞLIĞI (Monitör modunda daha büyük ve sade) */}
+        {(tournamentInfo.ad || tournamentInfo.yer || tournamentInfo.tarih) && (
+          <div className={`text-center ${isMonitorMode ? 'py-6 mb-6' : 'py-4'} border-b space-y-1 ${isLightMode ? 'border-slate-300' : 'border-slate-800/60'}`}>
+            {tournamentInfo.ad && (
+              <h1 className={`${isMonitorMode ? 'text-3xl sm:text-5xl drop-shadow-md' : 'text-base sm:text-lg'} font-black tracking-tight ${isLightMode ? 'text-slate-900' : 'text-white'}`}>{tournamentInfo.ad}</h1>
+            )}
+            
+            {!isMonitorMode && (
+              <div className={`flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-6 pt-1 text-xs font-medium ${isLightMode ? 'text-slate-700' : 'text-slate-400'}`}>
+                {tournamentInfo.tarih && (
+                  <span className="flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5 opacity-80" />
+                    {tournamentInfo.tarih}
+                  </span>
+                )}
+                {tournamentInfo.yer && (
+                  <a 
+                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(tournamentInfo.yer)}`}
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg transition font-bold shadow-sm ${isLightMode ? 'bg-emerald-100 hover:bg-emerald-200 text-emerald-800 border border-emerald-300' : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400'}`}
+                    title="Haritada Yol Tarifi Al"
+                  >
+                    <MapPin className="w-3.5 h-3.5" />
+                    <span>{tournamentInfo.yer} (Yol Tarifi Al)</span>
+                  </a>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ÖZET STATÜ ROZETLERİ (Monitör modunda gizle) */}
+        {!isMonitorMode && (
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-black border shadow-sm ${isLightMode ? 'bg-emerald-600 border-emerald-700 text-white' : 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'}`}>
+              <Circle className={`w-2 h-2 animate-pulse ${isLightMode ? 'fill-white' : 'fill-emerald-400'}`} />
+              {live.length} Canlı
+            </div>
+            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-black border shadow-sm ${isLightMode ? 'bg-amber-500 border-amber-600 text-white' : 'bg-amber-500/15 border-amber-500/30 text-amber-400'}`}>
+              <Clock className="w-3 h-3" />
+              {waiting.length} Bekliyor
+            </div>
+            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-black border shadow-sm ${isLightMode ? 'bg-slate-600 border-slate-700 text-white' : 'bg-slate-700/60 border-slate-700 text-slate-400'}`}>
+              <Trophy className="w-3 h-3" />
+              {done.length} Bitti
+            </div>
+            <div className="ml-auto flex items-center gap-1.5">
+              <div className={`w-2 h-2 rounded-full ${cloudSyncStatus === 'connected' ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+              <span className={`text-[11px] font-bold hidden sm:block ${isLightMode ? 'text-slate-700' : 'text-slate-400'}`}>{lastCloudSync ? `Güncellendi: ${lastCloudSync}` : 'Bağlanıyor...'}</span>
+              <button onClick={async () => { setIsSyncing(true); await pullFromCloudNow(); setIsSyncing(false); }}
+                disabled={isSyncing}
+                className={`p-1.5 rounded-lg transition border disabled:opacity-40 ${isLightMode ? 'bg-white hover:bg-slate-200 border-slate-300 text-slate-700 hover:text-slate-900 shadow-sm' : 'bg-slate-800 hover:bg-slate-700 border-transparent text-slate-400 hover:text-white'}`}>
+                <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+              </button>
             </div>
           </div>
         )}
 
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-black border shadow-sm ${isLightMode ? 'bg-emerald-600 border-emerald-700 text-white' : 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'}`}>
-            <Circle className={`w-2 h-2 animate-pulse ${isLightMode ? 'fill-white' : 'fill-emerald-400'}`} />
-            {live.length} Canlı
-          </div>
-          <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-black border shadow-sm ${isLightMode ? 'bg-amber-500 border-amber-600 text-white' : 'bg-amber-500/15 border-amber-500/30 text-amber-400'}`}>
-            <Clock className="w-3 h-3" />
-            {waiting.length} Bekliyor
-          </div>
-          <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-black border shadow-sm ${isLightMode ? 'bg-slate-600 border-slate-700 text-white' : 'bg-slate-700/60 border-slate-700 text-slate-400'}`}>
-            <Trophy className="w-3 h-3" />
-            {done.length} Bitti
-          </div>
-          <div className="ml-auto flex items-center gap-1.5">
-            <div className={`w-2 h-2 rounded-full ${cloudSyncStatus === 'connected' ? 'bg-emerald-400' : 'bg-amber-400'}`} />
-            <span className={`text-[11px] font-bold hidden sm:block ${isLightMode ? 'text-slate-700' : 'text-slate-400'}`}>{lastCloudSync ? `Güncellendi: ${lastCloudSync}` : 'Bağlanıyor...'}</span>
-            <button onClick={async () => { setIsSyncing(true); await pullFromCloudNow(); setIsSyncing(false); }}
-              disabled={isSyncing}
-              className={`p-1.5 rounded-lg transition border disabled:opacity-40 ${isLightMode ? 'bg-white hover:bg-slate-200 border-slate-300 text-slate-700 hover:text-slate-900 shadow-sm' : 'bg-slate-800 hover:bg-slate-700 border-transparent text-slate-400 hover:text-white'}`}>
-              <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
-            </button>
-          </div>
-        </div>
-
-        {matches.length > 0 && (
+        {/* FİLTRELER (Monitör modunda gizle) */}
+        {!isMonitorMode && matches.length > 0 && (
           <div className="flex flex-wrap items-center gap-2 text-[11px]">
             <span className={`font-black uppercase tracking-wider ${isLightMode ? 'text-slate-600' : 'text-slate-600'}`}>Kort:</span>
             <button onClick={() => setFilterKort('TUMU')}
@@ -335,7 +382,8 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
             <p className="text-xs mt-1">Başhakem fikstürü yükledikten sonra maçlar burada görünecek.</p>
           </div>
         ) : (() => {
-          const kortlar = (filterKort === 'TUMU'
+          // Monitör modunda tüm kortları ve maçları göster.
+          const kortlar = (filterKort === 'TUMU' || isMonitorMode
             ? Array.from(new Set(matches.map((m: any) => m.Kort).filter(Boolean))).sort()
             : [filterKort]) as string[];
 
@@ -344,7 +392,6 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
             const isDone = m.Durum === 'Bitti' || m.Durum === 'Retired' || m.Durum === 'Walkover';
             const isUpcoming = m.Durum === 'Baslamadi';
 
-            // KART TEMASI: Biten maçlar gri arka plan, yazısı parlak beyaz olan gül kurusu rozet.
             const cardBg = isLive 
                 ? (isLightMode ? 'bg-white border-[2px] border-emerald-500 shadow-lg ring-1 ring-emerald-500/20' : 'bg-emerald-950/30 border-emerald-700/50 shadow-emerald-900/20 shadow-lg')
                 : isDone 
@@ -357,7 +404,6 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
                 ? (isLightMode ? 'text-slate-500 font-bold' : 'text-slate-500')
                 : (isLightMode ? 'text-slate-800' : 'text-cyan-400');
 
-            // BİTTİ YAZISI (Rozet): Tam dolu, sıcak Gül Kurusu ve Bembeyaz yazı!
             const badgeBg = isLive 
                 ? (isLightMode ? 'bg-emerald-600 text-white shadow-sm' : 'bg-emerald-500/20 text-emerald-400')
                 : isDone 
@@ -365,7 +411,7 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
                 : (isLightMode ? 'bg-amber-100 text-amber-800 border border-amber-300' : 'bg-amber-500/15 text-amber-400/70');
 
             return (
-              <div className={`rounded-2xl border p-3 space-y-2 flex flex-col transition-all duration-200 ${cardBg}`}>
+              <div className={`rounded-2xl border p-3 space-y-2 flex flex-col transition-all duration-200 ${cardBg} ${isMonitorMode ? 'h-full' : ''}`}>
                 
                 <div className="flex items-center justify-between gap-1">
                   <span className={`font-mono font-black text-sm tracking-wide ${timeColor}`}>
@@ -383,7 +429,6 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
                     { name: m['Oyuncu 1'] || m['Takım 1'] || '—', kazandi: isDone && (m.Kazanan === m['Oyuncu 1'] || m.Kazanan === m['Takım 1']) },
                     { name: m['Oyuncu 2'] || m['Takım 2'] || '—', kazandi: isDone && (m.Kazanan === m['Oyuncu 2'] || m.Kazanan === m['Takım 2']) },
                   ].map((p, i) => {
-                     // KAZANAN RENGİ: Buz Mavisi (Cyan)
                      const nameColor = p.kazandi 
                          ? (isLightMode ? 'text-cyan-700 font-black' : 'text-cyan-300 drop-shadow-[0_0_8px_rgba(34,211,238,0.8)] font-black') 
                          : isDone 
@@ -407,13 +452,12 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
                   })}
                 </div>
                 
-                {/* min-h-[34px] EKLENDİ: Buton kaybolsa bile kart asla küçülmez! */}
                 <div className={`mt-auto pt-2 border-t flex flex-col sm:flex-row sm:items-center justify-between gap-2 min-h-[34px] ${isLightMode ? 'border-slate-200' : 'border-slate-800/50'}`}>
                   <span className={`text-[10px] truncate ${isLightMode ? 'text-slate-600 font-bold' : 'text-slate-500'}`}>
                     {m.Kategori || m.Skor_Formati || ''}
                   </span>
                   
-                  {isUpcoming && (
+                  {isUpcoming && !isMonitorMode && (
                     <a 
                       href={generateGoogleCalendarLink(m as MatchItem, tournamentInfo?.yer || '')}
                       target="_blank" 
@@ -431,12 +475,13 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
           };
 
           return (
-            <div className="overflow-x-auto -mx-3 sm:mx-0 pb-4">
-              <div className="flex gap-3 sm:gap-4 min-w-max px-3 sm:px-0 pb-2">
+            <div className={`${isMonitorMode ? 'w-full' : 'overflow-x-auto -mx-3 sm:mx-0'} pb-4`}>
+              <div className={`flex gap-3 sm:gap-4 pb-2 ${isMonitorMode ? 'flex-wrap justify-center w-full' : 'min-w-max px-3 sm:px-0'}`}>
                 {kortlar.map((kort: string) => {
                   const kortMaclari = matches
                     .filter((m: any) => m.Kort === kort)
                     .filter((m: any) => {
+                      if (isMonitorMode) return true; // Monitörde filtreleri yoksay
                       if (filterDurum === 'TUMU') return true;
                       if (filterDurum === 'Oynaniyor') return m.Durum === 'Oynaniyor';
                       if (filterDurum === 'Baslamadi') return m.Durum === 'Baslamadi';
@@ -446,7 +491,7 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
                     .sort((a: any, b: any) => (a.Saat || '99:99').localeCompare(b.Saat || '99:99'));
                   
                   return (
-                    <div key={kort} className="w-[220px] sm:w-[260px] flex-shrink-0 space-y-2.5">
+                    <div key={kort} className={`flex-shrink-0 space-y-2.5 ${isMonitorMode ? 'w-[calc(50%-0.5rem)] sm:w-[calc(33.333%-0.75rem)] lg:w-[calc(25%-0.75rem)] xl:w-[calc(20%-0.75rem)]' : 'w-[220px] sm:w-[260px]'}`}>
                       <div className={`border rounded-xl px-3 py-2.5 flex items-center justify-between shadow-sm ${isLightMode ? 'bg-white border-slate-300' : 'bg-slate-800 border-slate-700'}`}>
                         <span className={`font-black text-sm ${isLightMode ? 'text-slate-900' : 'text-white'}`}>{kort}</span>
                         <span className={`text-[10px] font-mono font-bold ${isLightMode ? 'text-slate-500' : 'text-slate-400'}`}>{kortMaclari.length} maç</span>
@@ -460,35 +505,39 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
           );
         })()}
 
-        <div className={`flex flex-wrap items-center justify-between gap-2 pt-3 border-t text-xs ${isLightMode ? 'border-slate-300 text-slate-600' : 'border-slate-800/60 text-slate-500'}`}>
-          <div className="flex items-center gap-2 font-bold">
-            <Cloud className="w-3.5 h-3.5" />
-            <span>Bulut: {cloudSyncStatus === 'connected' ? '🟢 Bağlı' : cloudSyncStatus === 'syncing' ? '🟡 Eşitleniyor' : '🔴 Çevrimdışı'}</span>
+        {/* FOOTER (Monitör modunda gizle) */}
+        {!isMonitorMode && (
+          <div className={`flex flex-wrap items-center justify-between gap-2 pt-3 border-t text-xs ${isLightMode ? 'border-slate-300 text-slate-600' : 'border-slate-800/60 text-slate-500'}`}>
+            <div className="flex items-center gap-2 font-bold">
+              <Cloud className="w-3.5 h-3.5" />
+              <span>Bulut: {cloudSyncStatus === 'connected' ? '🟢 Bağlı' : cloudSyncStatus === 'syncing' ? '🟡 Eşitleniyor' : '🔴 Çevrimdışı'}</span>
+            </div>
+            {portalSyncMsg && <span className={`font-black ${isLightMode ? 'text-emerald-700' : 'text-emerald-400'}`}>{portalSyncMsg}</span>}
+            <button onClick={async () => {
+              if (confirm('Ekran önbelleği temizlenip güncel maçlar yeniden yüklenecek. Onaylıyor musunuz?')) {
+                setIsSyncing(true);
+                const ok = await clearLocalCacheAndResetFromCloud();
+                setIsSyncing(false);
+                setPortalSyncMsg(ok ? '✨ Ekran başarıyla güncellendi!' : '⚠️ Başarısız.');
+                setTimeout(() => setPortalSyncMsg(''), 4000);
+              }
+            }}
+              className={`flex items-center gap-1 transition font-bold ${isLightMode ? 'text-rose-600 hover:text-rose-800' : 'text-rose-400/60 hover:text-rose-300'}`}>
+              <RefreshCw className="w-3 h-3" /> Önbelleği Sıfırla / Yenile
+            </button>
           </div>
-          {portalSyncMsg && <span className={`font-black ${isLightMode ? 'text-emerald-700' : 'text-emerald-400'}`}>{portalSyncMsg}</span>}
-          <button onClick={async () => {
-            if (confirm('Ekran önbelleği temizlenip güncel maçlar yeniden yüklenecek. Onaylıyor musunuz?')) {
-              setIsSyncing(true);
-              const ok = await clearLocalCacheAndResetFromCloud();
-              setIsSyncing(false);
-              setPortalSyncMsg(ok ? '✨ Ekran başarıyla güncellendi!' : '⚠️ Başarısız.');
-              setTimeout(() => setPortalSyncMsg(''), 4000);
-            }
-          }}
-            className={`flex items-center gap-1 transition font-bold ${isLightMode ? 'text-rose-600 hover:text-rose-800' : 'text-rose-400/60 hover:text-rose-300'}`}>
-            <RefreshCw className="w-3 h-3" /> Önbelleği Sıfırla / Yenile
-          </button>
-        </div>
+        )}
 
-        {tournamentInfo.not && (
+        {/* TURNUVA NOTU (Monitör modunda gizle) */}
+        {!isMonitorMode && tournamentInfo.not && (
           <div className={`text-center py-5 border-t ${isLightMode ? 'border-slate-300' : 'border-slate-800/60'}`}>
             <p className={`text-xs italic max-w-xl mx-auto ${isLightMode ? 'text-slate-600 font-bold' : 'text-slate-400'}`}>{tournamentInfo.not}</p>
           </div>
         )}
       </main>
 
-      {/* GİRİŞ MODALLARI KISMI (Tema desteksiz kalabilir, sadece yönetici için açılır) */}
-      {activeModal && (
+      {/* GİRİŞ MODALLARI KISMI (Sadece admin/hakem erişimi) */}
+      {activeModal && !isMonitorMode && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md animate-in fade-in duration-150 overflow-y-auto">
           <div className="bg-slate-900 border-2 border-slate-700/80 rounded-3xl p-5 sm:p-7 w-full max-w-md shadow-2xl space-y-4 my-auto">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
@@ -575,7 +624,7 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
         </div>
       )}
 
-      <ShareRefereeLinkModal isOpen={isShareModalOpen} onClose={() => setIsShareModalOpen(false)} />
+      {!isMonitorMode && <ShareRefereeLinkModal isOpen={isShareModalOpen} onClose={() => setIsShareModalOpen(false)} />}
     </div>
   );
 };
