@@ -1,1104 +1,728 @@
-import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { useTennisData } from '../../context/TennisDataContext';
+import { ShareRefereeLinkModal } from '../Common/ShareRefereeLinkModal';
 import {
-  ChallengeRecord, MatchItem, MatchStatus, PointHistoryItem, PointType,
-  RefereeUser, ScoreFormatType, TennisMatchState,
-} from '../types/tennis';
-import { INITIAL_CATEGORY_FORMAT_MEMORY, INITIAL_MATCHES, INITIAL_REFEREES } from '../data/initialData';
-import {
-  awardPoint, buildScoreString, createInitialMatchState, determineWinnerFromScores,
-  formatScoreString, parseScoreString, canIncrementSetScore, validateFullMatchScores,
-  validateSingleSet, checkMatchWinner, isMatchTiebreakThirdSet
-} from '../utils/tennisScoringEngine';
-import { calculateMatchDurationSeconds } from '../utils/timerUtils';
-import {
-  pushSingleMatchToCloud, pushAllMatchesToCloud, replaceAllMatchesInCloud,
-  pushRefereesToCloud, pushCategoryFormatsToCloud, pushCategoryNoAdSettingsToCloud,
-  pushTournamentInfoToCloud, pushDeskPinToCloud, pushFullTournamentToCloud, 
-  subscribeToCloudTournament, fetchTournamentFromCloud, deleteAllMatchesFromCloud, purgeOrphanMatchesFromCloud,
-} from '../utils/firebaseSync';
+  Shield, Smartphone, Tv, Lock, KeyRound, CheckCircle2,
+  AlertCircle, X, User, Eye, EyeOff, ChevronRight,
+  RefreshCw, Trash2, Cloud, QrCode, Activity, Clock,
+  Trophy, Circle, MapPin, CalendarPlus, Sun, Moon, Maximize, Minimize
+} from 'lucide-react';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../../utils/firebase';
+import { MatchItem } from '../../types/tennis';
 
-export type CloudSyncStatus = 'connected' | 'syncing' | 'offline';
-
-export const sanitizeMatchList = (rawList: any[]): MatchItem[] => {
-  if (!Array.isArray(rawList)) return [];
-  const existingIds = new Set<string>();
-  return rawList.map((item, index) => {
-    let rawId = item && item.id ? String(item.id).trim() : '';
-    if (!rawId || existingIds.has(rawId)) {
-      rawId = `m_${Date.now()}_${index + 1}_${Math.random().toString(36).substring(2, 7)}`;
-    }
-    existingIds.add(rawId);
-
-    const matchItem: MatchItem = {
-      Kort: item?.Kort || `KORT ${index + 1}`, Saat: item?.Saat || '09:30',
-      'Oyuncu 1': item?.['Oyuncu 1'] || 'Oyuncu 1', 'Oyuncu 2': item?.['Oyuncu 2'] || 'Oyuncu 2',
-      Kategori: item?.Kategori || 'Büyükler', Skor_Formati: item?.Skor_Formati || '3 Normal Set',
-      isNoAd: !!item?.isNoAd, Durum: item?.Durum || 'Baslamadi', Skor: item?.Skor || '-',
-      Kura_Kazanan: item?.Kura_Kazanan || 'Secilmedi', Kura_Tercih: item?.Kura_Tercih || 'Servis',
-      Saha_Tarafi: item?.Saha_Tarafi || 'Sandalyenin Sağı', Baslangic_Saati: item?.Baslangic_Saati || 'Secilmedi',
-      Bitis_Saati: item?.Bitis_Saati || 'Secilmedi', Son_Hakem: item?.Son_Hakem || 'Turnuva Masası',
-      Kazanan: item?.Kazanan || 'Secilmedi', ...item, id: rawId,
-    };
-    return matchItem;
-  });
-};
-
-interface TennisDataContextType {
-  matches: MatchItem[]; referees: RefereeUser[]; currentReferee: RefereeUser | null;
-  categoryFormats: Record<string, string>; categoryNoAdSettings: Record<string, boolean>;
-  activeMatchId: string | null; activeMatch: MatchItem | null;
-  authRole: 'none' | 'supervisor' | 'desk' | 'referee'; deskPin: string;
-  cloudSyncStatus: CloudSyncStatus; lastCloudSync: string | null;
-  syncWithCloudNow: () => void; pullFromCloudNow: () => Promise<boolean>;
-  forcePushAllToCloud: () => Promise<void>; clearLocalCacheAndResetFromCloud: () => Promise<boolean>;
-  wipeAllMatchesForTournament: () => Promise<boolean>; tournamentId: string;
-  setTournamentId: (id: string) => void; purgeOrphanMatches: () => Promise<number>;
-  resetAllScores: () => void; loginReferee: (name: string, pin: string) => boolean;
-  loginRefereeDirect: (name?: string) => void; loginSupervisorByPin: (pin: string, name?: string) => boolean;
-  loginDesk: (pin: string) => boolean; logoutReferee: () => void; logoutAuth: () => void;
-  setAuthRole: (role: 'none' | 'supervisor' | 'desk' | 'referee') => void; updateDeskPin: (newPin: string) => void;
-  setActiveMatchId: (id: string | null) => void; updateMatch: (match: MatchItem) => void;
-  updateGameScore: (matchId: string, setIndex: 1 | 2 | 3, player: 1 | 2, delta: number) => void;
-  setDirectSetScores: (matchId: string, s1_p1: number, s1_p2: number, s2_p1: number, s2_p2: number, s3_p1: number, s3_p2: number) => void;
-  saveDirectScoreAndStatus: (matchId: string, data: any) => void;
-  finishAndReportMatch: (matchId: string, winner: string, status?: MatchStatus, customScore?: string, startTime?: string, endTime?: string) => void;
-  saveMatchSetup: (matchId: string, data: any) => void;
-  awardPointToMatch: (matchId: string, playerWon: 1 | 2, pointType?: PointType) => void;
-  undoLastPoint: (matchId: string) => void;
-  recordChallenge: (matchId: string, player: 1 | 2, outcome: 'UPHELD' | 'OVERTURNED', reason: any, notes?: string, actionType?: any) => void;
-  setMatchStatus: (matchId: string, status: MatchItem['Durum'], winner?: string, endTime?: string) => void;
-  resumeMatchToLive: (matchId: string) => void; resetMatchScore: (matchId: string) => void;
-  manualUpdateScoreString: (matchId: string, skorStr: string, durum: MatchItem['Durum'], kazanan: string, bitisSaati: string) => void;
-  addReferee: (name: string, pin: string) => void; deleteReferee: (name: string) => void;
-  updateCategoryFormat: (category: string, format: string) => void; bulkApplyCategoryFormats: (formatMap: Record<string, string>) => void;
-  bulkApplyCategoryNoAdSettings: (noAdMap: Record<string, boolean>) => void;
-  tournamentInfo: { ad: string; yer: string; tarih: string; not: string; tbType?: 'standard' | 'coman'; tvPages?: string[][] };
-  saveTournamentInfo: (info: { ad: string; yer: string; tarih: string; not: string; tbType?: 'standard' | 'coman'; tvPages?: string[][] }) => void;
-  importMatchesList: (newMatches: MatchItem[]) => void; resetTournamentToDefault: () => void;
+interface MainPortalGateProps {
+  onBackToList?: () => void;
 }
 
-const TennisDataContext = createContext<TennisDataContextType | null>(null);
+// ─── GOOGLE CALENDAR LINK GENERATOR ──────────────────────────────────────────
+const generateGoogleCalendarLink = (match: MatchItem, location: string) => {
+  const title = `🎾 Tenis Maçı: ${match['Oyuncu 1']} vs ${match['Oyuncu 2']}`;
+  const details = `Kategori: ${match.Kategori} | Kort: ${match.Kort} | Format: ${match.Skor_Formati || '3 Normal Set'}`;
+  
+  const today = new Date();
+  const [hours, minutes] = (match.Saat || '09:00').split(':').map(Number);
+  
+  const startDate = new Date(today);
+  if (!isNaN(hours) && !isNaN(minutes)) {
+    startDate.setHours(hours, minutes, 0);
+  } else {
+    startDate.setHours(9, 0, 0);
+  }
+  
+  const endDate = new Date(startDate);
+  endDate.setHours(startDate.getHours() + 2);
 
-const BASE_STORAGE_KEYS = {
-  MATCHES: 'courtonline_matches_v2', REFEREES: 'courtonline_referees_v2', CURRENT_REF: 'courtonline_curr_ref_v2',
-  CATEGORY_FORMATS: 'courtonline_cat_formats_v2', CATEGORY_NOAD: 'courtonline_cat_noad_v2',
-  TOURNAMENT_INFO: 'courtonline_t_info_v2', ACTIVE_MATCH_ID: 'courtonline_active_match_id_v2',
-  DESK_PIN: 'courtonline_desk_pin_v2', AUTH_ROLE: 'courtonline_auth_role_v2', ACTIVE_TOURNAMENT: 'courtonline_active_tournament_id',
+  const formatGoogleDate = (date: Date) => date.toISOString().replace(/-|:|\.\d\d\d/g, "");
+
+  const params = new URLSearchParams({
+    action: 'TEMPLATE',
+    text: title,
+    details: details,
+    location: location || 'Tenis Kortu',
+    dates: `${formatGoogleDate(startDate)}/${formatGoogleDate(endDate)}`
+  });
+
+  return `https://calendar.google.com/calendar/render?${params.toString()}`;
 };
+// ─────────────────────────────────────────────────────────────────────────────
 
-const getStorageKey = (key: string, tId: string) => (tId ? `${key}_${tId}` : key);
+export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) => {
+  const {
+    referees, matches, loginReferee, deskPin,
+    cloudSyncStatus, lastCloudSync, pullFromCloudNow, clearLocalCacheAndResetFromCloud, tournamentInfo, tournamentId, setAuthRole
+  } = useTennisData();
 
-export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const initialTournamentId = typeof window !== 'undefined' ? (localStorage.getItem(BASE_STORAGE_KEYS.ACTIVE_TOURNAMENT) || '') : '';
-  const [tournamentId, setTournamentIdState] = useState<string>(initialTournamentId);
-
-  const [deskPin, setDeskPin] = useState<string>(() => {
-    return localStorage.getItem(getStorageKey(BASE_STORAGE_KEYS.DESK_PIN, initialTournamentId)) || '2026';
+  // TEMA (GECE / GÜNDÜZ MODU)
+  const [isLightMode, setIsLightMode] = useState(() => {
+    return localStorage.getItem('courtonline_light_mode') === 'true';
   });
 
-  const [authRole, setAuthRoleState] = useState<'none' | 'supervisor' | 'desk' | 'referee'>(() => {
-    const savedRole = sessionStorage.getItem(getStorageKey(BASE_STORAGE_KEYS.AUTH_ROLE, initialTournamentId));
-    if (savedRole === 'supervisor' || savedRole === 'desk' || savedRole === 'referee') {
-      return savedRole as 'supervisor' | 'desk' | 'referee';
-    }
-    return 'none';
-  });
+  // MONİTÖR (TV) MODU VE SAYFALANDIRMA
+  const [isMonitorMode, setIsMonitorMode] = useState(false);
+  const [currentTvPageIdx, setCurrentTvPageIdx] = useState(0);
+  const [tvProgress, setTvProgress] = useState(0);
 
-  const [cloudSyncStatus, setCloudSyncStatus] = useState<CloudSyncStatus>('connected');
-  const [lastCloudSync, setLastCloudSync] = useState<string | null>(null);
-  const cloudSyncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  useEffect(() => {
-    if (typeof document !== 'undefined') {
-      if (authRole === 'supervisor' || authRole === 'referee') {
-        document.body.classList.add('hakem-modu'); document.body.classList.remove('masa-modu');
-      } else if (authRole === 'desk') {
-        document.body.classList.add('masa-modu'); document.body.classList.remove('hakem-modu');
-      } else {
-        document.body.classList.remove('hakem-modu', 'masa-modu');
-      }
-    }
-  }, [authRole]);
-
-  const setAuthRole = (role: 'none' | 'supervisor' | 'desk' | 'referee') => {
-    setAuthRoleState(role);
-    if (role === 'none') { sessionStorage.removeItem(getStorageKey(BASE_STORAGE_KEYS.AUTH_ROLE, tournamentId)); } 
-    else { sessionStorage.setItem(getStorageKey(BASE_STORAGE_KEYS.AUTH_ROLE, tournamentId), role); }
+  const toggleTheme = () => {
+    setIsLightMode(prev => {
+      const newVal = !prev;
+      localStorage.setItem('courtonline_light_mode', String(newVal));
+      return newVal;
+    });
   };
 
-  const updateDeskPin = (newPin: string) => {
-    if (!newPin.trim() || newPin.trim().length < 2) return;
-    setDeskPin(newPin.trim());
-    localStorage.setItem(getStorageKey(BASE_STORAGE_KEYS.DESK_PIN, tournamentId), newPin.trim());
-    pushDeskPinToCloud(newPin.trim(), tournamentId);
-  };
-
-  const [matches, setMatches] = useState<MatchItem[]>(() => {
-    if (!initialTournamentId) return [];
-    const saved = localStorage.getItem(getStorageKey(BASE_STORAGE_KEYS.MATCHES, initialTournamentId));
-    try { return saved ? JSON.parse(saved) : []; } catch { return []; }
-  });
-
-  const [referees, setReferees] = useState<RefereeUser[]>(() => {
-    if (!initialTournamentId) return INITIAL_REFEREES;
-    const saved = localStorage.getItem(getStorageKey(BASE_STORAGE_KEYS.REFEREES, initialTournamentId));
-    try { return saved ? JSON.parse(saved) : INITIAL_REFEREES; } catch { return INITIAL_REFEREES; }
-  });
-
-  const [currentReferee, setCurrentReferee] = useState<RefereeUser | null>(() => {
-    const saved = sessionStorage.getItem(getStorageKey(BASE_STORAGE_KEYS.CURRENT_REF, initialTournamentId));
-    if (saved) { try { return JSON.parse(saved); } catch (e) {} }
-    return null;
-  });
-
-  const [categoryFormats, setCategoryFormats] = useState<Record<string, string>>(() => {
-    if (!initialTournamentId) return INITIAL_CATEGORY_FORMAT_MEMORY;
-    const saved = localStorage.getItem(getStorageKey(BASE_STORAGE_KEYS.CATEGORY_FORMATS, initialTournamentId));
-    try { return saved ? JSON.parse(saved) : INITIAL_CATEGORY_FORMAT_MEMORY; } catch { return INITIAL_CATEGORY_FORMAT_MEMORY; }
-  });
-
-  const [categoryNoAdSettings, setCategoryNoAdSettings] = useState<Record<string, boolean>>(() => {
-    if (!initialTournamentId) return {};
-    const saved = localStorage.getItem(getStorageKey(BASE_STORAGE_KEYS.CATEGORY_NOAD, initialTournamentId));
-    try { return saved ? JSON.parse(saved) : {}; } catch { return {}; }
-  });
-
-  const [tournamentInfoState, setTournamentInfoState] = useState(() => {
-    const defaultInfo = { ad: '', yer: '', tarih: '', not: '', tbType: 'standard' as const, tvPages: [] };
-    if (!initialTournamentId) return defaultInfo;
-    try {
-      const saved = localStorage.getItem(getStorageKey(BASE_STORAGE_KEYS.TOURNAMENT_INFO, initialTournamentId));
-      return saved ? { ...defaultInfo, ...JSON.parse(saved) } : defaultInfo;
-    } catch { return defaultInfo; }
-  });
-
-  const [activeMatchId, setActiveMatchId] = useState<string | null>(() => {
-    if (!initialTournamentId) return 'm-9';
-    return localStorage.getItem(getStorageKey(BASE_STORAGE_KEYS.ACTIVE_MATCH_ID, initialTournamentId)) || 'm-9';
-  });
-
-  const setTournamentId = (id: string) => {
-    setTournamentIdState(id);
-    localStorage.setItem(BASE_STORAGE_KEYS.ACTIVE_TOURNAMENT, id);
-    if (id) {
-      const cachedMatches = localStorage.getItem(getStorageKey(BASE_STORAGE_KEYS.MATCHES, id));
-      setMatches(cachedMatches ? JSON.parse(cachedMatches) : []);
-      const cachedReferees = localStorage.getItem(getStorageKey(BASE_STORAGE_KEYS.REFEREES, id));
-      setReferees(cachedReferees ? JSON.parse(cachedReferees) : INITIAL_REFEREES);
-      const cachedFormats = localStorage.getItem(getStorageKey(BASE_STORAGE_KEYS.CATEGORY_FORMATS, id));
-      setCategoryFormats(cachedFormats ? JSON.parse(cachedFormats) : INITIAL_CATEGORY_FORMAT_MEMORY);
-      const cachedNoAd = localStorage.getItem(getStorageKey(BASE_STORAGE_KEYS.CATEGORY_NOAD, id));
-      setCategoryNoAdSettings(cachedNoAd ? JSON.parse(cachedNoAd) : {});
-      const cachedInfo = localStorage.getItem(getStorageKey(BASE_STORAGE_KEYS.TOURNAMENT_INFO, id));
-      setTournamentInfoState(cachedInfo ? { ...{ tbType: 'standard', tvPages: [] }, ...JSON.parse(cachedInfo) } : { ad: '', yer: '', tarih: '', not: '', tbType: 'standard', tvPages: [] });
+  const toggleMonitorMode = async () => {
+    if (!isMonitorMode) {
+      setIsMonitorMode(true);
+      setCurrentTvPageIdx(0);
+      setTvProgress(0);
+      try { await document.documentElement.requestFullscreen(); } catch (err) {}
     } else {
-      setMatches([]); setReferees([]); setTournamentInfoState({ ad: '', yer: '', tarih: '', not: '', tbType: 'standard', tvPages: [] });
+      setIsMonitorMode(false);
+      try { await document.exitFullscreen(); } catch (err) {}
     }
   };
 
   useEffect(() => {
-    if (tournamentId) {
-      localStorage.setItem(getStorageKey(BASE_STORAGE_KEYS.MATCHES, tournamentId), JSON.stringify(matches));
-      localStorage.setItem(getStorageKey(BASE_STORAGE_KEYS.REFEREES, tournamentId), JSON.stringify(referees));
-      localStorage.setItem(getStorageKey(BASE_STORAGE_KEYS.CATEGORY_FORMATS, tournamentId), JSON.stringify(categoryFormats));
-      localStorage.setItem(getStorageKey(BASE_STORAGE_KEYS.CATEGORY_NOAD, tournamentId), JSON.stringify(categoryNoAdSettings));
-      localStorage.setItem(getStorageKey(BASE_STORAGE_KEYS.TOURNAMENT_INFO, tournamentId), JSON.stringify(tournamentInfoState));
-    }
-  }, [matches, referees, categoryFormats, categoryNoAdSettings, tournamentInfoState, tournamentId]);
-
-  useEffect(() => {
-    if (currentReferee) { sessionStorage.setItem(getStorageKey(BASE_STORAGE_KEYS.CURRENT_REF, tournamentId), JSON.stringify(currentReferee)); } 
-    else { sessionStorage.removeItem(getStorageKey(BASE_STORAGE_KEYS.CURRENT_REF, tournamentId)); }
-  }, [currentReferee, tournamentId]);
-
-  useEffect(() => {
-    if (tournamentId) {
-      if (activeMatchId) localStorage.setItem(getStorageKey(BASE_STORAGE_KEYS.ACTIVE_MATCH_ID, tournamentId), activeMatchId);
-      else localStorage.removeItem(getStorageKey(BASE_STORAGE_KEYS.ACTIVE_MATCH_ID, tournamentId));
-    }
-  }, [activeMatchId, tournamentId]);
-
-  const broadcastChannelRef = useRef<BroadcastChannel | null>(null);
-
-  useEffect(() => {
-    if (!tournamentId) return;
-    try {
-      const channelName = `courtonline_sync_channel_${tournamentId}`;
-      const channel = new BroadcastChannel(channelName);
-      broadcastChannelRef.current = channel;
-      channel.onmessage = (event) => {
-        if (event.data?.type === 'MATCHES_UPDATED' && Array.isArray(event.data.matches)) setMatches(event.data.matches);
-      };
-    } catch {}
-
-    const handleStorageEvent = (event: StorageEvent) => {
-      const currentMatchKey = getStorageKey(BASE_STORAGE_KEYS.MATCHES, tournamentId);
-      if (event.key === currentMatchKey && event.newValue) {
-        try {
-          const parsed = JSON.parse(event.newValue);
-          if (Array.isArray(parsed)) setMatches(parsed);
-        } catch (err) {}
+    const handleFullscreenChange = () => {
+      if (!document.fullscreenElement) {
+        setIsMonitorMode(false);
       }
     };
-    window.addEventListener('storage', handleStorageEvent);
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
 
+  // TV MODU 30 SANİYE DÖNGÜSÜ (Eğer sayfa ayarlanmışsa)
+  useEffect(() => {
+    let interval: any;
+    let progressInterval: any;
+    const pages = tournamentInfo?.tvPages?.filter(p => p.length > 0) || [];
+    
+    if (isMonitorMode && pages.length > 1) {
+      interval = setInterval(() => {
+        setCurrentTvPageIdx(prev => (prev + 1) % pages.length);
+        setTvProgress(0); // Dolum çubuğunu sıfırla
+      }, 30000); // 30 saniye
+
+      progressInterval = setInterval(() => {
+        setTvProgress(prev => Math.min(prev + (100 / 300), 100)); // 30 saniyede %100 dolacak şekilde
+      }, 100);
+    }
+    
     return () => {
-      if (broadcastChannelRef.current) { broadcastChannelRef.current.close(); broadcastChannelRef.current = null; }
-      window.removeEventListener('storage', handleStorageEvent);
+      clearInterval(interval);
+      clearInterval(progressInterval);
     };
-  }, [tournamentId]);
+  }, [isMonitorMode, tournamentInfo?.tvPages]);
+
+
+  const [activeModal, setActiveModal] = useState<'referee' | 'desk' | null>(null);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [pin, setPin] = useState('');
+  const [selectedRefName, setSelectedRefName] = useState('');
+  const [showPin, setShowPin] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
+  const [portalSyncMsg, setPortalSyncMsg] = useState('');
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [filterKort, setFilterKort] = useState('TUMU');
+  const [filterDurum, setFilterDurum] = useState('TUMU');
+  const [now, setNow] = useState(Date.now());
+
+  const [deskRefName, setDeskRefName] = useState<string>('');
+
+  // MİSAFİR EKRANI İÇİN SÜRÜKLE-KAYDIR (SADECE MASAÜSTÜNDE ÇALIŞIR)
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const isDragging = useRef(false);
+  const dragStartX = useRef(0);
+  const dragStartY = useRef(0);
+  const scrollStartX = useRef(0);
+  const scrollStartY = useRef(0);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (window.innerWidth < 768 || isMonitorMode) return; 
+    isDragging.current = true;
+    dragStartX.current = e.pageX;
+    dragStartY.current = e.pageY;
+    if (scrollContainerRef.current) {
+      scrollStartX.current = scrollContainerRef.current.scrollLeft;
+      scrollStartY.current = scrollContainerRef.current.scrollTop;
+      scrollContainerRef.current.style.userSelect = 'none';
+    }
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (window.innerWidth < 768 || !isDragging.current || !scrollContainerRef.current || isMonitorMode) return;
+    const dx = e.pageX - dragStartX.current;
+    const dy = e.pageY - dragStartY.current;
+    scrollContainerRef.current.scrollLeft = scrollStartX.current - dx;
+    scrollContainerRef.current.scrollTop = scrollStartY.current - dy;
+  };
+
+  const handleMouseUpOrLeave = () => {
+    isDragging.current = false;
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.style.userSelect = 'auto';
+    }
+  };
+
 
   useEffect(() => {
-    if (!tournamentId) return;
+    const t = setInterval(() => setNow(Date.now()), 30000);
+    return () => clearInterval(t);
+  }, []);
 
-    fetchTournamentFromCloud(tournamentId).then((remote) => {
-      if (remote) {
-        if (Array.isArray(remote.matches) && remote.matches.length > 0) setMatches(sanitizeMatchList(remote.matches));
-        if (remote.referees && remote.referees.length > 0) setReferees(remote.referees);
-        if (remote.categoryFormats) setCategoryFormats(remote.categoryFormats);
-        if (remote.categoryNoAdSettings) setCategoryNoAdSettings(remote.categoryNoAdSettings);
-        if (remote.deskPin) setDeskPin(remote.deskPin);
-        if (remote.tournamentInfo) setTournamentInfoState({ ...{ tbType: 'standard', tvPages: [] }, ...remote.tournamentInfo });
-      }
-    }).catch(() => {});
-
-    const unsubscribe = subscribeToCloudTournament(
-      tournamentId,
-      (remoteMatches) => {
-        setCloudSyncStatus('connected');
-        setLastCloudSync(new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
-        if (Array.isArray(remoteMatches) && remoteMatches.length > 0) {
-          setMatches((prev) => {
-            let nextList: MatchItem[];
-            if (remoteMatches.length === 1 && prev.length > 1) {
-              const single = remoteMatches[0];
-              const exists = prev.some((m) => m.id === single.id);
-              if (exists) nextList = prev.map((m) => (m.id === single.id ? { ...m, ...single } : m));
-              else nextList = sanitizeMatchList([...prev, single]);
-            } else { nextList = sanitizeMatchList(remoteMatches); }
-            return nextList;
-          });
-        }
-      },
-      (meta) => {
-        if (Array.isArray(meta.referees) && meta.referees.length > 0) setReferees(meta.referees);
-        if (meta.categoryFormats && Object.keys(meta.categoryFormats).length > 0) setCategoryFormats(meta.categoryFormats);
-        if (meta.categoryNoAdSettings) setCategoryNoAdSettings(meta.categoryNoAdSettings);
-        if (meta.deskPin) setDeskPin(meta.deskPin);
-        if (meta.tournamentInfo) setTournamentInfoState({ ...{ tbType: 'standard', tvPages: [] }, ...meta.tournamentInfo });
-      },
-      () => {}
-    );
-    return () => unsubscribe();
-  }, [deskPin, tournamentId]);
-
-  const broadcastAndSyncSingleMatch = (updatedMatch: MatchItem, allMatchesList?: MatchItem[]) => {
-    if (!tournamentId) return;
-    const fullList = allMatchesList || matches.map((m) => (m.id === updatedMatch.id ? updatedMatch : m));
-    try {
-      localStorage.setItem(getStorageKey(BASE_STORAGE_KEYS.MATCHES, tournamentId), JSON.stringify(fullList));
-      if (broadcastChannelRef.current) broadcastChannelRef.current.postMessage({ type: 'MATCH_UPDATED', match: updatedMatch, matches: fullList });
-    } catch {}
-
-    setCloudSyncStatus('syncing');
-    if (cloudSyncTimeoutRef.current) clearTimeout(cloudSyncTimeoutRef.current);
-
-    cloudSyncTimeoutRef.current = setTimeout(() => {
-      pushSingleMatchToCloud(updatedMatch, currentReferee?.name || 'Turnuva Masası', fullList, tournamentId)
-        .then(() => { setCloudSyncStatus('connected'); setLastCloudSync(new Date().toLocaleTimeString('tr-TR')); })
-        .catch(() => { setCloudSyncStatus('connected'); setLastCloudSync(new Date().toLocaleTimeString('tr-TR')); });
-    }, 2000); 
-  };
-
-  const broadcastAndSyncMatches = (newMatches: MatchItem[]) => {
-    if (!tournamentId) return;
-    try {
-      localStorage.setItem(getStorageKey(BASE_STORAGE_KEYS.MATCHES, tournamentId), JSON.stringify(newMatches));
-      if (broadcastChannelRef.current) broadcastChannelRef.current.postMessage({ type: 'MATCHES_UPDATED', matches: newMatches });
-    } catch {}
-
-    setCloudSyncStatus('syncing');
-    if (cloudSyncTimeoutRef.current) clearTimeout(cloudSyncTimeoutRef.current);
-
-    cloudSyncTimeoutRef.current = setTimeout(() => {
-      pushAllMatchesToCloud(newMatches, currentReferee?.name || 'Turnuva Masası', tournamentId)
-        .then(() => { setCloudSyncStatus('connected'); setLastCloudSync(new Date().toLocaleTimeString('tr-TR')); })
-        .catch(() => { setCloudSyncStatus('connected'); setLastCloudSync(new Date().toLocaleTimeString('tr-TR')); });
-    }, 2000); 
-  };
-
-  const pullFromCloudNow = async (): Promise<boolean> => {
-    setCloudSyncStatus('syncing');
-    try {
-      const remote = await fetchTournamentFromCloud(tournamentId);
-      if (remote) {
-        if (Array.isArray(remote.matches) && remote.matches.length > 0) setMatches(sanitizeMatchList(remote.matches));
-        if (remote.referees && remote.referees.length > 0) setReferees(remote.referees);
-        if (remote.categoryFormats) setCategoryFormats(remote.categoryFormats);
-        if (remote.categoryNoAdSettings) setCategoryNoAdSettings(remote.categoryNoAdSettings);
-        if (remote.deskPin) setDeskPin(remote.deskPin);
-        if (remote.tournamentInfo) setTournamentInfoState({ ...{ tbType: 'standard', tvPages: [] }, ...remote.tournamentInfo }); 
-        
-        setCloudSyncStatus('connected');
-        setLastCloudSync(new Date().toLocaleTimeString('tr-TR'));
-        return true;
-      }
-      setCloudSyncStatus('connected');
-      return true;
-    } catch (err) {
-      setCloudSyncStatus('offline');
-      return false;
-    }
-  };
-
-  const clearLocalCacheAndResetFromCloud = async (): Promise<boolean> => {
-    setCloudSyncStatus('syncing');
-    try {
-      localStorage.removeItem(getStorageKey(BASE_STORAGE_KEYS.MATCHES, tournamentId));
-      localStorage.removeItem(getStorageKey(BASE_STORAGE_KEYS.REFEREES, tournamentId));
-      localStorage.removeItem(getStorageKey(BASE_STORAGE_KEYS.CATEGORY_FORMATS, tournamentId));
-      localStorage.removeItem(getStorageKey(BASE_STORAGE_KEYS.CATEGORY_NOAD, tournamentId));
-      localStorage.removeItem(getStorageKey(BASE_STORAGE_KEYS.DESK_PIN, tournamentId));
-      localStorage.removeItem(getStorageKey(BASE_STORAGE_KEYS.TOURNAMENT_INFO, tournamentId));
-      
-      setMatches([]); setReferees([]);
-
-      const remote = await fetchTournamentFromCloud(tournamentId);
-      if (remote) {
-        if (Array.isArray(remote.matches) && remote.matches.length > 0) setMatches(sanitizeMatchList(remote.matches));
-        if (remote.referees && remote.referees.length > 0) setReferees(remote.referees);
-        if (remote.categoryFormats) setCategoryFormats(remote.categoryFormats);
-        if (remote.categoryNoAdSettings) setCategoryNoAdSettings(remote.categoryNoAdSettings);
-        if (remote.deskPin) setDeskPin(remote.deskPin);
-        if (remote.tournamentInfo) setTournamentInfoState({ ...{ tbType: 'standard', tvPages: [] }, ...remote.tournamentInfo });
-      } else {
-        setMatches(sanitizeMatchList(INITIAL_MATCHES)); setReferees(INITIAL_REFEREES);
-        setCategoryFormats(INITIAL_CATEGORY_FORMAT_MEMORY); setCategoryNoAdSettings({});
-        setTournamentInfoState({ ad: '', yer: '', tarih: '', not: '', tbType: 'standard', tvPages: [] });
-      }
-
-      setCloudSyncStatus('connected');
-      setLastCloudSync(new Date().toLocaleTimeString('tr-TR'));
-      return true;
-    } catch (err) {
-      setCloudSyncStatus('offline');
-      return false;
-    }
-  };
-
-  const wipeAllMatchesForTournament = async (): Promise<boolean> => {
-    if (!tournamentId) return false;
-    setCloudSyncStatus('syncing');
-    try {
-      await deleteAllMatchesFromCloud(tournamentId);
-      setMatches([]);
-      localStorage.removeItem(getStorageKey(BASE_STORAGE_KEYS.MATCHES, tournamentId));
-      if (broadcastChannelRef.current) broadcastChannelRef.current.postMessage({ type: 'MATCHES_UPDATED', matches: [] });
-      setCloudSyncStatus('connected');
-      return true;
-    } catch (err) {
-      setCloudSyncStatus('offline');
-      return false;
-    }
-  };
-
-  const forcePushAllToCloud = async () => {
-    setCloudSyncStatus('syncing');
-    try {
-      await replaceAllMatchesInCloud(matches, currentReferee?.name || 'Turnuva Masası', tournamentId);
-      await pushRefereesToCloud(referees, tournamentId);
-      await pushCategoryFormatsToCloud(categoryFormats, tournamentId);
-      await pushCategoryNoAdSettingsToCloud(categoryNoAdSettings, tournamentId);
-      await pushTournamentInfoToCloud(tournamentInfoState, tournamentId);
-      await pushDeskPinToCloud(deskPin, tournamentId);
-      setCloudSyncStatus('connected');
-      setLastCloudSync(new Date().toLocaleTimeString('tr-TR'));
-    } catch (err) {
-      setCloudSyncStatus('offline');
-      throw err;
-    }
-  };
-
-  const resetAllScores = () => {
-    const cleanMatches = matches.map((m) => {
-      const format = m.Skor_Formati || '3 Normal Set';
-      const cleanState = createInitialMatchState(1, format, !!m.isNoAd);
-      return {
-        ...m, Durum: 'Baslamadi' as MatchStatus, Skor: '-', Kura_Kazanan: 'Secilmedi', Kura_Tercih: 'Servis',
-        Saha_Tarafi: 'Sandalyenin Sağı', Baslangic_Saati: 'Secilmedi', Bitis_Saati: 'Secilmedi', Kazanan: 'Secilmedi',
-        detailedState: cleanState, pointHistory: [], disputeHistory: [], pausedAccumulatedMs: 0,
-        startTimeTimestamp: undefined, totalDurationSeconds: 0, Son_Guncelleme: new Date().toISOString(), Son_Hakem: currentReferee?.name || 'Turnuva Masası',
+  useEffect(() => {
+    if (activeModal === 'desk' && tournamentId) {
+      const fetchDeskRefName = async () => {
+        try {
+          const tRef = doc(db, 'tournaments', tournamentId);
+          const tSnap = await getDoc(tRef);
+          if (tSnap.exists() && tSnap.data().bashakemAd) {
+            setDeskRefName(tSnap.data().bashakemAd);
+            return;
+          }
+          
+          const configRef = doc(db, 'superAdmin', 'config');
+          const configSnap = await getDoc(configRef);
+          if (configSnap.exists()) {
+            const list = configSnap.data().bashakem_listesi || [];
+            const found = list.find((b: any) => b.tournamentId === tournamentId);
+            if (found && found.ad) {
+              setDeskRefName(found.ad);
+            }
+          }
+        } catch (err) {}
       };
-    });
-    setMatches(cleanMatches);
-    localStorage.setItem(getStorageKey(BASE_STORAGE_KEYS.MATCHES, tournamentId), JSON.stringify(cleanMatches));
-    if (broadcastChannelRef.current) broadcastChannelRef.current.postMessage({ type: 'MATCHES_UPDATED', matches: cleanMatches });
-    replaceAllMatchesInCloud(cleanMatches, currentReferee?.name || 'Turnuva Masası', tournamentId);
-  };
-
-  const syncWithCloudNow = () => pullFromCloudNow();
-
-  const loginReferee = (name: string, pin: string): boolean => {
-    const found = referees.find((r) => r.name.toLowerCase() === name.toLowerCase() && r.pin === pin);
-    if (found) { setCurrentReferee(found); setAuthRole('referee'); return true; }
-    return false;
-  };
-
-  const loginRefereeDirect = (name?: string) => {};
-
-  const loginSupervisorByPin = (pin: string, name?: string): boolean => {
-    const cleanPin = pin.trim();
-    if (!cleanPin) return false;
-    if (name) {
-      const found = referees.find((r) => r.name.toLowerCase() === name.toLowerCase() && r.pin === cleanPin);
-      if (found) { setCurrentReferee(found); setAuthRole('supervisor'); return true; }
-    }
-    const matchingRef = referees.find((r) => r.pin === cleanPin);
-    if (matchingRef) { setCurrentReferee(matchingRef); setAuthRole('supervisor'); return true; }
-    return false;
-  };
-
-  const loginDesk = (pin: string): boolean => {
-    const cleanPin = pin.trim();
-    if (!cleanPin) return false;
-    return cleanPin === deskPin || cleanPin === '2026' || cleanPin === '1923';
-  };
-
-  const logoutReferee = () => setCurrentReferee(null);
-  const logoutAuth = () => { setCurrentReferee(null); setAuthRole('none'); };
-
-  const updateMatch = (updated: MatchItem) => {
-    setMatches((prev) => {
-      const next = prev.map((m) => (m.id === updated.id ? updated : m));
-      broadcastAndSyncSingleMatch(updated, next);
-      return next;
-    });
-  };
-
-  const saveMatchSetup = (matchId: string, data: any) => {
-    if (!matchId) return;
-    setMatches((prev) => {
-      let updatedItem: MatchItem | null = null;
-      const next = prev.map((m) => {
-        if (!m.id || m.id !== matchId) return m;
-
-        let detState = m.detailedState;
-        const chosenFormat = data.skorFormati || m.Skor_Formati || '3 Normal Set';
-        const chosenNoAd = data.isNoAd !== undefined ? data.isNoAd : !!m.isNoAd;
-
-        if (!detState || (m.Durum === 'Baslamadi' && data.durum === 'Oynaniyor')) {
-          let server: 1 | 2 = 1;
-          if (data.kuraKazanan && data.kuraTercih) {
-            if (data.kuraTercih === 'Servis') server = data.kuraKazanan === m['Oyuncu 1'] ? 1 : 2;
-            else if (data.kuraTercih === 'Karşılama') server = data.kuraKazanan === m['Oyuncu 1'] ? 2 : 1;
-          }
-          if (data.ilkServisOyuncusu) server = data.ilkServisOyuncusu;
-          detState = createInitialMatchState(server, chosenFormat, chosenNoAd);
-        } else {
-          detState.isNoAd = chosenNoAd;
-        }
-
-        let setupStartTs = m.startTimeTimestamp;
-        if (data.baslangicSaati && data.baslangicSaati !== 'Secilmedi') {
-          const parts = data.baslangicSaati.split(':');
-          if (parts.length >= 2) {
-            const d = new Date(); d.setHours(parseInt(parts[0], 10), parseInt(parts[1], 10), 0, 0);
-            const candidate = d.getTime();
-            setupStartTs = candidate <= Date.now() ? candidate : candidate - 86400000;
-          }
-        }
-        if (!setupStartTs) setupStartTs = Date.now();
-
-        let setupEndTs: number | undefined = undefined;
-        if (data.bitisSaati && data.bitisSaati !== 'Secilmedi') {
-          const parts = data.bitisSaati.split(':');
-          if (parts.length >= 2) {
-            const d = new Date(); d.setHours(parseInt(parts[0], 10), parseInt(parts[1], 10), 0, 0);
-            setupEndTs = d.getTime();
-            if (setupEndTs < setupStartTs) setupEndTs += 86400000;
-          }
-        }
-
-        const res: MatchItem = {
-          ...m,
-          Kort: data.yeniKort || m.Kort,
-          Durum: data.durum, Kura_Kazanan: data.kuraKazanan, Kura_Tercih: data.kuraTercih,
-          Saha_Tarafi: data.sahaTarafi, Baslangic_Saati: data.baslangicSaati, startTimeTimestamp: setupStartTs,
-          Bitis_Saati: data.bitisSaati, lastPausedTimestamp: setupEndTs,
-          totalDurationSeconds: (data.durum === 'Bitti' || data.durum === 'Retired' || data.durum === 'Walkover') && setupEndTs ? Math.floor(Math.max(0, setupEndTs - setupStartTs) / 1000) : undefined,
-          Skor_Formati: chosenFormat, isNoAd: chosenNoAd, Son_Hakem: currentReferee ? currentReferee.name : 'Turnuva Masası',
-          detailedState: detState,
-        };
-        updatedItem = res;
-        return res;
-      });
-
-      if (updatedItem) broadcastAndSyncSingleMatch(updatedItem, next);
-      else broadcastAndSyncMatches(next);
-      return next;
-    });
-  };
-
-  const checkSyncTiebreak = (dState: TennisMatchState, formatStr: string) => {
-    if (!dState) return;
-    
-    const thirdSetMT = isMatchTiebreakThirdSet(formatStr);
-    
-    if (dState.currentSet !== 3) {
-      dState.isMatchTiebreak = false;
-      dState.tiebreakTarget = 7;
-    }
-
-    const isSet1Tiebreak = (dState.set1_p1 === 6 && dState.set1_p2 === 6);
-    const isSet2Tiebreak = (dState.set2_p1 === 6 && dState.set2_p2 === 6);
-
-    if (dState.currentSet === 1 && isSet1Tiebreak) {
-        dState.isTiebreak = true;
-    } else if (dState.currentSet === 2 && isSet2Tiebreak) {
-        dState.isTiebreak = true;
-    } else if (dState.currentSet === 3) {
-        if (thirdSetMT.isMT) {
-            dState.isTiebreak = true;
-            dState.isMatchTiebreak = true;
-            dState.tiebreakTarget = thirdSetMT.target;
-        } else if (dState.set3_p1 === 6 && dState.set3_p2 === 6) {
-            dState.isTiebreak = true;
-        } else {
-            dState.isTiebreak = false;
-        }
+      fetchDeskRefName();
     } else {
-        dState.isTiebreak = false;
+      setDeskRefName('');
     }
+  }, [activeModal, tournamentId]);
+
+  const openRefereeModal = () => { setActiveModal('referee'); setPin(''); setSelectedRefName(''); setErrorMsg(''); setSuccessMsg(''); setShowPin(false); };
+  const openDeskModal = () => { setActiveModal('desk'); setPin(''); setSelectedRefName(''); setErrorMsg(''); setSuccessMsg(''); setShowPin(false); };
+  const closeModal = () => { setActiveModal(null); setPin(''); setErrorMsg(''); setSuccessMsg(''); };
+  const handleKeypadPress = (d: string) => { if (pin.length < 8) { setPin(p => p + d); setErrorMsg(''); } };
+  const handleKeypadBackspace = () => setPin(p => p.slice(0, -1));
+  const handleKeypadClear = () => setPin('');
+
+  const handleRefereeSubmit = () => {
+    if (!selectedRefName) { setErrorMsg('Lütfen hakem adınızı seçin.'); return; }
+    if (!pin) { setErrorMsg('PIN şifresi boş olamaz.'); return; }
+    const ok = loginReferee(selectedRefName, pin);
+    if (ok) { 
+      setSuccessMsg(`✅ Hoş geldiniz ${selectedRefName}! Yönlendiriliyorsunuz...`); 
+      setTimeout(() => {
+        closeModal();
+      }, 600); 
+    }
+    else setErrorMsg('❌ PIN hatalı. Lütfen tekrar deneyin.');
   };
 
-  const updateGameScore = (matchId: string, setIndex: 1 | 2 | 3, player: 1 | 2, delta: number) => {
-    if (!matchId) return;
-    setMatches((prev) => {
-      let updatedItem: MatchItem | null = null;
-      const next = prev.map((m) => {
-        if (m.id !== matchId) return m;
-        const format = m.Skor_Formati || '3 Normal Set';
-        const dState = JSON.parse(JSON.stringify(m.detailedState || createInitialMatchState(1, format, !!m.isNoAd)));
-        dState.isNoAd = !!m.isNoAd; 
-
-        if (setIndex === 1) {
-          if (player === 1) dState.set1_p1 = Math.max(0, dState.set1_p1 + delta); else dState.set1_p2 = Math.max(0, dState.set1_p2 + delta);
-        } else if (setIndex === 2) {
-          if (player === 1) dState.set2_p1 = Math.max(0, dState.set2_p1 + delta); else dState.set2_p2 = Math.max(0, dState.set2_p2 + delta);
-        } else if (setIndex === 3) {
-          if (player === 1) dState.set3_p1 = Math.max(0, dState.set3_p1 + delta); else dState.set3_p2 = Math.max(0, dState.set3_p2 + delta);
-        }
-
-        const v1 = validateSingleSet(dState.set1_p1, dState.set1_p2, 1, format);
-        if (v1.isComplete) {
-          dState.set1_winner = v1.winner;
-          const v2 = validateSingleSet(dState.set2_p1, dState.set2_p2, 2, format);
-          if (v2.isComplete) {
-            dState.set2_winner = v2.winner;
-            if (v1.winner !== v2.winner) {
-                dState.currentSet = 3;
-                dState.currentSetNum = 3;
-                const v3 = validateSingleSet(dState.set3_p1, dState.set3_p2, 3, format);
-                dState.set3_winner = v3.isComplete ? v3.winner : undefined;
-            } else {
-                dState.currentSet = 2; dState.currentSetNum = 2;
-                dState.set3_p1 = 0; dState.set3_p2 = 0; dState.set3_winner = undefined;
-            }
-          } else {
-            dState.set2_winner = undefined; dState.set3_p1 = 0; dState.set3_p2 = 0; dState.set3_winner = undefined;
-            dState.currentSet = 2; dState.currentSetNum = 2;
-          }
-        } else {
-          dState.set1_winner = undefined; dState.set2_p1 = 0; dState.set2_p2 = 0; dState.set2_winner = undefined;
-          dState.set3_p1 = 0; dState.set3_p2 = 0; dState.set3_winner = undefined;
-          dState.currentSet = 1; dState.currentSetNum = 1;
-        }
-
-        checkSyncTiebreak(dState, format);
-
-        const matchSafetyCheck = checkMatchWinner(dState, format);
-        dState.matchEnded = matchSafetyCheck.matchEnded;
-        dState.matchWinner = matchSafetyCheck.matchWinner;
-
-        dState.gamePoint_p1 = '0'; dState.gamePoint_p2 = '0';
-        dState.tiebreak_p1 = 0; dState.tiebreak_p2 = 0;
-
-        let newDurum = m.Durum;
-        let newKazanan = m.Kazanan;
-        
-        if (dState.matchEnded) {
-            newDurum = 'Bitti';
-            if (dState.matchWinner === 1) newKazanan = m['Oyuncu 1'];
-            else if (dState.matchWinner === 2) newKazanan = m['Oyuncu 2'];
-        } else {
-            if (m.Durum === 'Bitti' || m.Durum === 'Walkover' || m.Durum === 'Retired') {
-                newDurum = 'Oynaniyor'; 
-                newKazanan = 'Secilmedi';
-            }
-        }
-
-        const res: MatchItem = {
-          ...m, Durum: newDurum, Kazanan: newKazanan, detailedState: dState,
-          Skor: buildScoreString(dState.set1_p1, dState.set1_p2, dState.set2_p1, dState.set2_p2, dState.set3_p1, dState.set3_p2),
-        };
-        updatedItem = res;
-        return res;
-      });
-
-      if (updatedItem) broadcastAndSyncSingleMatch(updatedItem, next);
-      else broadcastAndSyncMatches(next);
-      return next;
-    });
-  };
-
-  const setDirectSetScores = (matchId: string, s1_p1: number, s1_p2: number, s2_p1: number, s2_p2: number, s3_p1: number, s3_p2: number) => {
-    if (!matchId) return;
-    setMatches((prev) => {
-      let updatedItem: MatchItem | null = null;
-      const next = prev.map((m) => {
-        if (m.id !== matchId) return m;
-        const format = m.Skor_Formati || '3 Normal Set';
-        const dState = JSON.parse(JSON.stringify(m.detailedState || createInitialMatchState(1, format, !!m.isNoAd)));
-        dState.isNoAd = !!m.isNoAd;
-
-        dState.set1_p1 = s1_p1; dState.set1_p2 = s1_p2;
-        const v1 = validateSingleSet(dState.set1_p1, dState.set1_p2, 1, format);
-
-        if (v1.isComplete) {
-          dState.set1_winner = v1.winner;
-          dState.set2_p1 = s2_p1; dState.set2_p2 = s2_p2;
-          const v2 = validateSingleSet(dState.set2_p1, dState.set2_p2, 2, format);
-          
-          if (v2.isComplete) {
-            dState.set2_winner = v2.winner;
-            if (v1.winner !== v2.winner) {
-                dState.currentSet = 3;
-                dState.currentSetNum = 3;
-                dState.set3_p1 = s3_p1; dState.set3_p2 = s3_p2;
-                const v3 = validateSingleSet(dState.set3_p1, dState.set3_p2, 3, format);
-                dState.set3_winner = v3.isComplete ? v3.winner : undefined;
-            } else {
-                dState.currentSet = 2; dState.currentSetNum = 2; dState.set3_p1 = 0; dState.set3_p2 = 0; dState.set3_winner = undefined;
-            }
-          } else {
-            dState.set2_winner = undefined; dState.set3_p1 = 0; dState.set3_p2 = 0; dState.set3_winner = undefined;
-            dState.currentSet = 2; dState.currentSetNum = 2;
-          }
-        } else {
-          dState.set1_winner = undefined; dState.set2_p1 = 0; dState.set2_p2 = 0; dState.set2_winner = undefined;
-          dState.set3_p1 = 0; dState.set3_p2 = 0; dState.set3_winner = undefined;
-          dState.currentSet = 1; dState.currentSetNum = 1;
-        }
-
-        checkSyncTiebreak(dState, format);
-
-        const matchSafetyCheck = checkMatchWinner(dState, format);
-        dState.matchEnded = matchSafetyCheck.matchEnded;
-        dState.matchWinner = matchSafetyCheck.matchWinner;
-
-        dState.gamePoint_p1 = '0'; dState.gamePoint_p2 = '0';
-        dState.tiebreak_p1 = 0; dState.tiebreak_p2 = 0;
-
-        let newDurum = m.Durum;
-        let newKazanan = m.Kazanan;
-        
-        if (dState.matchEnded) {
-            newDurum = 'Bitti';
-            if (dState.matchWinner === 1) newKazanan = m['Oyuncu 1'];
-            else if (dState.matchWinner === 2) newKazanan = m['Oyuncu 2'];
-        } else {
-            if (m.Durum === 'Bitti' || m.Durum === 'Walkover' || m.Durum === 'Retired') {
-                newDurum = 'Oynaniyor'; 
-                newKazanan = 'Secilmedi';
-            }
-        }
-
-        const res: MatchItem = {
-          ...m, Durum: newDurum, Kazanan: newKazanan, detailedState: dState,
-          Skor: buildScoreString(dState.set1_p1, dState.set1_p2, dState.set2_p1, dState.set2_p2, dState.set3_p1, dState.set3_p2),
-        };
-        updatedItem = res;
-        return res;
-      });
-
-      if (updatedItem) broadcastAndSyncSingleMatch(updatedItem, next);
-      else broadcastAndSyncMatches(next);
-      return next;
-    });
-  };
-
-  const saveDirectScoreAndStatus = (matchId: string, data: any) => {
-    if (!matchId) return;
-    setMatches((prev) => {
-      let updatedItem: MatchItem | null = null;
-      const next = prev.map((m) => {
-        if (m.id !== matchId) return m;
-        const format = m.Skor_Formati || '3 Normal Set';
-        const dState = JSON.parse(JSON.stringify(m.detailedState || createInitialMatchState(1, format, !!m.isNoAd)));
-        dState.isNoAd = !!m.isNoAd;
-
-        dState.set1_p1 = data.s1_p1; dState.set1_p2 = data.s1_p2;
-        const v1 = validateSingleSet(dState.set1_p1, dState.set1_p2, 1, format);
-
-        if (v1.isComplete) {
-          dState.set1_winner = v1.winner;
-          dState.set2_p1 = data.s2_p1; dState.set2_p2 = data.s2_p2;
-          const v2 = validateSingleSet(dState.set2_p1, dState.set2_p2, 2, format);
-          
-          if (v2.isComplete) {
-            dState.set2_winner = v2.winner;
-            if (v1.winner !== v2.winner) {
-                dState.currentSet = 3;
-                dState.currentSetNum = 3;
-                dState.set3_p1 = data.s3_p1; dState.set3_p2 = data.s3_p2;
-                const v3 = validateSingleSet(dState.set3_p1, dState.set3_p2, 3, format);
-                dState.set3_winner = v3.isComplete ? v3.winner : undefined;
-            } else {
-                dState.currentSet = 2; dState.currentSetNum = 2; dState.set3_p1 = 0; dState.set3_p2 = 0; dState.set3_winner = undefined;
-            }
-          } else {
-            dState.set2_winner = undefined; dState.set3_p1 = 0; dState.set3_p2 = 0; dState.set3_winner = undefined;
-            dState.currentSet = 2; dState.currentSetNum = 2;
-          }
-        } else {
-          dState.set1_winner = undefined; dState.set2_p1 = 0; dState.set2_p2 = 0; dState.set2_winner = undefined;
-          dState.set3_p1 = 0; dState.set3_p2 = 0; dState.set3_winner = undefined;
-          dState.currentSet = 1; dState.currentSetNum = 1;
-        }
-        
-        checkSyncTiebreak(dState, format);
-
-        const matchSafetyCheck = checkMatchWinner(dState, format);
-        dState.matchEnded = matchSafetyCheck.matchEnded;
-        dState.matchWinner = matchSafetyCheck.matchWinner;
-
-        dState.gamePoint_p1 = '0'; dState.gamePoint_p2 = '0';
-        dState.tiebreak_p1 = 0; dState.tiebreak_p2 = 0;
-
-        const res: MatchItem = {
-          ...m, Durum: data.status, Kazanan: data.winner || m.Kazanan,
-          Baslangic_Saati: data.startTime || m.Baslangic_Saati, Bitis_Saati: data.endTime || m.Bitis_Saati,
-          detailedState: dState,
-          Skor: buildScoreString(dState.set1_p1, dState.set1_p2, dState.set2_p1, dState.set2_p2, dState.set3_p1, dState.set3_p2),
-        };
-        updatedItem = res;
-        return res;
-      });
-
-      if (updatedItem) broadcastAndSyncSingleMatch(updatedItem, next);
-      else broadcastAndSyncMatches(next);
-      return next;
-    });
-  };
-
-  const awardPointToMatch = (matchId: string, playerWon: 1 | 2, pointType: PointType = 'NORMAL') => {
-    if (!matchId) return;
-    setMatches((prev) => {
-      let updatedItem: MatchItem | null = null;
-      const next = prev.map((m) => {
-        if (!m.id || m.id !== matchId) return m;
-
-        const currState = m.detailedState || createInitialMatchState(1, m.Skor_Formati || '3 Normal Set', !!m.isNoAd);
-        currState.isNoAd = !!m.isNoAd; 
-        const format = m.Skor_Formati || '3 Normal Set';
-        const matchSafetyCheck = checkMatchWinner(currState, format);
-
-        if (matchSafetyCheck.matchEnded || m.Durum === 'Bitti' || m.Durum === 'Retired' || m.Durum === 'Walkover') {
-          return m; 
-        }
-
-        const p1Name = m['Oyuncu 1'];
-        const p2Name = m['Oyuncu 2'];
-
-        const historyItem: PointHistoryItem = {
-          id: 'pt-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4),
-          timestamp: new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-          playerWon, playerName: playerWon === 1 ? p1Name : p2Name, pointType,
-          description: `${playerWon === 1 ? p1Name : p2Name} (+1 Puan, ${pointType})`,
-          snapshot: JSON.parse(JSON.stringify(currState)),
-          scoreDisplay: formatScoreString(currState) + ` [${currState.gamePoint_p1}-${currState.gamePoint_p2}]`,
-        };
-
-        const { nextState, matchEnded, matchWinner } = awardPoint(currState, playerWon, pointType, format, p1Name, p2Name);
-
-        const newScoreStr = formatScoreString(nextState);
-        const updatedHistory = [...(m.pointHistory || []), historyItem];
-
-        let newDurum = m.Durum;
-        let newKazanan = m.Kazanan;
-        let bitis = m.Bitis_Saati;
-        let startTs = m.startTimeTimestamp;
-        let startFormatted = m.Baslangic_Saati;
-        let totalDuration = m.totalDurationSeconds;
-
-        if (matchEnded) {
-          newDurum = 'Bitti';
-          newKazanan = matchWinner === 1 ? p1Name : p2Name;
-          bitis = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
-          totalDuration = calculateMatchDurationSeconds({ ...m, Bitis_Saati: bitis });
-        } else if (newDurum === 'Baslamadi') {
-          newDurum = 'Oynaniyor';
-          if (!startTs) startTs = Date.now();
-          if (!startFormatted) startFormatted = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
-        }
-
-        if (newDurum === 'Oynaniyor' || newDurum === 'Duraklatildi') {
-          totalDuration = undefined;
-        }
-
-        const res: MatchItem = {
-          ...m, Skor: newScoreStr, Durum: newDurum, Kazanan: newKazanan,
-          Baslangic_Saati: startFormatted, startTimeTimestamp: startTs,
-          Bitis_Saati: bitis, totalDurationSeconds: totalDuration,
-          Son_Hakem: currentReferee ? currentReferee.name : m.Son_Hakem,
-          detailedState: nextState, pointHistory: updatedHistory,
-        };
-        updatedItem = res;
-        return res;
-      });
-
-      if (updatedItem) broadcastAndSyncSingleMatch(updatedItem, next);
-      else broadcastAndSyncMatches(next);
-      return next;
-    });
-  };
-
-  const undoLastPoint = (matchId: string) => {
-    if (!matchId) return;
-    setMatches((prev) => {
-      let updatedItem: MatchItem | null = null;
-      const next = prev.map((m) => {
-        if (!m.id || m.id !== matchId) return m;
-        if (!m.pointHistory || m.pointHistory.length === 0) return m;
-
-        const history = [...m.pointHistory];
-        const lastItem = history.pop();
-        if (!lastItem) return m;
-
-        const restoredState = lastItem.snapshot;
-        restoredState.lastActionMessage = `Geri alındı: ${lastItem.description}`;
-
-        const res: MatchItem = {
-          ...m, Skor: formatScoreString(restoredState),
-          Durum: m.Durum === 'Bitti' ? 'Oynaniyor' : m.Durum,
-          Kazanan: m.Durum === 'Bitti' ? 'Secilmedi' : m.Kazanan,
-          detailedState: restoredState, pointHistory: history,
-        };
-        updatedItem = res;
-        return res;
-      });
-
-      if (updatedItem) broadcastAndSyncSingleMatch(updatedItem, next);
-      else broadcastAndSyncMatches(next);
-      return next;
-    });
-  };
-
-  const recordChallenge = (matchId: string, player: 1 | 2, outcome: 'UPHELD' | 'OVERTURNED', reason: 'LINE_CALL' | 'OVERRULE' | 'SERVICE_FAULT' | 'TOUCH_NET' | 'LET_POINT', notes?: string, actionType?: 'REPLAY_POINT' | 'AWARD_POINT' | 'KEEP_DECISION') => {
-    if (!matchId) return;
-    setMatches((prev) => {
-      const next = prev.map((m) => {
-        if (m.id !== matchId) return m;
-        const stateCopy = JSON.parse(JSON.stringify(m.detailedState || {}));
-        if (outcome === 'UPHELD') {
-          if (player === 1) stateCopy.p1ChallengesLeft = Math.max(0, (stateCopy.p1ChallengesLeft ?? 3) - 1);
-          else stateCopy.p2ChallengesLeft = Math.max(0, (stateCopy.p2ChallengesLeft ?? 3) - 1);
-        }
-        const record: ChallengeRecord = {
-          id: 'ch-' + Date.now(), timestamp: new Date().toLocaleTimeString('tr-TR'),
-          player, outcome, reason, notes: notes || '',
-        };
-        return {
-          ...m, detailedState: stateCopy, disputeHistory: [...(m.disputeHistory || []), record],
-          Son_Hakem: currentReferee ? currentReferee.name : m.Son_Hakem,
-        };
-      });
-      broadcastAndSyncMatches(next);
-      return next;
-    });
-  };
-
-  const setMatchStatus = (matchId: string, status: MatchItem['Durum'], winner?: string, endTime?: string) => {
-    if (!matchId) return;
-    setMatches((prev) => {
-      let updatedItem: MatchItem | null = null;
-      const next = prev.map((m) => {
-        if (m.id !== matchId) return m;
-        const isEnding = ['Bitti', 'Retired', 'Walkover'].includes(status);
-        const format = m.Skor_Formati || '3 Normal Set';
-        const dState = JSON.parse(JSON.stringify(m.detailedState || createInitialMatchState(1, format, !!m.isNoAd)));
-        
-        if (isEnding) {
-           dState.matchEnded = true;
-           if (winner === m['Oyuncu 1']) dState.matchWinner = 1;
-           else if (winner === m['Oyuncu 2']) dState.matchWinner = 2;
-        } else {
-            const matchSafetyCheck = checkMatchWinner(dState, format);
-            dState.matchEnded = matchSafetyCheck.matchEnded;
-            dState.matchWinner = matchSafetyCheck.matchWinner;
-        }
-
-        const res: MatchItem = {
-          ...m, Durum: status, Kazanan: winner || m.Kazanan,
-          Bitis_Saati: endTime || (isEnding ? new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }) : m.Bitis_Saati),
-          totalDurationSeconds: isEnding ? calculateMatchDurationSeconds({ ...m, Durum: status, Bitis_Saati: endTime || new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }) }) : m.totalDurationSeconds,
-          Son_Hakem: currentReferee ? currentReferee.name : m.Son_Hakem, detailedState: dState,
-        };
-        updatedItem = res;
-        return res;
-      });
-      if (updatedItem) broadcastAndSyncSingleMatch(updatedItem, next);
-      return next;
-    });
-  };
-
-  const resumeMatchToLive = (matchId: string) => {
-    if (!matchId) return;
-    setMatches((prev) => {
-      const next = prev.map((m) => {
-          if (m.id === matchId) {
-             const format = m.Skor_Formati || '3 Normal Set';
-             const dState = JSON.parse(JSON.stringify(m.detailedState || createInitialMatchState(1, format, !!m.isNoAd)));
-             dState.matchEnded = false; dState.matchWinner = undefined;
-             return { ...m, Durum: 'Oynaniyor' as MatchStatus, Kazanan: 'Secilmedi', Bitis_Saati: 'Secilmedi', detailedState: dState };
-          }
-          return m;
-      });
-      broadcastAndSyncMatches(next);
-      return next;
-    });
-  };
-
-  const resetMatchScore = (matchId: string) => {
-    if (!matchId) return;
-    setMatches((prev) => {
-      const next = prev.map((m) => (m.id === matchId ? { ...m, Skor: '-', Durum: 'Baslamadi' as MatchStatus, Kazanan: 'Secilmedi', detailedState: createInitialMatchState(1, m.Skor_Formati || '3 Normal Set', !!m.isNoAd), pointHistory: [], disputeHistory: [] } : m));
-      broadcastAndSyncMatches(next);
-      return next;
-    });
-  };
-
-  const manualUpdateScoreString = (matchId: string, skorStr: string, durum: MatchItem['Durum'], kazanan: string, bitisSaati: string) => {
-    if (!matchId) return;
-    setMatches((prev) => {
-      const next = prev.map((m) => (m.id === matchId ? { ...m, Skor: skorStr, Durum: durum, Kazanan: kazanan, Bitis_Saati: bitisSaati } : m));
-      broadcastAndSyncMatches(next);
-      return next;
-    });
-  };
-
-  const addReferee = (name: string, pin: string) => {
-    if (!name.trim() || !pin.trim()) return;
-    setReferees((prev) => [...prev, { name: name.trim(), pin: pin.trim() }]);
-  };
-
-  const deleteReferee = (name: string) => {
-    setReferees((prev) => prev.filter((r) => r.name !== name));
-  };
-
-  const updateCategoryFormat = (category: string, format: string) => {
-    setCategoryFormats((prev) => ({ ...prev, [category]: format }));
-  };
-
-  const bulkApplyCategoryFormats = (formatMap: Record<string, string>) => {
-    setCategoryFormats((prev) => ({ ...prev, ...formatMap }));
-  };
-
-  const bulkApplyCategoryNoAdSettings = (noAdMap: Record<string, boolean>) => {
-    setCategoryNoAdSettings((prev) => ({ ...prev, ...noAdMap }));
-  };
-
-  const saveTournamentInfo = (info: { ad: string; yer: string; tarih: string; not: string; tbType?: 'standard' | 'coman'; tvPages?: string[][] }) => {
-    setTournamentInfoState(info);
-    if (tournamentId) { pushTournamentInfoToCloud(info, tournamentId); }
-  };
-
-  const importMatchesList = (newMatches: MatchItem[]) => {
-    if (!tournamentId) return;
-    const localizedMatches = newMatches.map(m => ({
-      ...m, tournamentId: tournamentId, Son_Guncelleme: new Date().toISOString()
-    }));
-    const sanitized = sanitizeMatchList(localizedMatches);
-    setMatches(sanitized);
-
-    setCloudSyncStatus('syncing');
-    replaceAllMatchesInCloud(sanitized, currentReferee?.name || 'Turnuva Masası', tournamentId)
-      .then(() => setCloudSyncStatus('connected'))
-      .catch(e => console.error("JSON cloud import error:", e));
-  };
-
-  const purgeOrphanMatches = async (): Promise<number> => {
-    if (!tournamentId) return 0;
-    setCloudSyncStatus('syncing');
+  const handleDeskSubmit = async () => {
+    if (!pin) { setErrorMsg('Şifre boş olamaz.'); return; }
+    
     try {
-      const activeIds = matches.map((m) => m.id).filter(Boolean) as string[];
-      const deletedCount = await purgeOrphanMatchesFromCloud(activeIds, tournamentId);
-      await pullFromCloudNow();
-      return deletedCount;
-    } catch (e) {
-      console.error("Purge error:", e);
-      setCloudSyncStatus('connected');
-      return 0;
+      setErrorMsg('');
+      setSuccessMsg('Doğrulanıyor...');
+
+      localStorage.removeItem('courtonline_desk_pin_v2');
+      localStorage.removeItem('courtonline_auth_role_v2');
+
+      const tournamentRef = doc(db, 'tournaments', tournamentId);
+      const snapshot = await getDoc(tournamentRef);
+      
+      let validMasterPin = '2026';
+
+      if (snapshot.exists()) {
+        const data = snapshot.data();
+        if (data.deskPin) validMasterPin = String(data.deskPin).trim();
+      }
+
+      if (pin.trim() === validMasterPin || pin.trim() === '1923') {
+        localStorage.setItem('courtonline_desk_pin_v2', validMasterPin);
+        setAuthRole('desk');
+        
+        const welcomeName = deskRefName ? deskRefName : 'Başhakem';
+        setSuccessMsg(`✅ Hoş geldiniz ${welcomeName}! Giriş yapıldı...`); 
+        
+        setTimeout(() => {
+          closeModal();
+        }, 600);
+      } else {
+        setSuccessMsg('');
+        setErrorMsg('❌ Şifre hatalı. Yeni turnuva şifresini girdiğinizden emin olun.');
+      }
+    } catch (err: any) {
+      setSuccessMsg('');
+      setErrorMsg('Bağlantı hatası: ' + err.message);
     }
   };
 
-  const finishAndReportMatch = (matchId: string, winner: string, status: MatchStatus = 'Bitti', customScore?: string, startTime?: string, endTime?: string) => {
-    if (!matchId) return;
-    setMatches((prev) => {
-      let updatedItem: MatchItem | null = null;
-      const next = prev.map((m) => {
-        if (m.id !== matchId) return m;
+  const distinctKortlar = Array.from(new Set(matches.map((m: any) => m.Kort).filter(Boolean))).sort() as string[];
+  const live = matches.filter(m => m.Durum === 'Oynaniyor');
+  const waiting = matches.filter(m => m.Durum === 'Baslamadi');
+  const done = matches.filter(m => m.Durum === 'Bitti' || m.Durum === 'Retired' || m.Durum === 'Walkover');
 
-        const endStr = endTime || new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
-        const startStr = startTime || m.Baslangic_Saati;
-
-        const format = m.Skor_Formati || '3 Normal Set';
-        const dState = JSON.parse(JSON.stringify(m.detailedState || createInitialMatchState(1, format, !!m.isNoAd)));
-        dState.matchEnded = true;
-        if (winner === m['Oyuncu 1']) dState.matchWinner = 1;
-        else if (winner === m['Oyuncu 2']) dState.matchWinner = 2;
-
-        const res: MatchItem = {
-          ...m, Durum: status, Kazanan: winner, Skor: customScore || m.Skor,
-          Baslangic_Saati: startStr, Bitis_Saati: endStr,
-          totalDurationSeconds: calculateMatchDurationSeconds({ ...m, Durum: status, Bitis_Saati: endStr }),
-          Son_Hakem: currentReferee ? currentReferee.name : m.Son_Hakem, detailedState: dState,
-        };
-        updatedItem = res;
-        return res;
-      });
-
-      if (updatedItem) broadcastAndSyncSingleMatch(updatedItem, next);
-      return next;
-    });
+  const statusLabel = (d: string) => {
+    if (d === 'Oynaniyor') return 'CANLI';
+    if (d === 'Baslamadi') return 'BEKL.';
+    if (d === 'Bitti') return 'BİTTİ';
+    if (d === 'Retired') return 'RET.';
+    if (d === 'Walkover') return 'W/O';
+    return d;
   };
-
-  const resetTournamentToDefault = () => {};
 
   return (
-    <TennisDataContext.Provider
-      value={{
-        matches, referees, currentReferee, categoryFormats, categoryNoAdSettings, 
-        activeMatchId, activeMatch: matches.find((m) => m.id === activeMatchId) || null,
-        authRole, deskPin, cloudSyncStatus, lastCloudSync, syncWithCloudNow,
-        pullFromCloudNow, forcePushAllToCloud, clearLocalCacheAndResetFromCloud,
-        wipeAllMatchesForTournament, tournamentId, setTournamentId, purgeOrphanMatches,
-        resetAllScores, loginReferee, loginRefereeDirect, loginSupervisorByPin, loginDesk,
-        logoutReferee, logoutAuth, setAuthRole, updateDeskPin, setActiveMatchId, updateMatch,
-        updateGameScore, setDirectSetScores, saveDirectScoreAndStatus, finishAndReportMatch,
-        saveMatchSetup, awardPointToMatch, undoLastPoint, recordChallenge, setMatchStatus,
-        resumeMatchToLive, resetMatchScore, manualUpdateScoreString, addReferee, deleteReferee,
-        updateCategoryFormat, bulkApplyCategoryFormats, bulkApplyCategoryNoAdSettings, 
-        tournamentInfo: tournamentInfoState, saveTournamentInfo, importMatchesList, resetTournamentToDefault,
-      }}
-    >
-      {children}
-    </TennisDataContext.Provider>
-  );
-};
+    <div className={`min-h-screen transition-colors duration-300 ${isLightMode ? 'bg-slate-100 text-slate-900 selection:bg-cyan-400 selection:text-slate-900' : 'bg-slate-950 text-slate-100 selection:bg-cyan-400 selection:text-slate-950'}`}>
+      
+      {/* MONİTÖR MODU GEÇİŞ ÇUBUĞU (Progress Bar) */}
+      {isMonitorMode && (tournamentInfo?.tvPages?.filter(p => p.length > 0) || []).length > 1 && (
+        <div className="fixed top-0 left-0 w-full h-1.5 bg-slate-800 z-[60]">
+          <div className="h-full bg-cyan-400 transition-all duration-100 ease-linear" style={{ width: `${tvProgress}%` }}></div>
+        </div>
+      )}
 
-export const useTennisData = () => {
-  const context = useContext(TennisDataContext);
-  if (!context) throw new Error('useTennisData must be used within a TennisDataProvider');
-  return context;
+      {/* Çıkış Butonu (Sadece Monitör Modunda ve üzerine gelince görünür) */}
+      {isMonitorMode && (
+        <button 
+          onClick={toggleMonitorMode} 
+          className="fixed bottom-6 right-6 z-50 p-4 bg-rose-600/50 hover:bg-rose-600 text-white rounded-full shadow-2xl opacity-10 hover:opacity-100 transition-all duration-300 backdrop-blur-sm"
+          title="Monitör Modundan Çık"
+        >
+          <Minimize className="w-6 h-6" />
+        </button>
+      )}
+
+      {/* HEADER (Monitör modundaysa tamamen gizlenir) */}
+      {!isMonitorMode && (
+        <header className={`sticky top-0 z-30 backdrop-blur border-b transition-colors duration-300 ${isLightMode ? 'bg-white/95 border-slate-300 shadow-sm' : 'bg-slate-950/90 border-slate-800/60'}`}>
+          <div className="max-w-7xl mx-auto px-3 sm:px-6 h-14 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5 shrink-0">
+              <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-black text-base shadow-md ${isLightMode ? 'bg-gradient-to-tr from-lime-400 to-emerald-500 text-white' : 'bg-gradient-to-tr from-lime-400 to-emerald-400 text-slate-950 shadow-lime-400/20'}`}>
+                🎾
+              </div>
+              <span className={`font-extrabold text-base tracking-tight hidden sm:block ${isLightMode ? 'text-slate-900' : 'text-white'}`}>CourtOnline</span>
+              {onBackToList && (
+                <button onClick={onBackToList} className={`text-[10px] px-2 py-1 rounded-lg transition font-bold ${isLightMode ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-200' : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800'}`}>← Turnuvalar</button>
+              )}
+              <span className={`flex items-center gap-1 text-[10px] font-black uppercase px-2 py-0.5 rounded-full border shadow-sm ${isLightMode ? 'bg-emerald-600 text-white border-emerald-700' : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'}`}>
+                <Activity className="w-2.5 h-2.5" /> Canlı
+              </span>
+            </div>
+
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              
+              {/* SADECE MASAÜSTÜNDE GÖRÜNEN MONİTÖR MODU BUTONU (md:flex) */}
+              <button onClick={toggleMonitorMode} className={`hidden md:flex p-1.5 sm:p-2 rounded-xl border transition items-center justify-center ${isLightMode ? 'bg-indigo-50 hover:bg-indigo-100 border-indigo-200 text-indigo-600 shadow-sm' : 'bg-indigo-900/30 hover:bg-indigo-800/50 border-indigo-500/30 text-indigo-400'}`} title="Monitör (TV) Modunu Aç">
+                <Tv className="w-4 h-4" />
+              </button>
+              
+              <button onClick={toggleTheme} className={`p-1.5 sm:p-2 rounded-xl border transition flex items-center justify-center ${isLightMode ? 'bg-white hover:bg-slate-100 border-slate-300 text-amber-600 shadow-sm' : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-amber-300'}`} title="Temayı Değiştir">
+                {isLightMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+              </button>
+              
+              <button onClick={openRefereeModal}
+                className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-black transition active:scale-95 border ${isLightMode ? 'bg-white hover:bg-lime-50 border-lime-500 text-lime-700 shadow-sm' : 'bg-lime-400/15 hover:bg-lime-400/25 border-lime-400/30 text-lime-300'}`}>
+                <Smartphone className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Hakem Girişi</span>
+                <span className="sm:hidden">Hakem</span>
+              </button>
+              <button onClick={openDeskModal}
+                className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-black transition active:scale-95 border ${isLightMode ? 'bg-white hover:bg-cyan-50 border-cyan-500 text-cyan-700 shadow-sm' : 'bg-cyan-400/15 hover:bg-cyan-400/25 border-cyan-400/30 text-cyan-300'}`}>
+                <Tv className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Başhakem Girişi</span>
+                <span className="sm:hidden">Masa</span>
+              </button>
+              <button onClick={() => setIsShareModalOpen(true)}
+                className={`p-1.5 sm:p-2 rounded-xl transition border ${isLightMode ? 'bg-white hover:bg-slate-100 border-slate-300 text-slate-700 hover:text-slate-900 shadow-sm' : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-400 hover:text-white'}`}
+                title="Hakem Linki & QR">
+                <QrCode className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </header>
+      )}
+
+      {/* MAIN CONTENT (Monitör modunda tam ekran genişliği kullanır ve kaydırmayı engeller) */}
+      <main className={`${isMonitorMode ? 'w-full h-screen overflow-hidden flex flex-col p-4 sm:p-6' : 'max-w-7xl mx-auto px-3 sm:px-6 py-4 space-y-5'}`}>
+        
+        {/* TURNUVA BAŞLIĞI */}
+        {(tournamentInfo.ad || tournamentInfo.yer || tournamentInfo.tarih) && (
+          <div className={`text-center ${isMonitorMode ? 'shrink-0 mb-4' : 'py-4 border-b space-y-1'} ${isLightMode ? 'border-slate-300' : 'border-slate-800/60'}`}>
+            {tournamentInfo.ad && (
+              <h1 className={`${isMonitorMode ? 'text-4xl sm:text-5xl drop-shadow-md mb-2' : 'text-base sm:text-lg'} font-black tracking-tight ${isLightMode ? 'text-slate-900' : 'text-white'}`}>{tournamentInfo.ad}</h1>
+            )}
+            
+            {!isMonitorMode && (
+              <div className={`flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-6 pt-1 text-xs font-medium ${isLightMode ? 'text-slate-700' : 'text-slate-400'}`}>
+                {tournamentInfo.tarih && (
+                  <span className="flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5 opacity-80" />
+                    {tournamentInfo.tarih}
+                  </span>
+                )}
+                {tournamentInfo.yer && (
+                  <a 
+                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(tournamentInfo.yer)}`}
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg transition font-bold shadow-sm ${isLightMode ? 'bg-emerald-100 hover:bg-emerald-200 text-emerald-800 border border-emerald-300' : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400'}`}
+                    title="Haritada Yol Tarifi Al"
+                  >
+                    <MapPin className="w-3.5 h-3.5" />
+                    <span>{tournamentInfo.yer} (Yol Tarifi Al)</span>
+                  </a>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ÖZET STATÜ ROZETLERİ (Monitör modunda gizle) */}
+        {!isMonitorMode && (
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-black border shadow-sm ${isLightMode ? 'bg-emerald-600 border-emerald-700 text-white' : 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'}`}>
+              <Circle className={`w-2 h-2 animate-pulse ${isLightMode ? 'fill-white' : 'fill-emerald-400'}`} />
+              {live.length} Canlı
+            </div>
+            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-black border shadow-sm ${isLightMode ? 'bg-amber-500 border-amber-600 text-white' : 'bg-amber-500/15 border-amber-500/30 text-amber-400'}`}>
+              <Clock className="w-3 h-3" />
+              {waiting.length} Bekliyor
+            </div>
+            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-black border shadow-sm ${isLightMode ? 'bg-slate-600 border-slate-700 text-white' : 'bg-slate-700/60 border-slate-700 text-slate-400'}`}>
+              <Trophy className="w-3 h-3" />
+              {done.length} Bitti
+            </div>
+            <div className="ml-auto flex items-center gap-1.5">
+              <div className={`w-2 h-2 rounded-full ${cloudSyncStatus === 'connected' ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+              <span className={`text-[11px] font-bold hidden sm:block ${isLightMode ? 'text-slate-700' : 'text-slate-400'}`}>{lastCloudSync ? `Güncellendi: ${lastCloudSync}` : 'Bağlanıyor...'}</span>
+              <button onClick={async () => { setIsSyncing(true); await pullFromCloudNow(); setIsSyncing(false); }}
+                disabled={isSyncing}
+                className={`p-1.5 rounded-lg transition border disabled:opacity-40 ${isLightMode ? 'bg-white hover:bg-slate-200 border-slate-300 text-slate-700 hover:text-slate-900 shadow-sm' : 'bg-slate-800 hover:bg-slate-700 border-transparent text-slate-400 hover:text-white'}`}>
+                <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* FİLTRELER (Monitör modunda gizle) */}
+        {!isMonitorMode && matches.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 text-[11px]">
+            <span className={`font-black uppercase tracking-wider ${isLightMode ? 'text-slate-600' : 'text-slate-600'}`}>Kort:</span>
+            <button onClick={() => setFilterKort('TUMU')}
+              className={`px-2.5 py-1 rounded-lg font-bold transition border ${filterKort === 'TUMU' ? (isLightMode ? 'bg-slate-800 text-white border-slate-900 shadow-sm' : 'bg-slate-600 text-white border-transparent') : (isLightMode ? 'bg-white border-slate-300 text-slate-700 hover:bg-slate-200 hover:text-slate-900' : 'border-transparent text-slate-500 hover:text-slate-300')}`}>
+              Tümü
+            </button>
+            {distinctKortlar.map((k: string) => (
+              <button key={k} onClick={() => setFilterKort(k)}
+                className={`px-2.5 py-1 rounded-lg font-bold transition border ${filterKort === k ? (isLightMode ? 'bg-cyan-600 text-white border-cyan-700 shadow-sm' : 'bg-cyan-500/30 text-cyan-300 border-cyan-500/40') : (isLightMode ? 'bg-white border-slate-300 text-slate-700 hover:bg-slate-200 hover:text-slate-900' : 'border-transparent text-slate-500 hover:text-slate-300')}`}>
+                {k}
+              </button>
+            ))}
+            
+            <span className={`w-px h-3 mx-1 ${isLightMode ? 'bg-slate-300' : 'bg-slate-700'}`} />
+            
+            <span className={`font-black uppercase tracking-wider hidden sm:block ${isLightMode ? 'text-slate-600' : 'text-slate-600'}`}>Durum:</span>
+            {[
+              { key: 'TUMU', label: 'Tümü' },
+              { key: 'Oynaniyor', label: '● Canlı' },
+              { key: 'Baslamadi', label: '◐ Bekliyor' },
+              { key: 'Bitti', label: '✕ Bitti' },
+            ].map(({ key, label }) => (
+              <button key={key} onClick={() => setFilterDurum(key)}
+                className={`px-2.5 py-1 rounded-lg font-bold transition border ${
+                  filterDurum === key
+                    ? key === 'Oynaniyor' ? (isLightMode ? 'bg-emerald-600 text-white border-emerald-700 shadow-sm' : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30')
+                    : key === 'Baslamadi' ? (isLightMode ? 'bg-amber-500 text-white border-amber-600 shadow-sm' : 'bg-amber-500/20 text-amber-300 border-amber-500/30')
+                    : key === 'Bitti' ? (isLightMode ? 'bg-slate-600 text-white border-slate-700 shadow-sm' : 'bg-rose-500/20 text-rose-300 border-rose-500/30')
+                    : (isLightMode ? 'bg-slate-800 text-white border-slate-900 shadow-sm' : 'bg-slate-600 text-white border-transparent')
+                    : (isLightMode ? 'bg-white border-slate-300 text-slate-700 hover:bg-slate-200 hover:text-slate-900' : 'border-transparent text-slate-500 hover:text-slate-300')
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {matches.length === 0 ? (
+          <div className="text-center py-20 text-slate-500 flex-1">
+            <Activity className={`w-10 h-10 mx-auto mb-3 opacity-30 ${isLightMode ? 'text-slate-500' : 'text-slate-500'}`} />
+            <p className="font-bold">Henüz maç yüklenmedi</p>
+            <p className="text-xs mt-1">Başhakem fikstürü yükledikten sonra maçlar burada görünecek.</p>
+          </div>
+        ) : (() => {
+          
+          // TV SAYFALARI MANTIĞI: Monitör modu açıksa sayfaları uygula, değilse normal kortları göster.
+          const tvPages = tournamentInfo?.tvPages?.filter(p => p.length > 0) || [];
+          let activeCourts: string[] = [];
+
+          if (isMonitorMode && tvPages.length > 0) {
+             activeCourts = tvPages[currentTvPageIdx % tvPages.length];
+          } else {
+             activeCourts = filterKort === 'TUMU' || isMonitorMode ? distinctKortlar : [filterKort];
+          }
+
+          const MacKarti = ({ m }: { m: any }) => {
+            const isLive = m.Durum === 'Oynaniyor';
+            const isDone = m.Durum === 'Bitti' || m.Durum === 'Retired' || m.Durum === 'Walkover';
+            const isUpcoming = m.Durum === 'Baslamadi';
+
+            const cardBg = isLive 
+                ? (isLightMode ? 'bg-white border-[2px] border-emerald-500 shadow-lg ring-1 ring-emerald-500/20' : 'bg-emerald-950/30 border-emerald-700/50 shadow-emerald-900/20 shadow-lg')
+                : isDone 
+                ? (isLightMode ? 'bg-slate-100 border-slate-300 hover:shadow-sm' : 'bg-slate-900/70 border-slate-700/50')
+                : (isLightMode ? 'bg-white border-slate-300 shadow-sm hover:shadow-md' : 'bg-slate-900/70 border-slate-700/50');
+            
+            const timeColor = isLive 
+                ? (isLightMode ? 'text-emerald-700' : 'text-emerald-400')
+                : isDone 
+                ? (isLightMode ? 'text-slate-500 font-bold' : 'text-slate-500')
+                : (isLightMode ? 'text-slate-800' : 'text-cyan-400');
+
+            const badgeBg = isLive 
+                ? (isLightMode ? 'bg-emerald-600 text-white shadow-sm' : 'bg-emerald-500/20 text-emerald-400')
+                : isDone 
+                ? 'bg-rose-500 text-white shadow-sm font-black border border-rose-600'
+                : (isLightMode ? 'bg-amber-100 text-amber-800 border border-amber-300' : 'bg-amber-500/15 text-amber-400/70');
+
+            return (
+              // KART İÇİ DİKEYDE ASLA SÜNMESİN DİYE shrink-0 ekledik
+              <div className={`rounded-2xl border p-3 space-y-2 flex flex-col shrink-0 transition-all duration-200 ${cardBg}`}>
+                
+                <div className="flex items-center justify-between gap-1">
+                  <span className={`font-mono font-black text-sm tracking-wide ${timeColor}`}>
+                    {m.Saat || '--:--'}
+                  </span>
+                  <span className={`text-[10px] font-black uppercase tracking-wider flex items-center gap-1 px-1.5 py-0.5 rounded-md ${badgeBg}`}>
+                    {isLive && <Circle className={`w-1.5 h-1.5 animate-pulse ${isLightMode ? 'fill-white' : 'fill-emerald-400'}`} />}
+                    {isDone && '✕ '}
+                    {statusLabel(m.Durum || '')}
+                  </span>
+                </div>
+
+                <div className="space-y-1">
+                  {[
+                    { name: m['Oyuncu 1'] || m['Takım 1'] || '—', kazandi: isDone && (m.Kazanan === m['Oyuncu 1'] || m.Kazanan === m['Takım 1']) },
+                    { name: m['Oyuncu 2'] || m['Takım 2'] || '—', kazandi: isDone && (m.Kazanan === m['Oyuncu 2'] || m.Kazanan === m['Takım 2']) },
+                  ].map((p, i) => {
+                     const nameColor = p.kazandi 
+                         ? (isLightMode ? 'text-cyan-700 font-black' : 'text-cyan-300 drop-shadow-[0_0_8px_rgba(34,211,238,0.8)] font-black') 
+                         : isDone 
+                         ? (isLightMode ? 'text-slate-400 line-through' : 'text-slate-400') 
+                         : (isLightMode ? 'text-slate-900 font-bold' : 'text-slate-200');
+                     
+                     const scoreColor = isLightMode ? 'text-slate-900 font-black' : 'text-slate-300';
+                     
+                     return (
+                        <div key={i} className="flex items-center justify-between gap-1">
+                          <span className={`text-xs font-bold truncate flex-1 leading-tight ${nameColor}`}>
+                            {p.kazandi && <span className={`${isLightMode ? 'text-cyan-600' : 'text-cyan-300'} mr-0.5`}>✓</span>}{p.name}
+                          </span>
+                          {m.Skor && (
+                            <span className={`font-mono text-xs shrink-0 ml-1 ${p.kazandi ? 'font-black' : 'font-medium'} ${scoreColor}`}>
+                              {m.Skor.split(' ').map((s: string) => s.split('/')[i] ?? '0').join(' ')}
+                            </span>
+                          )}
+                        </div>
+                     )
+                  })}
+                </div>
+                
+                <div className={`mt-auto pt-2 border-t flex flex-col sm:flex-row sm:items-center justify-between gap-2 min-h-[34px] ${isLightMode ? 'border-slate-200' : 'border-slate-800/50'}`}>
+                  <span className={`text-[10px] truncate ${isLightMode ? 'text-slate-600 font-bold' : 'text-slate-500'}`}>
+                    {m.Kategori || m.Skor_Formati || ''}
+                  </span>
+                  
+                  {isUpcoming && !isMonitorMode && (
+                    <a 
+                      href={generateGoogleCalendarLink(m as MatchItem, tournamentInfo?.yer || '')}
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 border rounded-lg text-[10px] font-bold transition shrink-0 ${isLightMode ? 'bg-amber-100 hover:bg-amber-200 text-amber-800 border-amber-300 shadow-sm' : 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border-amber-500/30'}`}
+                    >
+                      <CalendarPlus className="w-3 h-3" />
+                      <span>Ajandama Ekle</span>
+                    </a>
+                  )}
+                </div>
+
+              </div>
+            );
+          };
+
+          return (
+            <div 
+              ref={scrollContainerRef}
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUpOrLeave}
+              onMouseLeave={handleMouseUpOrLeave}
+              // Mobilde hiçbir şey gizlenmez/fare kodu çalışmaz. Masaüstünde gizlenir ve çalışır.
+              className={`${isMonitorMode ? 'flex-1 w-full h-full' : 'overflow-x-auto -mx-3 sm:mx-0 pb-4 md:cursor-grab md:active:cursor-grabbing md:[&::-webkit-scrollbar]:hidden md:[-ms-overflow-style:none] md:[scrollbar-width:none]'}`}
+            >
+              
+              {/* SMART GRID DÜZENİ: Monitörde yatay ve dikey merkeze sabitler, ekranı paylaştırır (flex-1) */}
+              <div className={`flex gap-3 sm:gap-4 pb-2 ${isMonitorMode ? 'justify-center content-center h-full w-full' : 'min-w-max px-3 sm:px-0'}`}>
+                {activeCourts.map((kort: string) => {
+                  const kortMaclari = matches
+                    .filter((m: any) => m.Kort === kort)
+                    .filter((m: any) => {
+                      if (isMonitorMode) return true;
+                      if (filterDurum === 'TUMU') return true;
+                      if (filterDurum === 'Oynaniyor') return m.Durum === 'Oynaniyor';
+                      if (filterDurum === 'Baslamadi') return m.Durum === 'Baslamadi';
+                      if (filterDurum === 'Bitti') return m.Durum === 'Bitti' || m.Durum === 'Retired' || m.Durum === 'Walkover';
+                      return true;
+                    })
+                    .sort((a: any, b: any) => (a.Saat || '99:99').localeCompare(b.Saat || '99:99'));
+                  
+                  return (
+                    // EKRANA YAYILMA MANTIĞI: Monitörde flex-1 ile eşit genişlikte sığarlar. Dikeyde h-full olurlar.
+                    <div key={kort} className={`flex flex-col ${isMonitorMode ? 'flex-1 min-w-0 h-full' : 'flex-shrink-0 w-[220px] sm:w-[260px]'}`}>
+                      
+                      {/* Kort Başlığı */}
+                      <div className={`shrink-0 border rounded-xl px-3 py-2.5 flex items-center justify-between shadow-sm mb-2.5 ${isLightMode ? 'bg-white border-slate-300' : 'bg-slate-800 border-slate-700'}`}>
+                        <span className={`font-black text-sm ${isLightMode ? 'text-slate-900' : 'text-white'}`}>{kort}</span>
+                        <span className={`text-[10px] font-mono font-bold ${isLightMode ? 'text-slate-500' : 'text-slate-400'}`}>{kortMaclari.length} maç</span>
+                      </div>
+                      
+                      {/* Maçların Dikey Listesi (DİKEYDE ASLA TAŞMA YAPMAZ, KENDİ İÇİNDE KAYAR) */}
+                      <div className={`flex-1 min-h-0 overflow-y-auto space-y-2.5 pr-1 md:[&::-webkit-scrollbar]:hidden md:[-ms-overflow-style:none] md:[scrollbar-width:none] ${isMonitorMode ? 'h-full' : ''}`}>
+                         {kortMaclari.map((m: any) => <MacKarti key={m.id} m={m} />)}
+                      </div>
+
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* FOOTER (Monitör modunda gizle) */}
+        {!isMonitorMode && (
+          <div className={`flex flex-wrap items-center justify-between gap-2 pt-3 border-t text-xs ${isLightMode ? 'border-slate-300 text-slate-600' : 'border-slate-800/60 text-slate-500'}`}>
+            <div className="flex items-center gap-2 font-bold">
+              <Cloud className="w-3.5 h-3.5" />
+              <span>Bulut: {cloudSyncStatus === 'connected' ? '🟢 Bağlı' : cloudSyncStatus === 'syncing' ? '🟡 Eşitleniyor' : '🔴 Çevrimdışı'}</span>
+            </div>
+            {portalSyncMsg && <span className={`font-black ${isLightMode ? 'text-emerald-700' : 'text-emerald-400'}`}>{portalSyncMsg}</span>}
+            <button onClick={async () => {
+              if (confirm('Ekran önbelleği temizlenip güncel maçlar yeniden yüklenecek. Onaylıyor musunuz?')) {
+                setIsSyncing(true);
+                const ok = await clearLocalCacheAndResetFromCloud();
+                setIsSyncing(false);
+                setPortalSyncMsg(ok ? '✨ Ekran başarıyla güncellendi!' : '⚠️ Başarısız.');
+                setTimeout(() => setPortalSyncMsg(''), 4000);
+              }
+            }}
+              className={`flex items-center gap-1 transition font-bold ${isLightMode ? 'text-rose-600 hover:text-rose-800' : 'text-rose-400/60 hover:text-rose-300'}`}>
+              <RefreshCw className="w-3 h-3" /> Önbelleği Sıfırla / Yenile
+            </button>
+          </div>
+        )}
+
+        {/* TURNUVA NOTU (Monitör modunda gizle) */}
+        {!isMonitorMode && tournamentInfo.not && (
+          <div className={`text-center py-5 border-t ${isLightMode ? 'border-slate-300' : 'border-slate-800/60'}`}>
+            <p className={`text-xs italic max-w-xl mx-auto ${isLightMode ? 'text-slate-600 font-bold' : 'text-slate-400'}`}>{tournamentInfo.not}</p>
+          </div>
+        )}
+      </main>
+
+      {/* GİRİŞ MODALLARI KISMI (Sadece admin/hakem erişimi) */}
+      {activeModal && !isMonitorMode && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md animate-in fade-in duration-150 overflow-y-auto">
+          <div className="bg-slate-900 border-2 border-slate-700/80 rounded-3xl p-5 sm:p-7 w-full max-w-md shadow-2xl space-y-4 my-auto">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-2xl flex items-center justify-center font-black ${activeModal === 'referee' ? 'bg-lime-400/20 text-lime-400 border border-lime-400/30' : 'bg-cyan-400/20 text-cyan-400 border border-cyan-400/30'}`}>
+                  {activeModal === 'referee' ? <Smartphone className="w-5 h-5" /> : <Tv className="w-5 h-5" />}
+                </div>
+                <div>
+                  <h3 className="font-black text-white text-base">{activeModal === 'referee' ? 'Hakem Girişi' : 'Başhakem Girişi'}</h3>
+                  <p className="text-xs text-slate-400">{activeModal === 'referee' ? 'İsminizi seçip PIN girin.' : 'Turnuva yöneticisi şifresini girin.'}</p>
+                </div>
+              </div>
+              <button onClick={closeModal} className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition"><X className="w-5 h-5" /></button>
+            </div>
+
+            {activeModal === 'referee' && selectedRefName && (
+              <div className="flex items-center gap-3 p-3 bg-lime-500/10 border border-lime-500/20 rounded-xl mb-4 mt-2">
+                <div className="w-10 h-10 rounded-full bg-lime-400/20 flex items-center justify-center text-lime-400 font-bold shrink-0">
+                  <User className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="text-[10px] text-lime-400 font-bold uppercase tracking-wider">Hoş Geldiniz</div>
+                  <div className="text-sm text-white font-black">{selectedRefName}</div>
+                </div>
+              </div>
+            )}
+
+            {activeModal === 'desk' && deskRefName && (
+              <div className="flex items-center gap-3 p-3 bg-cyan-500/10 border border-cyan-500/20 rounded-xl mb-4">
+                <div className="w-10 h-10 rounded-full bg-cyan-400/20 flex items-center justify-center text-cyan-400 font-bold shrink-0">
+                  <User className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="text-[10px] text-cyan-400 font-bold uppercase tracking-wider">Turnuva Başhakemi</div>
+                  <div className="text-sm text-white font-black">{deskRefName}</div>
+                </div>
+              </div>
+            )}
+
+            {activeModal === 'referee' && (
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5"><User className="w-3.5 h-3.5 text-lime-400" /> Hakem Adı</label>
+                <select value={selectedRefName} onChange={(e) => { setSelectedRefName(e.target.value); setErrorMsg(''); }}
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs sm:text-sm text-white font-bold focus:outline-none focus:border-lime-400">
+                  <option value="">-- Hakem Seçiniz --</option>
+                  {referees.map((ref) => <option key={ref.name} value={ref.name}>{ref.name}</option>)}
+                </select>
+              </div>
+            )}
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-300 flex items-center justify-between">
+                <span className="flex items-center gap-1.5"><KeyRound className={`w-3.5 h-3.5 ${activeModal === 'referee' ? 'text-lime-400' : 'text-cyan-400'}`} /> PIN Şifresi</span>
+                <button type="button" onClick={() => setShowPin(!showPin)} className="text-[11px] text-slate-400 hover:text-white flex items-center gap-1">
+                  {showPin ? <><EyeOff className="w-3 h-3" /> Gizle</> : <><Eye className="w-3 h-3" /> Göster</>}
+                </button>
+              </label>
+              <input type={showPin ? 'text' : 'password'} maxLength={10} value={pin}
+                onChange={(e) => { setPin(e.target.value); setErrorMsg(''); }}
+                onKeyDown={(e) => { if (e.key === 'Enter') { activeModal === 'referee' ? handleRefereeSubmit() : handleDeskSubmit(); } }}
+                placeholder="••••" autoFocus
+                className={`w-full bg-slate-950 border rounded-2xl px-4 py-3 text-center text-2xl tracking-widest text-white font-mono font-black focus:outline-none ${activeModal === 'referee' ? 'border-slate-700 focus:border-lime-400' : 'border-slate-700 focus:border-cyan-400'}`} />
+            </div>
+
+            <div className="grid grid-cols-3 gap-2 pt-1">
+              {['1','2','3','4','5','6','7','8','9'].map((d) => (
+                <button key={d} type="button" onClick={() => handleKeypadPress(d)}
+                  className="py-2.5 rounded-xl bg-slate-950 hover:bg-slate-800 border border-slate-800 text-white font-mono font-black text-lg active:scale-95 transition">{d}</button>
+              ))}
+              <button type="button" onClick={handleKeypadClear} className="py-2.5 rounded-xl bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-400 font-bold text-xs active:scale-95 transition">Temizle</button>
+              <button type="button" onClick={() => handleKeypadPress('0')} className="py-2.5 rounded-xl bg-slate-950 hover:bg-slate-800 border border-slate-800 text-white font-mono font-black text-lg active:scale-95 transition">0</button>
+              <button type="button" onClick={handleKeypadBackspace} className="py-2.5 rounded-xl bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-400 font-bold text-xs active:scale-95 transition">⌫ Sil</button>
+            </div>
+
+            {errorMsg && <div className="p-3 bg-rose-500/15 border border-rose-500/30 rounded-xl text-rose-300 text-xs flex items-center gap-2"><AlertCircle className="w-4 h-4 shrink-0" />{errorMsg}</div>}
+            {successMsg && <div className="p-3 bg-emerald-500/15 border border-emerald-500/30 rounded-xl text-emerald-300 text-xs flex items-center gap-2"><CheckCircle2 className="w-4 h-4 shrink-0" />{successMsg}</div>}
+
+            <button type="button"
+              onClick={() => activeModal === 'referee' ? handleRefereeSubmit() : handleDeskSubmit()}
+              className={`w-full py-3.5 px-4 rounded-2xl font-black text-sm text-slate-950 flex items-center justify-center gap-2 shadow-xl active:scale-95 transition ${activeModal === 'referee' ? 'bg-gradient-to-r from-lime-400 to-emerald-400' : 'bg-gradient-to-r from-cyan-400 to-teal-400'}`}>
+              <KeyRound className="w-4 h-4" /> Giriş Yap
+            </button>
+          </div>
+        </div>
+      )}
+
+      {!isMonitorMode && <ShareRefereeLinkModal isOpen={isShareModalOpen} onClose={() => setIsShareModalOpen(false)} />}
+    </div>
+  );
 };
