@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   Tv, Filter, Search, ZoomIn, ZoomOut, RefreshCw, Plus, Trash2, CheckCircle2,
   Clock, Award, Layers, Users, FileSpreadsheet, Download, Upload, AlertCircle,
-  Eye, Lock, KeyRound, ShieldCheck, FileText, RotateCcw, Sun, Moon
+  Eye, Lock, KeyRound, ShieldCheck, FileText, RotateCcw, Sun, Moon, MonitorPlay
 } from 'lucide-react';
 import { useTennisData } from '../../context/TennisDataContext';
 import { MatchItem, ScoreFormatType } from '../../types/tennis';
@@ -41,10 +41,7 @@ export const DeskSupervisorView: React.FC = () => {
     pullFromCloudNow,
   } = useTennisData();
 
-  // GECE / GÜNDÜZ MODU
-  const [isLightMode, setIsLightMode] = useState(() => {
-    return localStorage.getItem('courtonline_light_mode') === 'true';
-  });
+  const [isLightMode, setIsLightMode] = useState(() => localStorage.getItem('courtonline_light_mode') === 'true');
 
   const toggleTheme = () => {
     setIsLightMode(prev => {
@@ -54,7 +51,7 @@ export const DeskSupervisorView: React.FC = () => {
     });
   };
 
-  const [activeSubTab, setActiveSubTab] = useState<'grid' | 'stats' | 'formats' | 'referees' | 'manage' | 'info'>('grid');
+  const [activeSubTab, setActiveSubTab] = useState<'grid' | 'stats' | 'formats' | 'referees' | 'manage' | 'info' | 'tv'>('grid');
   const [localInfo, setLocalInfo] = React.useState(() => tournamentInfo);
   const [infoSavedMsg, setInfoSavedMsg] = React.useState('');
   const [selectedCourtFilter, setSelectedCourtFilter] = useState<string>('ALL');
@@ -77,7 +74,6 @@ export const DeskSupervisorView: React.FC = () => {
   const [jsonInput, setJsonInput] = useState<string>('');
   const [importMsg, setImportMsg] = useState<string>('');
   const [isSyncingAction, setIsSyncingAction] = useState(false);
-
   const [raporAlindi, setRaporAlindi] = useState<boolean>(false);
 
   const distinctCourts = Array.from(new Set(matches.map((m) => m.Kort))).sort();
@@ -103,7 +99,7 @@ export const DeskSupervisorView: React.FC = () => {
     return true;
   });
 
-  // 4-YÖNLÜ SÜRÜKLE KAYDIR (DRAG-TO-SCROLL) MANTIĞI
+  // DRAG TO SCROLL (SADECE MASAÜSTÜ İÇİN)
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const isDragging = useRef(false);
   const dragStartX = useRef(0);
@@ -113,6 +109,7 @@ export const DeskSupervisorView: React.FC = () => {
   const hasDragged = useRef(false);
 
   const handleMouseDown = (e: React.MouseEvent) => {
+    if (window.innerWidth < 768) return; 
     isDragging.current = true;
     hasDragged.current = false;
     dragStartX.current = e.pageX;
@@ -120,21 +117,17 @@ export const DeskSupervisorView: React.FC = () => {
     if (scrollContainerRef.current) {
       scrollStartX.current = scrollContainerRef.current.scrollLeft;
       scrollStartY.current = scrollContainerRef.current.scrollTop;
-      scrollContainerRef.current.style.userSelect = 'none'; // Sürüklerken yazı seçilmesini önle
+      scrollContainerRef.current.style.userSelect = 'none';
     }
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isDragging.current || !scrollContainerRef.current) return;
-    
+    if (window.innerWidth < 768 || !isDragging.current || !scrollContainerRef.current) return;
     const dx = e.pageX - dragStartX.current;
     const dy = e.pageY - dragStartY.current;
-    
-    // Eğer mouse 5 pikselden fazla hareket ederse, bu bir "Tıklama" değil "Sürükleme" eylemidir.
     if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
       hasDragged.current = true;
     }
-
     scrollContainerRef.current.scrollLeft = scrollStartX.current - dx;
     scrollContainerRef.current.scrollTop = scrollStartY.current - dy;
   };
@@ -146,17 +139,11 @@ export const DeskSupervisorView: React.FC = () => {
     }
   };
 
-  useEffect(() => {
-    setLocalInfo(tournamentInfo);
-  }, [tournamentInfo]);
+  useEffect(() => { setLocalInfo(tournamentInfo); }, [tournamentInfo]);
 
   useEffect(() => {
-    if (categoryFormats && Object.keys(categoryFormats).length > 0) {
-      setLocalFormats(categoryFormats);
-    }
-    if (categoryNoAdSettings) {
-      setLocalNoAdSettings(categoryNoAdSettings);
-    }
+    if (categoryFormats && Object.keys(categoryFormats).length > 0) setLocalFormats(categoryFormats);
+    if (categoryNoAdSettings) setLocalNoAdSettings(categoryNoAdSettings);
   }, [categoryFormats, categoryNoAdSettings]);
 
   const handleApplyFormats = () => {
@@ -167,26 +154,20 @@ export const DeskSupervisorView: React.FC = () => {
     const updatedMatches = matches.map(m => {
       let changed = false;
       let newM = { ...m };
-      
       if (localFormats[m.Kategori] && m.Skor_Formati !== localFormats[m.Kategori]) {
         newM.Skor_Formati = localFormats[m.Kategori];
         changed = true;
       }
-      
       const currentNoAd = !!m.isNoAd;
       const newNoAd = !!localNoAdSettings[m.Kategori];
       if (currentNoAd !== newNoAd) {
         newM.isNoAd = newNoAd;
         changed = true;
       }
-
       return changed ? newM : m;
     });
 
-    if (JSON.stringify(updatedMatches) !== JSON.stringify(matches)) {
-        importMatchesList(updatedMatches);
-    }
-
+    if (JSON.stringify(updatedMatches) !== JSON.stringify(matches)) importMatchesList(updatedMatches);
     setFormatSavedMsg('✅ Kategori formatları, No-Ad ve Tie-Break ayarları kaydedildi!');
     setTimeout(() => setFormatSavedMsg(''), 4000);
   };
@@ -235,10 +216,8 @@ export const DeskSupervisorView: React.FC = () => {
       alert("⚠️ Tarayıcınız açılır pencereleri (pop-up) engelliyor. Lütfen bu site için izin verin.");
       return;
     }
-
     const bugun = new Date().toLocaleDateString('tr-TR');
     const saat = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
-
     let html = `
       <!DOCTYPE html>
       <html lang="tr">
@@ -257,10 +236,7 @@ export const DeskSupervisorView: React.FC = () => {
           .status-bitti { color: #166534; font-weight: bold; }
           .footer-signature { margin-top: 50px; display: flex; justify-content: space-between; padding: 0 40px; }
           .signature-box { text-align: center; }
-          @media print {
-            @page { size: A4 portrait; margin: 10mm; }
-            body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-          }
+          @media print { @page { size: A4 portrait; margin: 10mm; } body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
         </style>
       </head>
       <body>
@@ -271,34 +247,21 @@ export const DeskSupervisorView: React.FC = () => {
         </div>
         <table>
           <thead>
-            <tr>
-              <th width="8%">Kort</th>
-              <th width="8%">Saat</th>
-              <th width="15%">Kategori</th>
-              <th width="20%">Oyuncu 1</th>
-              <th width="20%">Oyuncu 2</th>
-              <th width="15%">Kazanan</th>
-              <th width="14%">Skor</th>
-            </tr>
+            <tr><th width="8%">Kort</th><th width="8%">Saat</th><th width="15%">Kategori</th><th width="20%">Oyuncu 1</th><th width="20%">Oyuncu 2</th><th width="15%">Kazanan</th><th width="14%">Skor</th></tr>
           </thead>
           <tbody>
     `;
 
     const sortedMatches = [...matches].sort((a, b) => a.Kort.localeCompare(b.Kort) || (a.Saat || '').localeCompare(b.Saat || ''));
-
     sortedMatches.forEach(m => {
       const p1Winner = m.Kazanan === m['Oyuncu 1'];
       const p2Winner = m.Kazanan === m['Oyuncu 2'];
-      
       html += `
         <tr>
-          <td>${m.Kort}</td>
-          <td>${m.Saat}</td>
-          <td>${m.Kategori}</td>
+          <td>${m.Kort}</td><td>${m.Saat}</td><td>${m.Kategori}</td>
           <td class="${p1Winner ? 'winner' : ''}">${p1Winner ? '✓ ' : ''}${m['Oyuncu 1']}</td>
           <td class="${p2Winner ? 'winner' : ''}">${p2Winner ? '✓ ' : ''}${m['Oyuncu 2']}</td>
-          <td class="winner">${m.Kazanan !== 'Secilmedi' ? m.Kazanan : '-'}</td>
-          <td class="status-bitti">${m.Skor}</td>
+          <td class="winner">${m.Kazanan !== 'Secilmedi' ? m.Kazanan : '-'}</td><td class="status-bitti">${m.Skor}</td>
         </tr>
       `;
     });
@@ -306,18 +269,9 @@ export const DeskSupervisorView: React.FC = () => {
     html += `
           </tbody>
         </table>
-        
         <div class="footer-signature">
-          <div class="signature-box">
-            <p><strong>Turnuva Başhakemi</strong></p>
-            <p>İmza</p>
-            <p><br>.......................................</p>
-          </div>
-          <div class="signature-box">
-            <p><strong>Turnuva Direktörü / Kulüp Yetkilisi</strong></p>
-            <p>İmza</p>
-            <p><br>.......................................</p>
-          </div>
+          <div class="signature-box"><p><strong>Turnuva Başhakemi</strong></p><p>İmza</p><p><br>.......................................</p></div>
+          <div class="signature-box"><p><strong>Turnuva Direktörü / Kulüp Yetkilisi</strong></p><p>İmza</p><p><br>.......................................</p></div>
         </div>
       </body>
       </html>
@@ -326,11 +280,7 @@ export const DeskSupervisorView: React.FC = () => {
     printWindow.document.open();
     printWindow.document.write(html);
     printWindow.document.close();
-
-    setTimeout(() => {
-      printWindow.print();
-      setRaporAlindi(true);
-    }, 250);
+    setTimeout(() => { printWindow.print(); setRaporAlindi(true); }, 250);
   };
 
   return (
@@ -347,6 +297,9 @@ export const DeskSupervisorView: React.FC = () => {
             </button>
             <button type="button" onClick={() => setActiveSubTab('formats')} className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition ${activeSubTab === 'formats' ? (isLightMode ? 'bg-cyan-600 text-white shadow-md font-black' : 'bg-cyan-400 text-slate-950 shadow-md font-black') : (isLightMode ? 'text-slate-500 hover:text-slate-900' : 'text-slate-400 hover:text-slate-200')}`}>
               <Layers className="w-3.5 h-3.5" /><span>Format Hafızası</span>
+            </button>
+            <button type="button" onClick={() => setActiveSubTab('tv')} className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition ${activeSubTab === 'tv' ? (isLightMode ? 'bg-indigo-600 text-white shadow-md font-black' : 'bg-indigo-400 text-slate-950 shadow-md font-black') : (isLightMode ? 'text-slate-500 hover:text-slate-900' : 'text-slate-400 hover:text-slate-200')}`}>
+              <MonitorPlay className="w-3.5 h-3.5" /><span>TV / Yayın Ayarları</span>
             </button>
             <button type="button" onClick={() => setActiveSubTab('referees')} className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition ${activeSubTab === 'referees' ? (isLightMode ? 'bg-cyan-600 text-white shadow-md font-black' : 'bg-cyan-400 text-slate-950 shadow-md font-black') : (isLightMode ? 'text-slate-500 hover:text-slate-900' : 'text-slate-400 hover:text-slate-200')}`}>
               <Users className="w-3.5 h-3.5" /><span>Hakem Yönetimi</span>
@@ -406,22 +359,19 @@ export const DeskSupervisorView: React.FC = () => {
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUpOrLeave}
           onMouseLeave={handleMouseUpOrLeave}
-          className="w-full overflow-auto max-h-[75vh] pb-6 cursor-grab active:cursor-grabbing [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
+          className="w-full overflow-auto max-h-[75vh] pb-6 md:cursor-grab md:active:cursor-grabbing md:[&::-webkit-scrollbar]:hidden md:[-ms-overflow-style:none] md:[scrollbar-width:none]"
         >
           <div style={{ transform: `scale(${zoomLevel / 100})`, transformOrigin: 'top left', minWidth: 'min-content' }} className="transition-transform duration-150 p-2">
             
             <div className="flex flex-nowrap gap-4">
               {(selectedCourtFilter === 'ALL' ? distinctCourts : [selectedCourtFilter]).map((courtName) => {
-                
                 const courtMatches = filteredMatches
                   .filter((m) => m.Kort === courtName)
                   .sort((a, b) => {
                     const aIsFinished = ['bitti', 'retired', 'walkover'].includes((a.Durum || '').toLowerCase());
                     const bIsFinished = ['bitti', 'retired', 'walkover'].includes((b.Durum || '').toLowerCase());
-                    
                     if (aIsFinished && !bIsFinished) return -1;
                     if (!aIsFinished && bIsFinished) return 1; 
-                    
                     return (a.Saat || '').localeCompare(b.Saat || '');
                   });
 
@@ -443,7 +393,6 @@ export const DeskSupervisorView: React.FC = () => {
                           const isLive = stat === 'oynaniyor';
                           const isPaused = stat === 'duraklatildi';
                           const isUpcoming = stat === 'baslamadi';
-                          
                           const state = m.detailedState;
                           const p1Name = m['Oyuncu 1'];
                           const p2Name = m['Oyuncu 2'];
@@ -465,7 +414,6 @@ export const DeskSupervisorView: React.FC = () => {
                             : (isLightMode ? 'bg-rose-100 text-rose-700 border-rose-300' : 'bg-rose-500/20 text-rose-400 border-rose-500/40');
 
                           const statusText = isLive ? 'CANLI' : isPaused ? 'ASKIDA' : isUpcoming ? 'BEKLİYOR' : m.Durum.toUpperCase();
-                          
                           const timeClass = isLive ? (isLightMode ? 'text-emerald-700 text-[10px]' : 'text-emerald-400 text-[10px]')
                             : isPaused ? (isLightMode ? 'text-amber-700 text-[10px]' : 'text-amber-400 text-[10px]')
                             : isUpcoming ? (isLightMode ? 'text-slate-800 text-[12px] font-black tracking-wider' : 'text-white text-[12px] font-black tracking-wider')
@@ -482,59 +430,35 @@ export const DeskSupervisorView: React.FC = () => {
                             : (isLightMode ? 'text-slate-900' : 'text-white');
 
                           return (
-                            <div 
-                              key={m.id} 
-                              onClick={(e) => {
-                                // Sürükleme yapılmışsa tıklamayı yoksay (Modal açılmasını engelle)
-                                if (hasDragged.current) {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  return;
-                                }
-                                setSelectedMatchForModal(m);
-                              }} 
-                              className={`p-3 rounded-2xl transition-all cursor-pointer relative overflow-hidden group ${cardClass}`}
-                            >
-                              
+                            <div key={m.id} onClick={(e) => { if (hasDragged.current) { e.preventDefault(); e.stopPropagation(); return; } setSelectedMatchForModal(m); }} 
+                              className={`p-3 rounded-2xl transition-all cursor-pointer relative overflow-hidden group ${cardClass}`}>
                               <div className={`flex items-center justify-between text-[10px] font-bold mb-2 gap-1 pb-2 border-b ${isLightMode ? 'border-slate-200' : 'border-slate-800/50'}`}>
                                 <span className={`${timeClass} font-mono flex items-center gap-1.5`}><Clock className={`${isUpcoming ? 'w-4 h-4' : 'w-3.5 h-3.5'}`} />{m.Saat}</span>
                                 <div className="flex items-center gap-1.5">
                                   {isLive && <MatchLiveTimer match={m} size="sm" />}
-                                  <span className={`px-2 py-0.5 rounded-md border uppercase text-[9px] font-black tracking-widest ${statusBadgeClass}`}>
-                                    {statusText}
-                                  </span>
+                                  <span className={`px-2 py-0.5 rounded-md border uppercase text-[9px] font-black tracking-widest ${statusBadgeClass}`}>{statusText}</span>
                                 </div>
                               </div>
-
                               <div className={`text-[10px] font-black uppercase tracking-wider truncate mb-2 ${isLightMode ? 'text-slate-500' : 'text-slate-500'}`}>{m.Kategori}</div>
-
                               <div className="space-y-1.5 my-2">
                                 <div className="flex items-center justify-between text-xs">
                                   <div className="flex items-center gap-1.5 truncate pr-2">
                                     {state?.currentServer === 1 && isLive && <span className="text-lime-400 text-[10px] animate-bounce">🎾</span>}
                                     <span className={`truncate ${playerTextClass(m.Kazanan === p1Name)}`}>{isFinished && m.Kazanan === p1Name ? '🏆 ' : ''}{p1Name}</span>
                                   </div>
-                                  <span className={`font-mono text-xs font-black shrink-0 ${scoreNumberClass(m.Kazanan === p1Name)}`}>
-                                    {state ? `${state.set1_p1} ${state.set2_p1} ${state.set3_p1}` : m.Skor !== '-' ? m.Skor.split(' ').map((s) => s.split('/')[0]).join(' ') : '-'}
-                                  </span>
+                                  <span className={`font-mono text-xs font-black shrink-0 ${scoreNumberClass(m.Kazanan === p1Name)}`}>{state ? `${state.set1_p1} ${state.set2_p1} ${state.set3_p1}` : m.Skor !== '-' ? m.Skor.split(' ').map((s) => s.split('/')[0]).join(' ') : '-'}</span>
                                 </div>
-
                                 <div className="flex items-center justify-between text-xs">
                                   <div className="flex items-center gap-1.5 truncate pr-2">
                                     {state?.currentServer === 2 && isLive && <span className="text-cyan-400 text-[10px] animate-bounce">🎾</span>}
                                     <span className={`truncate ${playerTextClass(m.Kazanan === p2Name)}`}>{isFinished && m.Kazanan === p2Name ? '🏆 ' : ''}{p2Name}</span>
                                   </div>
-                                  <span className={`font-mono text-xs font-black shrink-0 ${scoreNumberClass(m.Kazanan === p2Name)}`}>
-                                    {state ? `${state.set1_p2} ${state.set2_p2} ${state.set3_p2}` : m.Skor !== '-' ? m.Skor.split(' ').map((s) => s.split('/')[1]).join(' ') : '-'}
-                                  </span>
+                                  <span className={`font-mono text-xs font-black shrink-0 ${scoreNumberClass(m.Kazanan === p2Name)}`}>{state ? `${state.set1_p2} ${state.set2_p2} ${state.set3_p2}` : m.Skor !== '-' ? m.Skor.split(' ').map((s) => s.split('/')[1]).join(' ') : '-'}</span>
                                 </div>
                               </div>
-
                               <div className={`pt-2 mt-2 border-t flex items-center justify-between text-[10px] ${isLightMode ? 'border-slate-200' : 'border-slate-800/50'}`}>
                                 {isLive && state ? (
-                                  <div className={`font-mono font-bold px-2 py-0.5 rounded border ${isLightMode ? 'text-emerald-700 bg-emerald-50 border-emerald-300' : 'text-emerald-400 bg-emerald-950/40 border-emerald-500/30'}`}>
-                                    {state.isTiebreak ? `TB: ${state.tiebreak_p1}-${state.tiebreak_p2}` : `${state.gamePoint_p1} - ${state.gamePoint_p2}`}
-                                  </div>
+                                  <div className={`font-mono font-bold px-2 py-0.5 rounded border ${isLightMode ? 'text-emerald-700 bg-emerald-50 border-emerald-300' : 'text-emerald-400 bg-emerald-950/40 border-emerald-500/30'}`}>{state.isTiebreak ? `TB: ${state.tiebreak_p1}-${state.tiebreak_p2}` : `${state.gamePoint_p1} - ${state.gamePoint_p2}`}</div>
                                 ) : (
                                   <div className={`font-mono font-bold ${isLightMode ? 'text-slate-500' : 'text-slate-400'}`}>Skor: <span className={isFinished ? (isLightMode ? 'text-slate-900 font-black text-[11px]' : 'text-white font-black text-[11px]') : (isLightMode ? 'text-slate-600' : 'text-slate-200')}>{m.Skor}</span></div>
                                 )}
@@ -553,6 +477,86 @@ export const DeskSupervisorView: React.FC = () => {
                 );
               })}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* TV / YAYIN AYARLARI SEKMESİ */}
+      {activeSubTab === 'tv' && (
+        <div className={`border rounded-3xl p-6 space-y-6 ${isLightMode ? 'bg-white border-slate-300' : 'bg-slate-900 border-slate-800'}`}>
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className={`font-bold text-base flex items-center gap-2 ${isLightMode ? 'text-slate-900' : 'text-white'}`}><Tv className="w-5 h-5 text-indigo-500" /> Monitör (TV) Ekranı Sayfaları</h3>
+              <p className={`text-xs mt-1 ${isLightMode ? 'text-slate-500' : 'text-slate-400'}`}>
+                Misafir ekranında "TV Modu" açıldığında gösterilecek kortları gruplayın. Sistem her 30 saniyede bir sayfalar arasında otomatik geçiş yapar.
+              </p>
+            </div>
+            <button 
+              onClick={() => {
+                const newPages = [...(localInfo.tvPages || []), []];
+                setLocalInfo(prev => ({ ...prev, tvPages: newPages }));
+              }}
+              className={`px-4 py-2 font-bold text-xs rounded-xl shadow transition flex items-center gap-2 ${isLightMode ? 'bg-indigo-600 hover:bg-indigo-500 text-white' : 'bg-indigo-500 hover:bg-indigo-400 text-white'}`}
+            >
+              <Plus className="w-4 h-4" /> Yeni Sayfa Ekle
+            </button>
+          </div>
+
+          <div className="space-y-4">
+            {(!localInfo.tvPages || localInfo.tvPages.length === 0) && (
+              <div className={`p-6 text-center text-sm border border-dashed rounded-2xl ${isLightMode ? 'text-slate-500 border-slate-300 bg-slate-50' : 'text-slate-400 border-slate-800 bg-slate-900/50'}`}>
+                Henüz özel bir sayfa oluşturmadınız. Sistem varsayılan olarak tüm kortları tek ekranda gösterecektir.
+              </div>
+            )}
+            
+            {(localInfo.tvPages || []).map((pageCourts: string[], pageIndex: number) => (
+              <div key={pageIndex} className={`p-4 border rounded-2xl space-y-3 ${isLightMode ? 'bg-slate-50 border-slate-200' : 'bg-slate-950/50 border-slate-800'}`}>
+                <div className="flex items-center justify-between border-b pb-2 border-slate-700/50">
+                   <h4 className={`font-bold text-sm ${isLightMode ? 'text-indigo-700' : 'text-indigo-400'}`}>Sayfa {pageIndex + 1}</h4>
+                   <button 
+                      onClick={() => {
+                        const newPages = [...(localInfo.tvPages || [])];
+                        newPages.splice(pageIndex, 1);
+                        setLocalInfo(prev => ({ ...prev, tvPages: newPages }));
+                      }}
+                      className={`p-1.5 rounded-lg transition ${isLightMode ? 'text-rose-600 hover:bg-rose-100' : 'text-rose-400 hover:bg-rose-500/20'}`}
+                   >
+                     <Trash2 className="w-4 h-4" />
+                   </button>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                   {distinctCourts.map(kort => {
+                     const isSelected = pageCourts.includes(kort);
+                     return (
+                       <button 
+                          key={kort}
+                          onClick={() => {
+                             const newPages = [...(localInfo.tvPages || [])];
+                             if (isSelected) {
+                               newPages[pageIndex] = newPages[pageIndex].filter(c => c !== kort);
+                             } else {
+                               newPages[pageIndex].push(kort);
+                             }
+                             setLocalInfo(prev => ({ ...prev, tvPages: newPages }));
+                          }}
+                          className={`px-3 py-1.5 text-xs font-bold rounded-xl border transition ${
+                            isSelected 
+                            ? (isLightMode ? 'bg-indigo-600 text-white border-indigo-700' : 'bg-indigo-500 text-white border-indigo-600') 
+                            : (isLightMode ? 'bg-white text-slate-500 border-slate-300 hover:bg-slate-100' : 'bg-slate-900 text-slate-400 border-slate-700 hover:border-slate-500')
+                          }`}
+                       >
+                          {kort}
+                       </button>
+                     )
+                   })}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className={`pt-4 border-t flex items-center justify-end gap-3 ${isLightMode ? 'border-slate-200' : 'border-slate-800'}`}>
+            {infoSavedMsg && <span className="text-emerald-500 text-sm font-bold">{infoSavedMsg}</span>}
+            <button type="button" onClick={() => { saveTournamentInfo(localInfo); setInfoSavedMsg('✅ Sayfalar Kaydedildi!'); setTimeout(() => setInfoSavedMsg(''), 3000); }} className={`px-6 py-3 font-bold rounded-xl shadow-lg transition ${isLightMode ? 'bg-cyan-600 hover:bg-cyan-500 text-white' : 'bg-cyan-400 hover:bg-cyan-300 text-slate-950'}`}>TV Ayarlarını Kaydet</button>
           </div>
         </div>
       )}
