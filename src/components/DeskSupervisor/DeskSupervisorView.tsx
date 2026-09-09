@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Tv, Filter, Search, ZoomIn, ZoomOut, RefreshCw, Plus, Trash2, CheckCircle2,
   Clock, Award, Layers, Users, FileSpreadsheet, Download, Upload, AlertCircle,
@@ -103,6 +103,49 @@ export const DeskSupervisorView: React.FC = () => {
     return true;
   });
 
+  // 4-YÖNLÜ SÜRÜKLE KAYDIR (DRAG-TO-SCROLL) MANTIĞI
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const isDragging = useRef(false);
+  const dragStartX = useRef(0);
+  const dragStartY = useRef(0);
+  const scrollStartX = useRef(0);
+  const scrollStartY = useRef(0);
+  const hasDragged = useRef(false);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    isDragging.current = true;
+    hasDragged.current = false;
+    dragStartX.current = e.pageX;
+    dragStartY.current = e.pageY;
+    if (scrollContainerRef.current) {
+      scrollStartX.current = scrollContainerRef.current.scrollLeft;
+      scrollStartY.current = scrollContainerRef.current.scrollTop;
+      scrollContainerRef.current.style.userSelect = 'none'; // Sürüklerken yazı seçilmesini önle
+    }
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging.current || !scrollContainerRef.current) return;
+    
+    const dx = e.pageX - dragStartX.current;
+    const dy = e.pageY - dragStartY.current;
+    
+    // Eğer mouse 5 pikselden fazla hareket ederse, bu bir "Tıklama" değil "Sürükleme" eylemidir.
+    if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
+      hasDragged.current = true;
+    }
+
+    scrollContainerRef.current.scrollLeft = scrollStartX.current - dx;
+    scrollContainerRef.current.scrollTop = scrollStartY.current - dy;
+  };
+
+  const handleMouseUpOrLeave = () => {
+    isDragging.current = false;
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.style.userSelect = 'auto';
+    }
+  };
+
   useEffect(() => {
     setLocalInfo(tournamentInfo);
   }, [tournamentInfo]);
@@ -119,7 +162,7 @@ export const DeskSupervisorView: React.FC = () => {
   const handleApplyFormats = () => {
     bulkApplyCategoryFormats(localFormats);
     bulkApplyCategoryNoAdSettings(localNoAdSettings);
-    saveTournamentInfo(localInfo); // Tie-break türü de burada kaydediliyor!
+    saveTournamentInfo(localInfo);
 
     const updatedMatches = matches.map(m => {
       let changed = false;
@@ -357,7 +400,14 @@ export const DeskSupervisorView: React.FC = () => {
       </div>
 
       {activeSubTab === 'grid' && (
-        <div className="w-full overflow-x-auto pb-6">
+        <div 
+          ref={scrollContainerRef}
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUpOrLeave}
+          onMouseLeave={handleMouseUpOrLeave}
+          className="w-full overflow-auto max-h-[75vh] pb-6 cursor-grab active:cursor-grabbing scrollbar-hide"
+        >
           <div style={{ transform: `scale(${zoomLevel / 100})`, transformOrigin: 'top left', minWidth: 'min-content' }} className="transition-transform duration-150 p-2">
             
             <div className="flex flex-nowrap gap-4">
@@ -432,7 +482,19 @@ export const DeskSupervisorView: React.FC = () => {
                             : (isLightMode ? 'text-slate-900' : 'text-white');
 
                           return (
-                            <div key={m.id} onClick={() => setSelectedMatchForModal(m)} className={`p-3 rounded-2xl transition-all cursor-pointer relative overflow-hidden group ${cardClass}`}>
+                            <div 
+                              key={m.id} 
+                              onClick={(e) => {
+                                // Sürükleme yapılmışsa tıklamayı yoksay (Modal açılmasını engelle)
+                                if (hasDragged.current) {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  return;
+                                }
+                                setSelectedMatchForModal(m);
+                              }} 
+                              className={`p-3 rounded-2xl transition-all cursor-pointer relative overflow-hidden group ${cardClass}`}
+                            >
                               
                               <div className={`flex items-center justify-between text-[10px] font-bold mb-2 gap-1 pb-2 border-b ${isLightMode ? 'border-slate-200' : 'border-slate-800/50'}`}>
                                 <span className={`${timeClass} font-mono flex items-center gap-1.5`}><Clock className={`${isUpcoming ? 'w-4 h-4' : 'w-3.5 h-3.5'}`} />{m.Saat}</span>
@@ -534,7 +596,6 @@ export const DeskSupervisorView: React.FC = () => {
       {activeSubTab === 'formats' && (
         <div className={`border rounded-3xl p-6 space-y-6 ${isLightMode ? 'bg-white border-slate-300' : 'bg-slate-900 border-slate-800'}`}>
           
-          {/* TIE-BREAK TÜRÜ AYARI (Global Turnuva Ayarı) */}
           <div className={`p-5 border rounded-2xl ${isLightMode ? 'bg-amber-50 border-amber-200' : 'bg-amber-950/20 border-amber-500/30'}`}>
              <h3 className={`font-bold text-base mb-1 ${isLightMode ? 'text-amber-800' : 'text-amber-400'}`}>🏆 Turnuva Varsayılan Tie-Break Kuralı</h3>
              <p className={`text-xs mb-4 ${isLightMode ? 'text-amber-700/80' : 'text-amber-400/70'}`}>
