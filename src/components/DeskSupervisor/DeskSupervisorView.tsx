@@ -406,7 +406,7 @@ export const DeskSupervisorView: React.FC = () => {
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUpOrLeave}
           onMouseLeave={handleMouseUpOrLeave}
-          className="w-full overflow-auto max-h-[75vh] pb-6 cursor-grab active:cursor-grabbing scrollbar-hide"
+          className="w-full overflow-auto max-h-[75vh] pb-6 cursor-grab active:cursor-grabbing [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
         >
           <div style={{ transform: `scale(${zoomLevel / 100})`, transformOrigin: 'top left', minWidth: 'min-content' }} className="transition-transform duration-150 p-2">
             
