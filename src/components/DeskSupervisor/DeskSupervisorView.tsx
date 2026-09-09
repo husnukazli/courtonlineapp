@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   Tv, Filter, Search, ZoomIn, ZoomOut, RefreshCw, Plus, Trash2, CheckCircle2,
   Clock, Award, Layers, Users, FileSpreadsheet, Download, Upload, AlertCircle,
-  Eye, Lock, KeyRound, ShieldCheck, FileText, RotateCcw,
+  Eye, Lock, KeyRound, ShieldCheck, FileText, RotateCcw, Sun, Moon
 } from 'lucide-react';
 import { useTennisData } from '../../context/TennisDataContext';
 import { MatchItem, ScoreFormatType } from '../../types/tennis';
@@ -40,6 +40,19 @@ export const DeskSupervisorView: React.FC = () => {
     forcePushAllToCloud,
     pullFromCloudNow,
   } = useTennisData();
+
+  // GECE / GÜNDÜZ MODU
+  const [isLightMode, setIsLightMode] = useState(() => {
+    return localStorage.getItem('courtonline_light_mode') === 'true';
+  });
+
+  const toggleTheme = () => {
+    setIsLightMode(prev => {
+      const newVal = !prev;
+      localStorage.setItem('courtonline_light_mode', String(newVal));
+      return newVal;
+    });
+  };
 
   const [activeSubTab, setActiveSubTab] = useState<'grid' | 'stats' | 'formats' | 'referees' | 'manage' | 'info'>('grid');
   const [localInfo, setLocalInfo] = React.useState(() => tournamentInfo);
@@ -91,6 +104,10 @@ export const DeskSupervisorView: React.FC = () => {
   });
 
   useEffect(() => {
+    setLocalInfo(tournamentInfo);
+  }, [tournamentInfo]);
+
+  useEffect(() => {
     if (categoryFormats && Object.keys(categoryFormats).length > 0) {
       setLocalFormats(categoryFormats);
     }
@@ -102,6 +119,7 @@ export const DeskSupervisorView: React.FC = () => {
   const handleApplyFormats = () => {
     bulkApplyCategoryFormats(localFormats);
     bulkApplyCategoryNoAdSettings(localNoAdSettings);
+    saveTournamentInfo(localInfo); // Tie-break türü de burada kaydediliyor!
 
     const updatedMatches = matches.map(m => {
       let changed = false;
@@ -126,7 +144,7 @@ export const DeskSupervisorView: React.FC = () => {
         importMatchesList(updatedMatches);
     }
 
-    setFormatSavedMsg('✅ Kategori formatları ve No-Ad ayarları kaydedildi!');
+    setFormatSavedMsg('✅ Kategori formatları, No-Ad ve Tie-Break ayarları kaydedildi!');
     setTimeout(() => setFormatSavedMsg(''), 4000);
   };
 
@@ -223,7 +241,6 @@ export const DeskSupervisorView: React.FC = () => {
           <tbody>
     `;
 
-    // Buradaki rapor sıralaması değişmedi
     const sortedMatches = [...matches].sort((a, b) => a.Kort.localeCompare(b.Kort) || (a.Saat || '').localeCompare(b.Saat || ''));
 
     sortedMatches.forEach(m => {
@@ -274,33 +291,37 @@ export const DeskSupervisorView: React.FC = () => {
   };
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6 overflow-hidden">
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-4 sm:p-5 shadow-xl space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-800">
-          <div className="flex flex-wrap items-center gap-1.5 bg-slate-950 p-1 rounded-2xl border border-slate-800">
-            <button type="button" onClick={() => setActiveSubTab('grid')} className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition ${activeSubTab === 'grid' ? 'bg-cyan-400 text-slate-950 shadow-md font-black' : 'text-slate-400 hover:text-slate-200'}`}>
+    <div className={`max-w-7xl mx-auto space-y-6 overflow-hidden transition-colors duration-300 ${isLightMode ? 'text-slate-900' : 'text-slate-100'}`}>
+      
+      <div className={`border rounded-3xl p-4 sm:p-5 shadow-xl space-y-4 transition-colors ${isLightMode ? 'bg-white border-slate-300' : 'bg-slate-900 border-slate-800'}`}>
+        <div className={`flex flex-wrap items-center justify-between gap-3 pb-3 border-b ${isLightMode ? 'border-slate-200' : 'border-slate-800'}`}>
+          <div className={`flex flex-wrap items-center gap-1.5 p-1 rounded-2xl border ${isLightMode ? 'bg-slate-100 border-slate-300' : 'bg-slate-950 border-slate-800'}`}>
+            <button type="button" onClick={() => setActiveSubTab('grid')} className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition ${activeSubTab === 'grid' ? (isLightMode ? 'bg-cyan-600 text-white shadow-md font-black' : 'bg-cyan-400 text-slate-950 shadow-md font-black') : (isLightMode ? 'text-slate-500 hover:text-slate-900' : 'text-slate-400 hover:text-slate-200')}`}>
               <Tv className="w-3.5 h-3.5" /><span>Canlı Kortlar Akışı</span>
             </button>
-            <button type="button" onClick={() => setActiveSubTab('stats')} className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition ${activeSubTab === 'stats' ? 'bg-cyan-400 text-slate-950 shadow-md font-black' : 'text-slate-400 hover:text-slate-200'}`}>
+            <button type="button" onClick={() => setActiveSubTab('stats')} className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition ${activeSubTab === 'stats' ? (isLightMode ? 'bg-cyan-600 text-white shadow-md font-black' : 'bg-cyan-400 text-slate-950 shadow-md font-black') : (isLightMode ? 'text-slate-500 hover:text-slate-900' : 'text-slate-400 hover:text-slate-200')}`}>
               <Award className="w-3.5 h-3.5" /><span>Turnuva İstatistikleri</span>
             </button>
-            <button type="button" onClick={() => setActiveSubTab('formats')} className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition ${activeSubTab === 'formats' ? 'bg-cyan-400 text-slate-950 shadow-md font-black' : 'text-slate-400 hover:text-slate-200'}`}>
+            <button type="button" onClick={() => setActiveSubTab('formats')} className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition ${activeSubTab === 'formats' ? (isLightMode ? 'bg-cyan-600 text-white shadow-md font-black' : 'bg-cyan-400 text-slate-950 shadow-md font-black') : (isLightMode ? 'text-slate-500 hover:text-slate-900' : 'text-slate-400 hover:text-slate-200')}`}>
               <Layers className="w-3.5 h-3.5" /><span>Format Hafızası</span>
             </button>
-            <button type="button" onClick={() => setActiveSubTab('referees')} className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition ${activeSubTab === 'referees' ? 'bg-cyan-400 text-slate-950 shadow-md font-black' : 'text-slate-400 hover:text-slate-200'}`}>
+            <button type="button" onClick={() => setActiveSubTab('referees')} className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition ${activeSubTab === 'referees' ? (isLightMode ? 'bg-cyan-600 text-white shadow-md font-black' : 'bg-cyan-400 text-slate-950 shadow-md font-black') : (isLightMode ? 'text-slate-500 hover:text-slate-900' : 'text-slate-400 hover:text-slate-200')}`}>
               <Users className="w-3.5 h-3.5" /><span>Hakem Yönetimi</span>
             </button>
-            <button type="button" onClick={() => setActiveSubTab('manage')} className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition ${activeSubTab === 'manage' ? 'bg-cyan-400 text-slate-950 shadow-md font-black' : 'text-slate-400 hover:text-slate-200'}`}>
+            <button type="button" onClick={() => setActiveSubTab('manage')} className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition ${activeSubTab === 'manage' ? (isLightMode ? 'bg-cyan-600 text-white shadow-md font-black' : 'bg-cyan-400 text-slate-950 shadow-md font-black') : (isLightMode ? 'text-slate-500 hover:text-slate-900' : 'text-slate-400 hover:text-slate-200')}`}>
               <FileSpreadsheet className="w-3.5 h-3.5" /><span>Program & JSON</span>
             </button>
-            <button type="button" onClick={() => { setLocalInfo(tournamentInfo); setActiveSubTab('info'); }} className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition ${activeSubTab === 'info' ? 'bg-cyan-400 text-slate-950 shadow-md font-black' : 'text-slate-400 hover:text-slate-200'}`}>
+            <button type="button" onClick={() => { setLocalInfo(tournamentInfo); setActiveSubTab('info'); }} className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition ${activeSubTab === 'info' ? (isLightMode ? 'bg-cyan-600 text-white shadow-md font-black' : 'bg-cyan-400 text-slate-950 shadow-md font-black') : (isLightMode ? 'text-slate-500 hover:text-slate-900' : 'text-slate-400 hover:text-slate-200')}`}>
               <span>🏆</span><span>Turnuva Bilgileri</span>
             </button>
           </div>
 
-          <div className="flex items-center gap-2 text-xs font-mono">
-            <span className="px-2.5 py-1 rounded-lg bg-emerald-950/60 border border-emerald-500/30 text-emerald-300 font-bold">{liveMatches} Canlı</span>
-            <span className="px-2.5 py-1 rounded-lg bg-cyan-950/60 border border-cyan-500/30 text-cyan-300 font-bold">%{completionRate} Bitti</span>
+          <div className="flex items-center gap-2 text-xs font-mono ml-auto">
+            <span className={`px-2.5 py-1 rounded-lg border font-bold ${isLightMode ? 'bg-emerald-100 border-emerald-300 text-emerald-800' : 'bg-emerald-950/60 border-emerald-500/30 text-emerald-300'}`}>{liveMatches} Canlı</span>
+            <span className={`px-2.5 py-1 rounded-lg border font-bold ${isLightMode ? 'bg-cyan-100 border-cyan-300 text-cyan-800' : 'bg-cyan-950/60 border-cyan-500/30 text-cyan-300'}`}>%{completionRate} Bitti</span>
+            <button onClick={toggleTheme} className={`ml-2 p-1.5 rounded-xl border transition flex items-center justify-center ${isLightMode ? 'bg-white hover:bg-slate-100 border-slate-300 text-amber-600 shadow-sm' : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-amber-300'}`} title="Temayı Değiştir">
+              {isLightMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            </button>
           </div>
         </div>
 
@@ -308,14 +329,14 @@ export const DeskSupervisorView: React.FC = () => {
           <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
             <div className="flex flex-wrap items-center gap-2">
               <div className="relative">
-                <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Oyuncu veya hakem ara..." className="pl-8 pr-3 py-1.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white placeholder:text-slate-500 w-44 sm:w-56 focus:outline-none focus:border-cyan-400" />
-                <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-2.5 pointer-events-none" />
+                <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Oyuncu veya hakem ara..." className={`pl-8 pr-3 py-1.5 border rounded-xl text-xs w-44 sm:w-56 focus:outline-none focus:border-cyan-400 ${isLightMode ? 'bg-white border-slate-300 text-slate-900 placeholder:text-slate-400' : 'bg-slate-950 border-slate-800 text-white placeholder:text-slate-500'}`} />
+                <Search className={`w-3.5 h-3.5 absolute left-2.5 top-2.5 pointer-events-none ${isLightMode ? 'text-slate-400' : 'text-slate-500'}`} />
               </div>
-              <select value={selectedCourtFilter} onChange={(e) => setSelectedCourtFilter(e.target.value)} className="px-3 py-1.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-cyan-400">
+              <select value={selectedCourtFilter} onChange={(e) => setSelectedCourtFilter(e.target.value)} className={`px-3 py-1.5 border rounded-xl text-xs focus:outline-none focus:border-cyan-400 ${isLightMode ? 'bg-white border-slate-300 text-slate-900' : 'bg-slate-950 border-slate-800 text-white'}`}>
                 <option value="ALL">Tüm Kortlar ({distinctCourts.length})</option>
                 {distinctCourts.map((c) => (<option key={c} value={c}>{c}</option>))}
               </select>
-              <select value={selectedStatusFilter} onChange={(e) => setSelectedStatusFilter(e.target.value)} className="px-3 py-1.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-cyan-400">
+              <select value={selectedStatusFilter} onChange={(e) => setSelectedStatusFilter(e.target.value)} className={`px-3 py-1.5 border rounded-xl text-xs focus:outline-none focus:border-cyan-400 ${isLightMode ? 'bg-white border-slate-300 text-slate-900' : 'bg-slate-950 border-slate-800 text-white'}`}>
                 <option value="ALL">Tüm Durumlar</option>
                 <option value="Oynaniyor">Devam Edenler (Canlı)</option>
                 <option value="Baslamadi">Başlamayanlar</option>
@@ -325,11 +346,11 @@ export const DeskSupervisorView: React.FC = () => {
               </select>
             </div>
 
-            <div className="flex items-center gap-2 text-xs text-slate-400 bg-slate-950 p-2 rounded-xl border border-slate-800">
-              <ZoomOut className="w-4 h-4 text-cyan-400" />
-              <input type="range" min="40" max="150" step="1" value={zoomLevel} onChange={(e) => setZoomLevel(Number(e.target.value))} className="w-24 sm:w-32 accent-cyan-400 cursor-pointer" />
-              <ZoomIn className="w-4 h-4 text-cyan-400" />
-              <span className="font-mono text-[12px] w-10 text-right font-black text-cyan-400">%{zoomLevel}</span>
+            <div className={`flex items-center gap-2 text-xs p-2 rounded-xl border ${isLightMode ? 'bg-slate-100 border-slate-200 text-slate-500' : 'bg-slate-950 border-slate-800 text-slate-400'}`}>
+              <ZoomOut className={`w-4 h-4 ${isLightMode ? 'text-cyan-600' : 'text-cyan-400'}`} />
+              <input type="range" min="40" max="150" step="1" value={zoomLevel} onChange={(e) => setZoomLevel(Number(e.target.value))} className={`w-24 sm:w-32 cursor-pointer ${isLightMode ? 'accent-cyan-600' : 'accent-cyan-400'}`} />
+              <ZoomIn className={`w-4 h-4 ${isLightMode ? 'text-cyan-600' : 'text-cyan-400'}`} />
+              <span className={`font-mono text-[12px] w-10 text-right font-black ${isLightMode ? 'text-cyan-700' : 'text-cyan-400'}`}>%{zoomLevel}</span>
             </div>
           </div>
         )}
@@ -342,30 +363,26 @@ export const DeskSupervisorView: React.FC = () => {
             <div className="flex flex-nowrap gap-4">
               {(selectedCourtFilter === 'ALL' ? distinctCourts : [selectedCourtFilter]).map((courtName) => {
                 
-                // YENİ AKILLI SIRALAMA: Bitmiş maçların yapısı bozulmaz. 
-                // Korta sonradan taşınan bir maç (Başlamadı veya Canlı) bitmişlerin arasına giremez, en alta düşer.
                 const courtMatches = filteredMatches
                   .filter((m) => m.Kort === courtName)
                   .sort((a, b) => {
                     const aIsFinished = ['bitti', 'retired', 'walkover'].includes((a.Durum || '').toLowerCase());
                     const bIsFinished = ['bitti', 'retired', 'walkover'].includes((b.Durum || '').toLowerCase());
                     
-                    // Eğer biri bitmiş diğeri bitmemişse; "Bitmemiş" maç her zaman bitmiş maçın ALTINDA (sonrasında) yer almalı.
-                    if (aIsFinished && !bIsFinished) return -1; // a bitmiş, b bitmemiş -> a ÜSTTE
-                    if (!aIsFinished && bIsFinished) return 1;  // a bitmemiş, b bitmiş -> b ÜSTTE
+                    if (aIsFinished && !bIsFinished) return -1;
+                    if (!aIsFinished && bIsFinished) return 1; 
                     
-                    // İkisi de aynı durumdaysa normal saatlerine göre diz (orijinal işleyiş)
                     return (a.Saat || '').localeCompare(b.Saat || '');
                   });
 
                 return (
-                  <div key={courtName} className="bg-slate-900 border border-slate-800 rounded-3xl p-3 sm:p-4 space-y-3 flex flex-col shadow-xl min-w-[280px] w-[300px]">
-                    <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+                  <div key={courtName} className={`border rounded-3xl p-3 sm:p-4 space-y-3 flex flex-col shadow-xl min-w-[280px] w-[300px] ${isLightMode ? 'bg-white border-slate-300' : 'bg-slate-900 border-slate-800'}`}>
+                    <div className={`flex items-center justify-between pb-2 border-b ${isLightMode ? 'border-slate-200' : 'border-slate-800'}`}>
                       <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-full bg-cyan-400 animate-pulse"></div>
-                        <h3 className="font-extrabold text-sm text-white tracking-wide">{courtName}</h3>
+                        <div className={`w-3 h-3 rounded-full animate-pulse ${isLightMode ? 'bg-cyan-500' : 'bg-cyan-400'}`}></div>
+                        <h3 className={`font-extrabold text-sm tracking-wide ${isLightMode ? 'text-slate-800' : 'text-white'}`}>{courtName}</h3>
                       </div>
-                      <span className="text-[11px] font-mono text-slate-400 font-bold px-2 py-0.5 rounded-full bg-slate-950 border border-slate-800">{courtMatches.length} Maç</span>
+                      <span className={`text-[11px] font-mono font-bold px-2 py-0.5 rounded-full border ${isLightMode ? 'bg-slate-100 text-slate-500 border-slate-300' : 'bg-slate-950 text-slate-400 border-slate-800'}`}>{courtMatches.length} Maç</span>
                     </div>
 
                     <div className="space-y-2.5 flex-1">
@@ -382,32 +399,42 @@ export const DeskSupervisorView: React.FC = () => {
                           const p2Name = m['Oyuncu 2'];
 
                           const cardClass = isLive 
-                            ? 'bg-gradient-to-br from-emerald-950/60 to-slate-900 border-2 border-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.15)] ring-1 ring-emerald-500/50 z-10 scale-[1.01]'
+                            ? (isLightMode ? 'bg-white border-2 border-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.2)] ring-1 ring-emerald-400/50 z-10 scale-[1.01]' : 'bg-gradient-to-br from-emerald-950/60 to-slate-900 border-2 border-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.15)] ring-1 ring-emerald-500/50 z-10 scale-[1.01]')
                             : isPaused 
-                            ? 'bg-gradient-to-br from-amber-950/60 to-slate-900 border-2 border-amber-500 shadow-[0_0_20px_rgba(245,158,11,0.15)] ring-1 ring-amber-500/50 z-10 scale-[1.01]'
+                            ? (isLightMode ? 'bg-white border-2 border-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.2)] ring-1 ring-amber-400/50 z-10 scale-[1.01]' : 'bg-gradient-to-br from-amber-950/60 to-slate-900 border-2 border-amber-500 shadow-[0_0_20px_rgba(245,158,11,0.15)] ring-1 ring-amber-500/50 z-10 scale-[1.01]')
                             : isUpcoming 
-                            ? 'bg-slate-900 border-2 border-slate-600 border-dashed opacity-85 hover:opacity-100'
-                            : 'bg-gradient-to-br from-rose-950/30 to-slate-950 border-2 border-rose-900/50 opacity-85 hover:opacity-100';
+                            ? (isLightMode ? 'bg-slate-50 border-2 border-slate-300 border-dashed hover:border-slate-400' : 'bg-slate-900 border-2 border-slate-600 border-dashed opacity-85 hover:opacity-100')
+                            : (isLightMode ? 'bg-rose-50 border border-rose-200 hover:border-rose-300' : 'bg-gradient-to-br from-rose-950/30 to-slate-950 border-2 border-rose-900/50 opacity-85 hover:opacity-100');
 
                           const statusBadgeClass = isLive 
-                            ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 animate-pulse' 
+                            ? (isLightMode ? 'bg-emerald-100 text-emerald-700 border-emerald-300 animate-pulse' : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 animate-pulse')
                             : isPaused 
-                            ? 'bg-amber-500/20 text-amber-400 border-amber-500/40' 
+                            ? (isLightMode ? 'bg-amber-100 text-amber-700 border-amber-300' : 'bg-amber-500/20 text-amber-400 border-amber-500/40')
                             : isUpcoming 
-                            ? 'bg-slate-800 text-slate-400 border-slate-700' 
-                            : 'bg-rose-500/20 text-rose-400 border-rose-500/40';
+                            ? (isLightMode ? 'bg-slate-200 text-slate-600 border-slate-300' : 'bg-slate-800 text-slate-400 border-slate-700')
+                            : (isLightMode ? 'bg-rose-100 text-rose-700 border-rose-300' : 'bg-rose-500/20 text-rose-400 border-rose-500/40');
 
                           const statusText = isLive ? 'CANLI' : isPaused ? 'ASKIDA' : isUpcoming ? 'BEKLİYOR' : m.Durum.toUpperCase();
                           
-                          const timeClass = isLive ? 'text-emerald-400 text-[10px]' 
-                            : isPaused ? 'text-amber-400 text-[10px]' 
-                            : isUpcoming ? 'text-white text-[12px] font-black tracking-wider' 
-                            : 'text-rose-300 text-[10px]';
+                          const timeClass = isLive ? (isLightMode ? 'text-emerald-700 text-[10px]' : 'text-emerald-400 text-[10px]')
+                            : isPaused ? (isLightMode ? 'text-amber-700 text-[10px]' : 'text-amber-400 text-[10px]')
+                            : isUpcoming ? (isLightMode ? 'text-slate-800 text-[12px] font-black tracking-wider' : 'text-white text-[12px] font-black tracking-wider')
+                            : (isLightMode ? 'text-rose-700 text-[10px]' : 'text-rose-300 text-[10px]');
+
+                          const playerTextClass = (isWinner: boolean) => 
+                            isFinished && !isWinner ? (isLightMode ? 'text-slate-400 line-through' : 'text-slate-400 line-through')
+                            : isFinished && isWinner ? (isLightMode ? 'text-cyan-700 font-black' : 'text-lime-300 font-black drop-shadow-sm')
+                            : (isLightMode ? 'text-slate-900 font-bold' : 'text-white font-bold');
+
+                          const scoreNumberClass = (isWinner: boolean) =>
+                            isFinished && !isWinner ? 'text-slate-400'
+                            : isFinished ? (isLightMode ? 'text-cyan-700' : 'text-lime-200')
+                            : (isLightMode ? 'text-slate-900' : 'text-white');
 
                           return (
                             <div key={m.id} onClick={() => setSelectedMatchForModal(m)} className={`p-3 rounded-2xl transition-all cursor-pointer relative overflow-hidden group ${cardClass}`}>
                               
-                              <div className="flex items-center justify-between text-[10px] font-bold mb-2 gap-1 pb-2 border-b border-slate-800/50">
+                              <div className={`flex items-center justify-between text-[10px] font-bold mb-2 gap-1 pb-2 border-b ${isLightMode ? 'border-slate-200' : 'border-slate-800/50'}`}>
                                 <span className={`${timeClass} font-mono flex items-center gap-1.5`}><Clock className={`${isUpcoming ? 'w-4 h-4' : 'w-3.5 h-3.5'}`} />{m.Saat}</span>
                                 <div className="flex items-center gap-1.5">
                                   {isLive && <MatchLiveTimer match={m} size="sm" />}
@@ -417,15 +444,15 @@ export const DeskSupervisorView: React.FC = () => {
                                 </div>
                               </div>
 
-                              <div className="text-[10px] font-black text-slate-500 uppercase tracking-wider truncate mb-2">{m.Kategori}</div>
+                              <div className={`text-[10px] font-black uppercase tracking-wider truncate mb-2 ${isLightMode ? 'text-slate-500' : 'text-slate-500'}`}>{m.Kategori}</div>
 
                               <div className="space-y-1.5 my-2">
                                 <div className="flex items-center justify-between text-xs">
                                   <div className="flex items-center gap-1.5 truncate pr-2">
                                     {state?.currentServer === 1 && isLive && <span className="text-lime-400 text-[10px] animate-bounce">🎾</span>}
-                                    <span className={`truncate ${isFinished && m.Kazanan !== p1Name ? 'text-slate-400 line-through' : isFinished && m.Kazanan === p1Name ? 'text-lime-300 font-black drop-shadow-sm' : 'text-white font-bold'}`}>{isFinished && m.Kazanan === p1Name ? '🏆 ' : ''}{p1Name}</span>
+                                    <span className={`truncate ${playerTextClass(m.Kazanan === p1Name)}`}>{isFinished && m.Kazanan === p1Name ? '🏆 ' : ''}{p1Name}</span>
                                   </div>
-                                  <span className={`font-mono text-xs font-black shrink-0 ${isFinished && m.Kazanan !== p1Name ? 'text-slate-400' : isFinished ? 'text-lime-200' : 'text-white'}`}>
+                                  <span className={`font-mono text-xs font-black shrink-0 ${scoreNumberClass(m.Kazanan === p1Name)}`}>
                                     {state ? `${state.set1_p1} ${state.set2_p1} ${state.set3_p1}` : m.Skor !== '-' ? m.Skor.split(' ').map((s) => s.split('/')[0]).join(' ') : '-'}
                                   </span>
                                 </div>
@@ -433,31 +460,31 @@ export const DeskSupervisorView: React.FC = () => {
                                 <div className="flex items-center justify-between text-xs">
                                   <div className="flex items-center gap-1.5 truncate pr-2">
                                     {state?.currentServer === 2 && isLive && <span className="text-cyan-400 text-[10px] animate-bounce">🎾</span>}
-                                    <span className={`truncate ${isFinished && m.Kazanan !== p2Name ? 'text-slate-400 line-through' : isFinished && m.Kazanan === p2Name ? 'text-lime-300 font-black drop-shadow-sm' : 'text-white font-bold'}`}>{isFinished && m.Kazanan === p2Name ? '🏆 ' : ''}{p2Name}</span>
+                                    <span className={`truncate ${playerTextClass(m.Kazanan === p2Name)}`}>{isFinished && m.Kazanan === p2Name ? '🏆 ' : ''}{p2Name}</span>
                                   </div>
-                                  <span className={`font-mono text-xs font-black shrink-0 ${isFinished && m.Kazanan !== p2Name ? 'text-slate-400' : isFinished ? 'text-lime-200' : 'text-white'}`}>
+                                  <span className={`font-mono text-xs font-black shrink-0 ${scoreNumberClass(m.Kazanan === p2Name)}`}>
                                     {state ? `${state.set1_p2} ${state.set2_p2} ${state.set3_p2}` : m.Skor !== '-' ? m.Skor.split(' ').map((s) => s.split('/')[1]).join(' ') : '-'}
                                   </span>
                                 </div>
                               </div>
 
-                              <div className="pt-2 mt-2 border-t border-slate-800/50 flex items-center justify-between text-[10px]">
+                              <div className={`pt-2 mt-2 border-t flex items-center justify-between text-[10px] ${isLightMode ? 'border-slate-200' : 'border-slate-800/50'}`}>
                                 {isLive && state ? (
-                                  <div className="font-mono font-bold text-emerald-400 bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-500/30">
+                                  <div className={`font-mono font-bold px-2 py-0.5 rounded border ${isLightMode ? 'text-emerald-700 bg-emerald-50 border-emerald-300' : 'text-emerald-400 bg-emerald-950/40 border-emerald-500/30'}`}>
                                     {state.isTiebreak ? `TB: ${state.tiebreak_p1}-${state.tiebreak_p2}` : `${state.gamePoint_p1} - ${state.gamePoint_p2}`}
                                   </div>
                                 ) : (
-                                  <div className="text-slate-400 font-mono font-bold">Skor: <span className={isFinished ? 'text-white font-black text-[11px]' : 'text-slate-200'}>{m.Skor}</span></div>
+                                  <div className={`font-mono font-bold ${isLightMode ? 'text-slate-500' : 'text-slate-400'}`}>Skor: <span className={isFinished ? (isLightMode ? 'text-slate-900 font-black text-[11px]' : 'text-white font-black text-[11px]') : (isLightMode ? 'text-slate-600' : 'text-slate-200')}>{m.Skor}</span></div>
                                 )}
-                                <div className="text-slate-400 truncate max-w-[110px] text-right">
-                                  {m.Son_Hakem && m.Son_Hakem !== '-' ? <span className="text-amber-300/90 font-medium">👤 {m.Son_Hakem.split(' ')[0]}</span> : <span className="text-slate-600">Hakem Yok</span>}
+                                <div className={`truncate max-w-[110px] text-right ${isLightMode ? 'text-slate-500' : 'text-slate-400'}`}>
+                                  {m.Son_Hakem && m.Son_Hakem !== '-' ? <span className={`font-medium ${isLightMode ? 'text-amber-600' : 'text-amber-300/90'}`}>👤 {m.Son_Hakem.split(' ')[0]}</span> : <span className={isLightMode ? 'text-slate-400' : 'text-slate-600'}>Hakem Yok</span>}
                                 </div>
                               </div>
                             </div>
                           );
                         })
                       ) : (
-                        <div className="p-6 text-center text-xs text-slate-500 border border-dashed border-slate-800 rounded-2xl">Bu kortta maç bulunamadı.</div>
+                        <div className={`p-6 text-center text-xs border border-dashed rounded-2xl ${isLightMode ? 'text-slate-500 border-slate-300' : 'text-slate-500 border-slate-800'}`}>Bu kortta maç bulunamadı.</div>
                       )}
                     </div>
                   </div>
@@ -471,33 +498,33 @@ export const DeskSupervisorView: React.FC = () => {
       {activeSubTab === 'stats' && (
         <div className="space-y-6">
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-            <div className="p-4 bg-slate-900 border border-slate-800 rounded-2xl shadow">
-              <div className="text-xs font-bold text-slate-400 uppercase">Toplam Maç</div>
-              <div className="text-2xl sm:text-3xl font-black text-white mt-1">{totalMatches}</div>
+            <div className={`p-4 border rounded-2xl shadow ${isLightMode ? 'bg-white border-slate-300' : 'bg-slate-900 border-slate-800'}`}>
+              <div className={`text-xs font-bold uppercase ${isLightMode ? 'text-slate-500' : 'text-slate-400'}`}>Toplam Maç</div>
+              <div className={`text-2xl sm:text-3xl font-black mt-1 ${isLightMode ? 'text-slate-900' : 'text-white'}`}>{totalMatches}</div>
             </div>
-            <div className="p-4 bg-slate-900 border border-emerald-500/30 bg-emerald-950/20 rounded-2xl shadow">
-              <div className="text-xs font-bold text-emerald-400 uppercase">Devam Eden</div>
-              <div className="text-2xl sm:text-3xl font-black text-emerald-400 mt-1">{liveMatches}</div>
+            <div className={`p-4 border rounded-2xl shadow ${isLightMode ? 'bg-emerald-50 border-emerald-300' : 'bg-emerald-950/20 border-emerald-500/30'}`}>
+              <div className={`text-xs font-bold uppercase ${isLightMode ? 'text-emerald-700' : 'text-emerald-400'}`}>Devam Eden</div>
+              <div className={`text-2xl sm:text-3xl font-black mt-1 ${isLightMode ? 'text-emerald-600' : 'text-emerald-400'}`}>{liveMatches}</div>
             </div>
-            <div className="p-4 bg-slate-900 border border-rose-500/30 bg-rose-950/20 rounded-2xl shadow">
-              <div className="text-xs font-bold text-rose-400 uppercase">Tamamlanan</div>
-              <div className="text-2xl sm:text-3xl font-black text-rose-400 mt-1">{finishedMatches}</div>
+            <div className={`p-4 border rounded-2xl shadow ${isLightMode ? 'bg-rose-50 border-rose-300' : 'bg-rose-950/20 border-rose-500/30'}`}>
+              <div className={`text-xs font-bold uppercase ${isLightMode ? 'text-rose-700' : 'text-rose-400'}`}>Tamamlanan</div>
+              <div className={`text-2xl sm:text-3xl font-black mt-1 ${isLightMode ? 'text-rose-600' : 'text-rose-400'}`}>{finishedMatches}</div>
             </div>
-            <div className="p-4 bg-slate-900 border border-slate-800 rounded-2xl shadow">
-              <div className="text-xs font-bold text-slate-400 uppercase">Başlamayan</div>
-              <div className="text-2xl sm:text-3xl font-black text-slate-300 mt-1">{pendingMatches}</div>
+            <div className={`p-4 border rounded-2xl shadow ${isLightMode ? 'bg-white border-slate-300' : 'bg-slate-900 border-slate-800'}`}>
+              <div className={`text-xs font-bold uppercase ${isLightMode ? 'text-slate-500' : 'text-slate-400'}`}>Başlamayan</div>
+              <div className={`text-2xl sm:text-3xl font-black mt-1 ${isLightMode ? 'text-slate-700' : 'text-slate-300'}`}>{pendingMatches}</div>
             </div>
-            <div className="p-4 bg-slate-900 border border-cyan-500/30 bg-cyan-950/20 rounded-2xl shadow col-span-2 sm:col-span-1">
-              <div className="text-xs font-bold text-cyan-400 uppercase">Oran</div>
-              <div className="text-2xl sm:text-3xl font-black text-cyan-400 mt-1">%{completionRate}</div>
+            <div className={`p-4 border rounded-2xl shadow col-span-2 sm:col-span-1 ${isLightMode ? 'bg-cyan-50 border-cyan-300' : 'bg-cyan-950/20 border-cyan-500/30'}`}>
+              <div className={`text-xs font-bold uppercase ${isLightMode ? 'text-cyan-700' : 'text-cyan-400'}`}>Oran</div>
+              <div className={`text-2xl sm:text-3xl font-black mt-1 ${isLightMode ? 'text-cyan-600' : 'text-cyan-400'}`}>%{completionRate}</div>
             </div>
           </div>
-          <div className="p-5 bg-slate-900 border border-slate-800 rounded-3xl space-y-2">
-            <div className="flex items-center justify-between text-xs font-bold text-slate-300">
+          <div className={`p-5 border rounded-3xl space-y-2 ${isLightMode ? 'bg-white border-slate-300' : 'bg-slate-900 border-slate-800'}`}>
+            <div className={`flex items-center justify-between text-xs font-bold ${isLightMode ? 'text-slate-600' : 'text-slate-300'}`}>
               <span>Günlük Turnuva İlerlemesi</span>
-              <span className="font-mono text-cyan-400">{finishedMatches} / {totalMatches} Maç Bitti (%{completionRate})</span>
+              <span className={`font-mono ${isLightMode ? 'text-cyan-700' : 'text-cyan-400'}`}>{finishedMatches} / {totalMatches} Maç Bitti (%{completionRate})</span>
             </div>
-            <div className="w-full h-3 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
+            <div className={`w-full h-3 rounded-full overflow-hidden border ${isLightMode ? 'bg-slate-100 border-slate-200' : 'bg-slate-950 border-slate-800'}`}>
               <div className="h-full bg-gradient-to-r from-cyan-500 to-emerald-400 transition-all duration-500" style={{ width: `${completionRate}%` }}></div>
             </div>
           </div>
@@ -505,77 +532,108 @@ export const DeskSupervisorView: React.FC = () => {
       )}
 
       {activeSubTab === 'formats' && (
-        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-6">
-          <div>
-            <h3 className="font-bold text-base text-white">🎾 Kategori ve Maç Formatı Eşleştirme</h3>
-            <p className="text-xs text-slate-400 mt-1">Her kategori için formatı ve Karar Puanı (No-Ad) ayarını buradan yönetebilirsiniz.</p>
+        <div className={`border rounded-3xl p-6 space-y-6 ${isLightMode ? 'bg-white border-slate-300' : 'bg-slate-900 border-slate-800'}`}>
+          
+          {/* TIE-BREAK TÜRÜ AYARI (Global Turnuva Ayarı) */}
+          <div className={`p-5 border rounded-2xl ${isLightMode ? 'bg-amber-50 border-amber-200' : 'bg-amber-950/20 border-amber-500/30'}`}>
+             <h3 className={`font-bold text-base mb-1 ${isLightMode ? 'text-amber-800' : 'text-amber-400'}`}>🏆 Turnuva Varsayılan Tie-Break Kuralı</h3>
+             <p className={`text-xs mb-4 ${isLightMode ? 'text-amber-700/80' : 'text-amber-400/70'}`}>
+               Bu ayar, tüm maçların "Kule Hakemi Kurulum" ekranında varsayılan olarak seçili gelecektir. Kule hakemi maç sırasında dilerse kendi tabletinden değiştirebilir.
+             </p>
+             <select
+               value={localInfo.tbType || 'standard'}
+               onChange={(e) => setLocalInfo(prev => ({ ...prev, tbType: e.target.value as 'standard' | 'coman' }))}
+               className={`w-full sm:w-2/3 px-4 py-2.5 rounded-xl text-sm font-bold border focus:outline-none focus:border-cyan-400 transition ${
+                 isLightMode ? 'bg-white border-amber-300 text-slate-800' : 'bg-slate-950 border-amber-500/50 text-amber-300'
+               }`}
+             >
+               <option value="standard">Standart Tie-Break (6'da bir saha değişimi)</option>
+               <option value="coman">Coman Tie-Break (1-5-9 Asimetrik saha değişimi)</option>
+             </select>
           </div>
-          {formatSavedMsg && <div className="p-3 bg-emerald-950/50 border border-emerald-500/40 rounded-xl text-emerald-300 text-xs font-bold">{formatSavedMsg}</div>}
-          <div className="space-y-3 divide-y divide-slate-800">
-            <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center text-[10px] font-extrabold uppercase text-slate-500 px-2 pb-2">
+
+          <div>
+            <h3 className={`font-bold text-base ${isLightMode ? 'text-slate-900' : 'text-white'}`}>🎾 Kategori ve Maç Formatı Eşleştirme</h3>
+            <p className={`text-xs mt-1 ${isLightMode ? 'text-slate-500' : 'text-slate-400'}`}>Her kategori için formatı ve Karar Puanı (No-Ad) ayarını buradan yönetebilirsiniz.</p>
+          </div>
+          {formatSavedMsg && <div className={`p-3 border rounded-xl text-xs font-bold ${isLightMode ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-emerald-950/50 border-emerald-500/40 text-emerald-300'}`}>{formatSavedMsg}</div>}
+          <div className={`space-y-3 divide-y ${isLightMode ? 'divide-slate-200' : 'divide-slate-800'}`}>
+            <div className={`grid grid-cols-1 sm:grid-cols-12 gap-3 items-center text-[10px] font-extrabold uppercase px-2 pb-2 ${isLightMode ? 'text-slate-500' : 'text-slate-500'}`}>
                <div className="sm:col-span-4">Kategori Adı</div>
                <div className="sm:col-span-5">Skor Formatı</div>
                <div className="sm:col-span-3">Karar Puanı (Avantaj Yok)</div>
             </div>
             {distinctCategories.map((kat) => (
               <div key={kat} className="pt-3 grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
-                <div className="sm:col-span-4 font-bold text-sm text-slate-200 truncate pr-2">🎾 {kat}</div>
+                <div className={`sm:col-span-4 font-bold text-sm truncate pr-2 ${isLightMode ? 'text-slate-800' : 'text-slate-200'}`}>🎾 {kat}</div>
                 <div className="sm:col-span-5">
-                  <select value={localFormats[kat] || '3 Normal Set'} onChange={(e) => setLocalFormats((prev) => ({ ...prev, [kat]: e.target.value }))} className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-lime-300 font-bold focus:border-cyan-400">
+                  <select value={localFormats[kat] || '3 Normal Set'} onChange={(e) => setLocalFormats((prev) => ({ ...prev, [kat]: e.target.value }))} className={`w-full px-3.5 py-2.5 border rounded-xl text-xs font-bold focus:border-cyan-400 ${isLightMode ? 'bg-white border-slate-300 text-slate-800' : 'bg-slate-950 border-slate-800 text-lime-300'}`}>
                     {SCORE_FORMAT_OPTIONS.map((fmt) => (<option key={fmt} value={fmt}>{fmt}</option>))}
                   </select>
                 </div>
-                <div className="sm:col-span-3 flex items-center gap-2.5 bg-slate-950/50 p-2.5 rounded-xl border border-slate-800">
+                <div className={`sm:col-span-3 flex items-center gap-2.5 p-2.5 rounded-xl border ${isLightMode ? 'bg-slate-50 border-slate-200' : 'bg-slate-950/50 border-slate-800'}`}>
                   <input 
                     type="checkbox" 
                     id={`noad-${kat}`} 
                     checked={!!localNoAdSettings[kat]} 
                     onChange={(e) => setLocalNoAdSettings(prev => ({ ...prev, [kat]: e.target.checked }))} 
-                    className="w-4 h-4 rounded border-slate-700 text-cyan-400 focus:ring-cyan-400 bg-slate-950 cursor-pointer" 
+                    className={`w-4 h-4 rounded cursor-pointer ${isLightMode ? 'border-slate-300 text-cyan-600 focus:ring-cyan-600 bg-white' : 'border-slate-700 text-cyan-400 focus:ring-cyan-400 bg-slate-950'}`} 
                   />
-                  <label htmlFor={`noad-${kat}`} className="text-xs font-bold text-slate-300 cursor-pointer select-none">No-Ad Oyna</label>
+                  <label htmlFor={`noad-${kat}`} className={`text-xs font-bold cursor-pointer select-none ${isLightMode ? 'text-slate-700' : 'text-slate-300'}`}>No-Ad Oyna</label>
                 </div>
               </div>
             ))}
           </div>
-          <div className="pt-4 border-t border-slate-800 flex justify-end">
-            <button type="button" onClick={handleApplyFormats} className="px-6 py-3 bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-bold rounded-xl shadow-lg transition">Formatları Kaydet ve Tüm Maçlara Uygula</button>
+          <div className={`pt-4 border-t flex justify-end ${isLightMode ? 'border-slate-200' : 'border-slate-800'}`}>
+            <button type="button" onClick={handleApplyFormats} className={`px-6 py-3 font-bold rounded-xl shadow-lg transition ${isLightMode ? 'bg-cyan-600 hover:bg-cyan-500 text-white' : 'bg-cyan-400 hover:bg-cyan-300 text-slate-950'}`}>Formatları Kaydet ve Tüm Maçlara Uygula</button>
           </div>
         </div>
       )}
 
       {activeSubTab === 'referees' && (
         <div className="space-y-6">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4">
+          <div className={`border rounded-3xl p-6 space-y-4 ${isLightMode ? 'bg-white border-slate-300' : 'bg-slate-900 border-slate-800'}`}>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-cyan-400/20 text-cyan-400 border border-cyan-400/30 flex items-center justify-center font-bold"><ShieldCheck className="w-5 h-5" /></div>
-                <div><h3 className="font-bold text-base text-white">Turnuva Masası Güvenlik & Ana Şifre</h3></div>
+                <div className={`w-10 h-10 rounded-2xl border flex items-center justify-center font-bold ${isLightMode ? 'bg-cyan-50 text-cyan-600 border-cyan-200' : 'bg-cyan-400/20 text-cyan-400 border-cyan-400/30'}`}><ShieldCheck className="w-5 h-5" /></div>
+                <div><h3 className={`font-bold text-base ${isLightMode ? 'text-slate-900' : 'text-white'}`}>Turnuva Masası Güvenlik & Ana Şifre</h3></div>
               </div>
-              <div className="font-mono text-xs text-cyan-400 bg-cyan-950/60 border border-cyan-500/30 px-3 py-1.5 rounded-xl font-bold">Aktif Şifre: {deskPin}</div>
+              <div className={`font-mono text-xs px-3 py-1.5 rounded-xl font-bold border ${isLightMode ? 'bg-cyan-50 text-cyan-700 border-cyan-200' : 'bg-cyan-950/60 text-cyan-400 border-cyan-500/30'}`}>Aktif Şifre: {deskPin}</div>
             </div>
-            {deskPinSuccessMsg && <div className="p-3 bg-emerald-950/50 border border-emerald-500/40 rounded-xl text-emerald-300 text-xs font-bold flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-400" /><span>{deskPinSuccessMsg}</span></div>}
+            {deskPinSuccessMsg && <div className={`p-3 border rounded-xl text-xs font-bold flex items-center gap-2 ${isLightMode ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-emerald-950/50 border-emerald-500/40 text-emerald-300'}`}><CheckCircle2 className="w-4 h-4" /><span>{deskPinSuccessMsg}</span></div>}
             <form onSubmit={(e) => { e.preventDefault(); if (!editingDeskPin.trim()) return; updateDeskPin(editingDeskPin.trim()); setDeskPinSuccessMsg('✅ Turnuva Masası şifresi başarıyla güncellendi!'); setTimeout(() => setDeskPinSuccessMsg(''), 3500); }} className="flex flex-col sm:flex-row items-stretch sm:items-end gap-3 pt-2">
-              <div className="flex-1 space-y-1"><label className="block text-xs font-bold text-slate-400 uppercase tracking-wider">Yeni Turnuva Masası Şifresi / PIN</label><input type="text" maxLength={10} value={editingDeskPin} onChange={(e) => setEditingDeskPin(e.target.value)} className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white font-mono font-bold focus:outline-none focus:border-cyan-400" /></div>
-              <button type="submit" className="px-6 py-2.5 bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-bold text-sm rounded-xl shadow transition flex items-center justify-center gap-2"><KeyRound className="w-4 h-4" /><span>Şifreyi Güncelle</span></button>
+              <div className="flex-1 space-y-1">
+                <label className={`block text-xs font-bold uppercase tracking-wider ${isLightMode ? 'text-slate-500' : 'text-slate-400'}`}>Yeni Turnuva Masası Şifresi / PIN</label>
+                <input type="text" maxLength={10} value={editingDeskPin} onChange={(e) => setEditingDeskPin(e.target.value)} className={`w-full px-4 py-2.5 border rounded-xl text-sm font-mono font-bold focus:outline-none focus:border-cyan-400 ${isLightMode ? 'bg-white border-slate-300 text-slate-900' : 'bg-slate-950 border-slate-800 text-white'}`} />
+              </div>
+              <button type="submit" className={`px-6 py-2.5 font-bold text-sm rounded-xl shadow transition flex items-center justify-center gap-2 ${isLightMode ? 'bg-cyan-600 hover:bg-cyan-500 text-white' : 'bg-cyan-400 hover:bg-cyan-300 text-slate-950'}`}><KeyRound className="w-4 h-4" /><span>Şifreyi Güncelle</span></button>
             </form>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4">
-              <h3 className="font-bold text-base text-white">Yeni Saha Hakemi Ekle</h3>
+            <div className={`border rounded-3xl p-6 space-y-4 ${isLightMode ? 'bg-white border-slate-300' : 'bg-slate-900 border-slate-800'}`}>
+              <h3 className={`font-bold text-base ${isLightMode ? 'text-slate-900' : 'text-white'}`}>Yeni Saha Hakemi Ekle</h3>
               <form onSubmit={handleAddRefereeSubmit} className="space-y-4">
-                <div><label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Hakem Adı & Soyadı</label><input type="text" value={newRefName} onChange={(e) => setNewRefName(e.target.value)} className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white focus:outline-none focus:border-cyan-400" /></div>
-                <div><label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Giriş PIN / Şifre</label><input type="text" maxLength={6} value={newRefPin} onChange={(e) => setNewRefPin(e.target.value)} className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white font-mono focus:outline-none focus:border-cyan-400" /></div>
-                <button type="submit" className="w-full py-3 bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-bold rounded-xl shadow transition">Hakemi Kaydet</button>
+                <div>
+                  <label className={`block text-xs font-bold uppercase tracking-wider mb-2 ${isLightMode ? 'text-slate-500' : 'text-slate-400'}`}>Hakem Adı & Soyadı</label>
+                  <input type="text" value={newRefName} onChange={(e) => setNewRefName(e.target.value)} className={`w-full px-4 py-2.5 border rounded-xl text-sm focus:outline-none focus:border-cyan-400 ${isLightMode ? 'bg-white border-slate-300 text-slate-900' : 'bg-slate-950 border-slate-800 text-white'}`} />
+                </div>
+                <div>
+                  <label className={`block text-xs font-bold uppercase tracking-wider mb-2 ${isLightMode ? 'text-slate-500' : 'text-slate-400'}`}>Giriş PIN / Şifre</label>
+                  <input type="text" maxLength={6} value={newRefPin} onChange={(e) => setNewRefPin(e.target.value)} className={`w-full px-4 py-2.5 border rounded-xl text-sm font-mono focus:outline-none focus:border-cyan-400 ${isLightMode ? 'bg-white border-slate-300 text-slate-900' : 'bg-slate-950 border-slate-800 text-white'}`} />
+                </div>
+                <button type="submit" className={`w-full py-3 font-bold rounded-xl shadow transition ${isLightMode ? 'bg-cyan-600 hover:bg-cyan-500 text-white' : 'bg-cyan-400 hover:bg-cyan-300 text-slate-950'}`}>Hakemi Kaydet</button>
               </form>
             </div>
-            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4">
-              <h3 className="font-bold text-base text-white">Kayıtlı Saha Hakemleri ({referees.length})</h3>
-              <div className="space-y-2 max-h-80 overflow-y-auto">
+            <div className={`border rounded-3xl p-6 space-y-4 ${isLightMode ? 'bg-white border-slate-300' : 'bg-slate-900 border-slate-800'}`}>
+              <h3 className={`font-bold text-base ${isLightMode ? 'text-slate-900' : 'text-white'}`}>Kayıtlı Saha Hakemleri ({referees.length})</h3>
+              <div className="space-y-2 max-h-80 overflow-y-auto pr-2">
                 {referees.map((ref) => (
-                  <div key={ref.name} className="p-3 bg-slate-950 rounded-xl border border-slate-800 flex items-center justify-between">
-                    <div><div className="font-bold text-sm text-slate-200">{ref.name}</div><div className="text-xs text-slate-400 font-mono">PIN: {ref.pin}</div></div>
-                    <button type="button" onClick={() => deleteReferee(ref.name)} className="p-2 text-slate-500 hover:text-rose-400 hover:bg-rose-950/30 rounded-lg transition"><Trash2 className="w-4 h-4" /></button>
+                  <div key={ref.name} className={`p-3 rounded-xl border flex items-center justify-between ${isLightMode ? 'bg-slate-50 border-slate-200' : 'bg-slate-950 border-slate-800'}`}>
+                    <div>
+                      <div className={`font-bold text-sm ${isLightMode ? 'text-slate-800' : 'text-slate-200'}`}>{ref.name}</div>
+                      <div className={`text-xs font-mono ${isLightMode ? 'text-slate-500' : 'text-slate-400'}`}>PIN: {ref.pin}</div>
+                    </div>
+                    <button type="button" onClick={() => deleteReferee(ref.name)} className={`p-2 rounded-lg transition ${isLightMode ? 'text-slate-400 hover:text-rose-600 hover:bg-rose-50' : 'text-slate-500 hover:text-rose-400 hover:bg-rose-950/30'}`}><Trash2 className="w-4 h-4" /></button>
                   </div>
                 ))}
               </div>
@@ -586,32 +644,32 @@ export const DeskSupervisorView: React.FC = () => {
 
       {activeSubTab === 'manage' && (
         <div className="space-y-6">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
+          <div className={`border rounded-3xl p-5 sm:p-6 space-y-4 ${isLightMode ? 'bg-white border-slate-300' : 'bg-slate-900 border-slate-800'}`}>
+            <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b ${isLightMode ? 'border-slate-200' : 'border-slate-800'}`}>
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-emerald-950/60 border border-emerald-500/30 text-emerald-400 flex items-center justify-center"><RefreshCw className={`w-5 h-5 ${isSyncingAction ? 'animate-spin' : ''}`} /></div>
-                <div><h3 className="font-bold text-base text-white">Canlı Bulut Senkronizasyonu</h3></div>
+                <div className={`w-10 h-10 rounded-2xl border flex items-center justify-center ${isLightMode ? 'bg-emerald-50 border-emerald-200 text-emerald-600' : 'bg-emerald-950/60 border-emerald-500/30 text-emerald-400'}`}><RefreshCw className={`w-5 h-5 ${isSyncingAction ? 'animate-spin' : ''}`} /></div>
+                <div><h3 className={`font-bold text-base ${isLightMode ? 'text-slate-900' : 'text-white'}`}>Canlı Bulut Senkronizasyonu</h3></div>
               </div>
               <div className="flex items-center gap-2">
-                <span className="px-3 py-1 rounded-xl bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 text-xs font-mono font-bold flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" /><span>{cloudSyncStatus === 'connected' ? 'Buluta Bağlı' : cloudSyncStatus === 'syncing' ? 'Eşitleniyor...' : 'Çevrimdışı'}</span></span>
+                <span className={`px-3 py-1 rounded-xl border text-xs font-mono font-bold flex items-center gap-1.5 ${isLightMode ? 'bg-emerald-50 border-emerald-300 text-emerald-700' : 'bg-emerald-950/60 border-emerald-500/40 text-emerald-300'}`}><span className={`w-2 h-2 rounded-full animate-pulse ${isLightMode ? 'bg-emerald-500' : 'bg-emerald-400'}`} /><span>{cloudSyncStatus === 'connected' ? 'Buluta Bağlı' : cloudSyncStatus === 'syncing' ? 'Eşitleniyor...' : 'Çevrimdışı'}</span></span>
               </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
-              <button type="button" disabled={isSyncingAction} onClick={async () => { setIsSyncingAction(true); try { await forcePushAllToCloud(); setImportMsg('✅ Buluta zorla yazıldı!'); setTimeout(() => setImportMsg(''), 4000); } catch { setImportMsg('❌ Başarısız.'); } finally { setIsSyncingAction(false); } }} className="flex items-center justify-center gap-2 px-4 py-3 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 rounded-2xl text-xs font-bold transition shadow"><Upload className="w-4 h-4 text-emerald-400" /><span>Zorla Yayınla</span></button>
-              <button type="button" disabled={isSyncingAction} onClick={async () => { setIsSyncingAction(true); try { const n = await purgeOrphanMatches(); setImportMsg(n > 0 ? '🧹 ' + n + ' hayalet döküman silindi!' : '✅ Hayalet yok, temiz!'); setTimeout(() => setImportMsg(''), 4000); } catch { setImportMsg('❌ Temizlenemedi.'); } finally { setIsSyncingAction(false); } }} className="flex items-center justify-center gap-2 px-4 py-3 bg-amber-600/20 hover:bg-amber-600/30 border border-amber-500/40 text-amber-300 rounded-2xl text-xs font-bold transition shadow"><span>🧹</span><span>Hayalet Temizle</span></button>
-              <button type="button" disabled={isSyncingAction} onClick={async () => { setIsSyncingAction(true); try { await pullFromCloudNow(); setImportMsg('✅ Veri çekildi!'); setTimeout(() => setImportMsg(''), 4000); } catch { setImportMsg('❌ Başarısız.'); } finally { setIsSyncingAction(false); } }} className="flex items-center justify-center gap-2 px-4 py-3 bg-cyan-600/20 hover:bg-cyan-600/30 border border-cyan-500/40 text-cyan-300 rounded-2xl text-xs font-bold transition shadow"><Download className="w-4 h-4 text-cyan-400" /><span>Buluttan Çek</span></button>
+              <button type="button" disabled={isSyncingAction} onClick={async () => { setIsSyncingAction(true); try { await forcePushAllToCloud(); setImportMsg('✅ Buluta zorla yazıldı!'); setTimeout(() => setImportMsg(''), 4000); } catch { setImportMsg('❌ Başarısız.'); } finally { setIsSyncingAction(false); } }} className={`flex items-center justify-center gap-2 px-4 py-3 border rounded-2xl text-xs font-bold transition shadow ${isLightMode ? 'bg-emerald-50 hover:bg-emerald-100 border-emerald-200 text-emerald-700' : 'bg-emerald-600/20 hover:bg-emerald-600/30 border-emerald-500/40 text-emerald-300'}`}><Upload className="w-4 h-4" /><span>Zorla Yayınla</span></button>
+              <button type="button" disabled={isSyncingAction} onClick={async () => { setIsSyncingAction(true); try { const n = await purgeOrphanMatches(); setImportMsg(n > 0 ? '🧹 ' + n + ' hayalet döküman silindi!' : '✅ Hayalet yok, temiz!'); setTimeout(() => setImportMsg(''), 4000); } catch { setImportMsg('❌ Temizlenemedi.'); } finally { setIsSyncingAction(false); } }} className={`flex items-center justify-center gap-2 px-4 py-3 border rounded-2xl text-xs font-bold transition shadow ${isLightMode ? 'bg-amber-50 hover:bg-amber-100 border-amber-200 text-amber-700' : 'bg-amber-600/20 hover:bg-amber-600/30 border-amber-500/40 text-amber-300'}`}><span>🧹</span><span>Hayalet Temizle</span></button>
+              <button type="button" disabled={isSyncingAction} onClick={async () => { setIsSyncingAction(true); try { await pullFromCloudNow(); setImportMsg('✅ Veri çekildi!'); setTimeout(() => setImportMsg(''), 4000); } catch { setImportMsg('❌ Başarısız.'); } finally { setIsSyncingAction(false); } }} className={`flex items-center justify-center gap-2 px-4 py-3 border rounded-2xl text-xs font-bold transition shadow ${isLightMode ? 'bg-cyan-50 hover:bg-cyan-100 border-cyan-200 text-cyan-700' : 'bg-cyan-600/20 hover:bg-cyan-600/30 border-cyan-500/40 text-cyan-300'}`}><Download className="w-4 h-4" /><span>Buluttan Çek</span></button>
             </div>
           </div>
           
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-6">
+          <div className={`border rounded-3xl p-6 space-y-6 ${isLightMode ? 'bg-white border-slate-300' : 'bg-slate-900 border-slate-800'}`}>
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div><h3 className="font-bold text-base text-white">Raporlama, Program Yükleme & Sıfırlama</h3></div>
+              <div><h3 className={`font-bold text-base ${isLightMode ? 'text-slate-900' : 'text-white'}`}>Raporlama, Program Yükleme & Sıfırlama</h3></div>
               
               <div className="flex gap-2">
                 <button 
                   type="button" 
                   onClick={handlePrintDailyReport} 
-                  className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl transition shadow"
+                  className={`flex items-center gap-1.5 px-4 py-2 text-white text-xs font-bold rounded-xl transition shadow ${isLightMode ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-emerald-600 hover:bg-emerald-500'}`}
                 >
                   <FileText className="w-4 h-4" />
                   <span>Gün Sonu Raporu Al (PDF)</span>
@@ -620,7 +678,7 @@ export const DeskSupervisorView: React.FC = () => {
                 <button 
                   type="button" 
                   onClick={handleExportJson} 
-                  className="flex items-center gap-1.5 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl transition shadow"
+                  className={`flex items-center gap-1.5 px-4 py-2 text-white text-xs font-bold rounded-xl transition shadow ${isLightMode ? 'bg-slate-600 hover:bg-slate-500' : 'bg-slate-800 hover:bg-slate-700'}`}
                   title="Ham JSON Yedeği İndir"
                 >
                   <Download className="w-4 h-4" />
@@ -629,7 +687,7 @@ export const DeskSupervisorView: React.FC = () => {
               </div>
             </div>
             
-            {importMsg && <div className="p-3.5 bg-cyan-950/70 border border-cyan-500/40 rounded-2xl text-cyan-300 text-xs font-bold shadow-lg animate-in fade-in">{importMsg}</div>}
+            {importMsg && <div className={`p-3.5 border rounded-2xl text-xs font-bold shadow-lg animate-in fade-in ${isLightMode ? 'bg-cyan-50 border-cyan-200 text-cyan-800' : 'bg-cyan-950/70 border-cyan-500/40 text-cyan-300'}`}>{importMsg}</div>}
             
             <div className="space-y-3">
               <textarea 
@@ -637,10 +695,10 @@ export const DeskSupervisorView: React.FC = () => {
                 value={jsonInput} 
                 onChange={(e) => setJsonInput(e.target.value)} 
                 placeholder="Yeni günün maç programı (JSON) verisini buraya yapıştırın..." 
-                className="w-full p-3.5 bg-slate-950 border border-slate-800 rounded-2xl text-xs font-mono text-cyan-300 focus:outline-none focus:border-cyan-400" 
+                className={`w-full p-3.5 border rounded-2xl text-xs font-mono focus:outline-none focus:border-cyan-400 ${isLightMode ? 'bg-slate-50 border-slate-300 text-cyan-700' : 'bg-slate-950 border-slate-800 text-cyan-300'}`} 
               />
               
-              <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-800">
+              <div className={`flex flex-wrap items-center justify-between gap-3 pt-3 border-t ${isLightMode ? 'border-slate-200' : 'border-slate-800'}`}>
                 <button 
                   type="button" 
                   disabled={isSyncingAction} 
@@ -659,7 +717,7 @@ export const DeskSupervisorView: React.FC = () => {
                       setTimeout(() => setImportMsg(''), 5000);
                     }
                   }} 
-                  className="flex items-center gap-1.5 px-4 py-2.5 bg-rose-600/20 hover:bg-rose-600/40 border border-rose-500/50 text-rose-300 font-bold text-xs rounded-xl transition disabled:opacity-50"
+                  className={`flex items-center gap-1.5 px-4 py-2.5 border font-bold text-xs rounded-xl transition disabled:opacity-50 ${isLightMode ? 'bg-rose-50 hover:bg-rose-100 border-rose-200 text-rose-700' : 'bg-rose-600/20 hover:bg-rose-600/40 border-rose-500/50 text-rose-300'}`}
                 >
                   <Trash2 className="w-4 h-4" />
                   <span>Tüm Maçları Kökten Sil (Sıfırla)</span>
@@ -678,7 +736,7 @@ export const DeskSupervisorView: React.FC = () => {
                       setTimeout(() => setImportMsg(''), 5000);
                     }
                   }} 
-                  className="flex items-center gap-1.5 px-4 py-2.5 bg-amber-600/20 hover:bg-amber-600/40 border border-amber-500/50 text-amber-300 font-bold text-xs rounded-xl transition disabled:opacity-50"
+                  className={`flex items-center gap-1.5 px-4 py-2.5 border font-bold text-xs rounded-xl transition disabled:opacity-50 ${isLightMode ? 'bg-amber-50 hover:bg-amber-100 border-amber-200 text-amber-700' : 'bg-amber-600/20 hover:bg-amber-600/40 border-amber-500/50 text-amber-300'}`}
                 >
                   <RotateCcw className="w-4 h-4" />
                   <span>Sadece Skorları Sıfırla (Fikstürü Koru)</span>
@@ -706,7 +764,7 @@ export const DeskSupervisorView: React.FC = () => {
                     }
                   }}
                   disabled={!jsonInput.trim() || isSyncingAction} 
-                  className="px-6 py-2.5 bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-bold text-xs rounded-xl shadow transition disabled:opacity-50 flex items-center gap-2"
+                  className={`px-6 py-2.5 font-bold text-xs rounded-xl shadow transition disabled:opacity-50 flex items-center gap-2 ${isLightMode ? 'bg-cyan-600 hover:bg-cyan-500 text-white' : 'bg-cyan-400 hover:bg-cyan-300 text-slate-950'}`}
                 >
                   <Upload className="w-4 h-4" />
                   <span>Yeni Maçları Yükle</span>
@@ -720,7 +778,7 @@ export const DeskSupervisorView: React.FC = () => {
       {activeSubTab === 'info' && (
         <div className="space-y-5 max-w-lg">
           <div>
-            <h3 className="font-bold text-base text-white mb-4">🏆 Turnuva Bilgileri</h3>
+            <h3 className={`font-bold text-base mb-4 ${isLightMode ? 'text-slate-900' : 'text-white'}`}>🏆 Turnuva Bilgileri</h3>
             <div className="space-y-3">
               {[
                 { key: 'ad', label: 'Turnuva Adı', placeholder: 'örn. 2025 Türkiye Tenis Şampiyonası' },
@@ -728,28 +786,28 @@ export const DeskSupervisorView: React.FC = () => {
                 { key: 'tarih', label: 'Tarih / Dönem', placeholder: 'örn. 15-20 Ağustos 2025' },
               ].map(({ key, label, placeholder }) => (
                 <div key={key}>
-                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">{label}</label>
+                  <label className={`block text-xs font-bold uppercase tracking-wider mb-1.5 ${isLightMode ? 'text-slate-500' : 'text-slate-400'}`}>{label}</label>
                   <input type="text" value={(localInfo as any)[key]} placeholder={placeholder}
                     onChange={e => setLocalInfo(prev => ({ ...prev, [key]: e.target.value }))}
-                    className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white focus:outline-none focus:border-cyan-400" />
+                    className={`w-full px-4 py-2.5 border rounded-xl text-sm focus:outline-none focus:border-cyan-400 ${isLightMode ? 'bg-white border-slate-300 text-slate-900 placeholder:text-slate-400' : 'bg-slate-950 border-slate-800 text-white'}`} />
                 </div>
               ))}
               <div>
-                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Turnuva Notu (İzleyici Ekranı Alt Bölümü)</label>
+                <label className={`block text-xs font-bold uppercase tracking-wider mb-1.5 ${isLightMode ? 'text-slate-500' : 'text-slate-400'}`}>Turnuva Notu (İzleyici Ekranı Alt Bölümü)</label>
                 <textarea value={localInfo.not} placeholder="örn. Tüm oyunculara başarılar dileriz!"
                   onChange={e => setLocalInfo(prev => ({ ...prev, not: e.target.value }))}
                   rows={3}
-                  className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white focus:outline-none focus:border-cyan-400 resize-none" />
+                  className={`w-full px-4 py-2.5 border rounded-xl text-sm focus:outline-none focus:border-cyan-400 resize-none ${isLightMode ? 'bg-white border-slate-300 text-slate-900 placeholder:text-slate-400' : 'bg-slate-950 border-slate-800 text-white'}`} />
               </div>
             </div>
           </div>
           <div className="flex items-center gap-3">
             <button type="button"
               onClick={() => { saveTournamentInfo(localInfo); setInfoSavedMsg('✅ Kaydedildi!'); setTimeout(() => setInfoSavedMsg(''), 3000); }}
-              className="px-6 py-3 bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-bold rounded-xl shadow-lg transition">
+              className={`px-6 py-3 font-bold rounded-xl shadow-lg transition ${isLightMode ? 'bg-cyan-600 hover:bg-cyan-500 text-white' : 'bg-cyan-400 hover:bg-cyan-300 text-slate-950'}`}>
               Turnuva Bilgilerini Kaydet
             </button>
-            {infoSavedMsg && <span className="text-emerald-400 text-sm font-bold">{infoSavedMsg}</span>}
+            {infoSavedMsg && <span className="text-emerald-500 text-sm font-bold">{infoSavedMsg}</span>}
           </div>
         </div>
       )}
