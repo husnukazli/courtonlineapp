@@ -54,7 +54,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
   const isSetupValid = !!chairSetup;
   const showSetupOverlay = isEditingSetup || !isSetupValid;
 
-  // Masadan gelen varsayılan Tie-Break türünü alıyoruz
   const globalTbType = (tournamentInfo?.tbType as 'standard' | 'coman') || 'standard';
 
   const [setupForm, setSetupForm] = useState<{
@@ -253,7 +252,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
   }, [selectedSet, isDoubles, setupsBySet, s1_p1, s1_p2, s2_p1, s2_p2, s3_p1, s3_p2, match.pointHistory]);
 
   useEffect(() => {
-    // Kurulum penceresi açılırken global ayarı otomatik seçer
     if (showSetupOverlay && !isEditingSetup && setupForm.firstServingTeam === null) {
       if (state?.currentServer === 1 || state?.currentServer === 2) {
         setSetupForm(prev => ({ 
@@ -538,18 +536,18 @@ export const CourtCard: React.FC<CourtCardProps> = ({
     <>
       {thirdSetWarning.show && (
         <div className="fixed inset-0 z-[100000] bg-slate-950/95 flex flex-col items-center justify-center p-6 animate-in fade-in zoom-in duration-300" style={{ touchAction: 'none' }}>
-          <div className="bg-slate-900 border-4 border-amber-500 rounded-3xl p-6 sm:p-8 w-full max-w-lg text-center shadow-[0_0_80px_rgba(245,158,11,0.2)]">
-            <span className="text-6xl sm:text-7xl mb-3 sm:mb-4 block animate-bounce">⚠️</span>
+          <div className="bg-slate-900 border-4 border-amber-500 rounded-3xl p-6 sm:p-8 w-full max-w-lg text-center shadow-xl">
+            <span className="text-6xl sm:text-7xl mb-3 sm:mb-4 block">⚠️</span>
             <div className="text-amber-500 font-extrabold text-sm sm:text-base tracking-widest mb-1">{match.Kort}</div>
             <h2 className="text-2xl sm:text-4xl font-black text-amber-400 uppercase tracking-widest mb-4">3. SETE GEÇİLİYOR</h2>
             <p className="text-base sm:text-xl text-white font-bold mb-2">Lütfen planlanan maça formatına dikkat ediniz:</p>
-            <div className="bg-amber-500/20 border border-amber-500/50 rounded-2xl p-4 sm:p-5 my-4 sm:my-6 shadow-inner">
-              <span className="text-lg sm:text-2xl font-black text-amber-300">{thirdSetWarning.text}</span>
+            <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 sm:p-5 my-4 sm:my-6">
+              <span className="text-lg sm:text-2xl font-black text-amber-400">{thirdSetWarning.text}</span>
             </div>
             <p className="text-xs sm:text-sm text-slate-400 mb-6 sm:mb-8 font-medium px-2 sm:px-4">Yanlışlık olduğunu düşünüyorsanız, Ayarlar (⚙️) menüsünden formatı düzeltebilirsiniz.</p>
             <button 
               onClick={(e) => { e.stopPropagation(); setThirdSetWarning({show: false, text: ''}); }}
-              className="w-full py-4 sm:py-5 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black text-base sm:text-xl rounded-2xl shadow-xl transition active:scale-95"
+              className="w-full py-4 sm:py-5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-base sm:text-xl rounded-2xl shadow-md transition active:scale-95"
             >
               Anladım, Maça Dön
             </button>
@@ -560,38 +558,38 @@ export const CourtCard: React.FC<CourtCardProps> = ({
       {/* 1. KORT HAKEMİ KART GÖRÜNÜMÜ */}
       <div
         onClick={handleCardClick}
-        className={`rounded-3xl transition-all duration-200 overflow-hidden flex flex-col justify-between shadow-lg relative ${
-          isLive || isPaused ? 'bg-slate-900/95 border-2 border-emerald-400 shadow-[0_0_25px_rgba(52,211,153,0.18)]'
-          : isUpcoming ? 'bg-gradient-to-b from-slate-900 to-amber-950/20 border-2 border-amber-500/50 cursor-pointer'
-          : 'bg-rose-950/20 border border-rose-800/50'
+        className={`rounded-3xl transition-all duration-200 overflow-hidden flex flex-col justify-between shadow-sm relative ${
+          isLive || isPaused ? 'bg-slate-900/95 border border-emerald-500/30'
+          : isUpcoming ? 'bg-slate-900 border border-slate-700 cursor-pointer'
+          : 'bg-slate-900/50 border border-slate-800'
         }`}
       >
-        <div className={`h-1.5 w-full ${isLive ? 'bg-gradient-to-r from-emerald-400 to-emerald-500 animate-pulse' : isPaused ? 'bg-gradient-to-r from-amber-400 to-amber-600' : isUpcoming ? 'bg-gradient-to-r from-amber-400 to-yellow-500' : 'bg-gradient-to-r from-rose-500 to-rose-700'}`} />
+        <div className={`h-1.5 w-full ${isLive ? 'bg-emerald-500' : isPaused ? 'bg-amber-500' : isUpcoming ? 'bg-slate-600' : 'bg-slate-800'}`} />
 
         <div className="px-4 sm:px-5 pt-4 pb-2 flex items-center justify-between border-b border-slate-800/80">
           <div className="flex items-center gap-2.5">
-            <span className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-xs ${isLive || isPaused ? 'bg-emerald-400 text-slate-950 shadow-emerald-400/30' : isUpcoming ? 'bg-amber-400/20 text-amber-300 border-amber-400/30' : 'bg-rose-500/20 text-rose-300'}`}>
+            <span className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-xs ${isLive || isPaused ? 'bg-emerald-500/20 text-emerald-400' : isUpcoming ? 'bg-slate-800 text-slate-300' : 'bg-slate-800/50 text-slate-500'}`}>
               {match.Kort.replace('KORT', 'K').trim()}
             </span>
             <div className="min-w-0">
               <h3 className="font-extrabold text-white text-base sm:text-lg flex items-center gap-1.5 truncate">
                 <span>{match.Kort}</span>
-                {isLive && <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-400 animate-pulse shrink-0">CANLI</span>}
+                {isLive && <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-400 shrink-0">CANLI</span>}
               </h3>
               <p className="text-xs text-slate-400 font-medium truncate max-w-[180px]">{match.Kategori}</p>
             </div>
           </div>
-          <span className={`px-2.5 py-1 rounded-xl text-xs font-black tracking-wide uppercase shrink-0 ${isLive ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' : isPaused ? 'bg-amber-500/20 text-amber-300' : isUpcoming ? 'bg-amber-500/20 text-amber-300' : 'bg-rose-500/20 text-rose-300'}`}>
+          <span className={`px-2.5 py-1 rounded-xl text-xs font-black tracking-wide uppercase shrink-0 ${isLive ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : isPaused ? 'bg-amber-500/20 text-amber-400' : isUpcoming ? 'bg-slate-800 text-slate-400' : 'bg-slate-800 text-slate-500'}`}>
             {match.Durum === 'Retired' ? '✕ RET' : match.Durum === 'Walkover' ? '✕ W/O' : match.Durum === 'Bitti' ? '✕ BİTTİ' : match.Durum === 'Duraklatildi' ? 'ASKIYA' : match.Durum}
           </span>
         </div>
 
-        <div className="px-4 sm:px-5 py-2.5 sm:py-3 bg-slate-950/90 border-b border-slate-800/80 flex items-center justify-between font-mono shadow-inner">
+        <div className="px-4 sm:px-5 py-2.5 sm:py-3 bg-slate-950/50 border-b border-slate-800/80 flex items-center justify-between font-mono">
           <div className="flex items-center gap-2 sm:gap-3">
             <div className="flex items-center gap-1.5 bg-slate-800/50 px-2.5 py-1 rounded-lg border border-slate-700/50">
-              <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400" />
+              <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-slate-400" />
               {match.Saat && (
-                <span className="text-white font-black text-sm sm:text-lg tracking-widest drop-shadow-md">
+                <span className="text-slate-200 font-bold text-sm sm:text-lg tracking-widest">
                   {match.Saat}
                 </span>
               )}
@@ -615,42 +613,40 @@ export const CourtCard: React.FC<CourtCardProps> = ({
               <div className="col-span-6">Oyuncu / Takım</div><div className="col-span-2 text-center">1. Set</div><div className="col-span-2 text-center">2. Set</div><div className="col-span-2 text-center">3. Set</div>
             </div>
             
-            <div className={`grid grid-cols-12 items-center py-2 px-3 border-b border-slate-800/50 ${match.Kazanan === match['Oyuncu 1'] && isFinished ? 'bg-lime-500/10' : ''}`}>
+            <div className={`grid grid-cols-12 items-center py-2 px-3 border-b border-slate-800/50 ${match.Kazanan === match['Oyuncu 1'] && isFinished ? 'bg-emerald-500/10' : ''}`}>
               <div className="col-span-6 flex items-center gap-2 pr-2 min-w-0">
-                <span className="w-2.5 h-2.5 rounded-full bg-lime-400 shrink-0"></span>
                 <span className="text-xs sm:text-sm font-bold text-white leading-tight flex items-center gap-1.5 min-w-0 flex-1">
                     {computedServerTeam === 1 && computedLeftTeam === 1 && (isLive || isPaused) && (
-                        <span className="text-amber-400 animate-bounce text-[10px] sm:text-xs shrink-0" title="Servis Atan (Sol Saha)">🎾</span>
+                        <span className="text-emerald-400 text-[10px] sm:text-xs shrink-0" title="Servis Atan (Sol Saha)">🎾</span>
                     )}
                     <span className="truncate">{match['Oyuncu 1']}</span>
                     {computedServerTeam === 1 && computedLeftTeam !== 1 && (isLive || isPaused) && (
-                        <span className="text-amber-400 animate-bounce text-[10px] sm:text-xs shrink-0" title="Servis Atan (Sağ Saha)">🎾</span>
+                        <span className="text-emerald-400 text-[10px] sm:text-xs shrink-0" title="Servis Atan (Sağ Saha)">🎾</span>
                     )}
                 </span>
               </div>
-              <div className="col-span-2 text-center font-mono font-black text-lime-300">{isUpcoming ? '-' : s1_p1}</div><div className="col-span-2 text-center font-mono font-black text-lime-300">{isUpcoming ? '-' : s2_p1}</div><div className="col-span-2 text-center font-mono font-black text-lime-300">{isUpcoming ? '-' : s3_p1}</div>
+              <div className="col-span-2 text-center font-mono font-bold text-emerald-400">{isUpcoming ? '-' : s1_p1}</div><div className="col-span-2 text-center font-mono font-bold text-emerald-400">{isUpcoming ? '-' : s2_p1}</div><div className="col-span-2 text-center font-mono font-bold text-emerald-400">{isUpcoming ? '-' : s3_p1}</div>
             </div>
             
-            <div className={`grid grid-cols-12 items-center py-2 px-3 ${match.Kazanan === match['Oyuncu 2'] && isFinished ? 'bg-cyan-500/10' : ''}`}>
+            <div className={`grid grid-cols-12 items-center py-2 px-3 ${match.Kazanan === match['Oyuncu 2'] && isFinished ? 'bg-blue-500/10' : ''}`}>
               <div className="col-span-6 flex items-center gap-2 pr-2 min-w-0">
-                <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 shrink-0"></span>
                 <span className="text-xs sm:text-sm font-bold text-white leading-tight flex items-center gap-1.5 min-w-0 flex-1">
                     {computedServerTeam === 2 && computedLeftTeam === 2 && (isLive || isPaused) && (
-                        <span className="text-amber-400 animate-bounce text-[10px] sm:text-xs shrink-0" title="Servis Atan (Sol Saha)">🎾</span>
+                        <span className="text-blue-400 text-[10px] sm:text-xs shrink-0" title="Servis Atan (Sol Saha)">🎾</span>
                     )}
                     <span className="truncate">{match['Oyuncu 2']}</span>
                     {computedServerTeam === 2 && computedLeftTeam !== 2 && (isLive || isPaused) && (
-                        <span className="text-amber-400 animate-bounce text-[10px] sm:text-xs shrink-0" title="Servis Atan (Sağ Saha)">🎾</span>
+                        <span className="text-blue-400 text-[10px] sm:text-xs shrink-0" title="Servis Atan (Sağ Saha)">🎾</span>
                     )}
                 </span>
               </div>
-              <div className="col-span-2 text-center font-mono font-black text-cyan-300">{isUpcoming ? '-' : s1_p2}</div><div className="col-span-2 text-center font-mono font-black text-cyan-300">{isUpcoming ? '-' : s2_p2}</div><div className="col-span-2 text-center font-mono font-black text-cyan-300">{isUpcoming ? '-' : s3_p2}</div>
+              <div className="col-span-2 text-center font-mono font-bold text-blue-400">{isUpcoming ? '-' : s1_p2}</div><div className="col-span-2 text-center font-mono font-bold text-blue-400">{isUpcoming ? '-' : s2_p2}</div><div className="col-span-2 text-center font-mono font-bold text-blue-400">{isUpcoming ? '-' : s3_p2}</div>
             </div>
           </div>
 
           {(isLive || isPaused) && (
-            <div className="bg-slate-900 border border-slate-700/80 rounded-2xl p-3 mt-2 shadow-inner">
-              <button type="button" onClick={(e) => { e.stopPropagation(); setIsChairMode(true); }} className="w-full py-3 mb-3 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black rounded-xl shadow-md transition active:scale-95 flex items-center justify-center gap-2">
+            <div className="bg-slate-900 border border-slate-700/80 rounded-2xl p-3 mt-2">
+              <button type="button" onClick={(e) => { e.stopPropagation(); setIsChairMode(true); }} className="w-full py-3 mb-3 bg-slate-700 hover:bg-slate-600 text-white font-bold rounded-xl transition active:scale-95 flex items-center justify-center gap-2">
                 <Swords className="w-4 h-4" /> Kule Hakemi Moduna Geç
               </button>
 
@@ -662,12 +658,12 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="flex flex-col gap-1.5">
-                    <button type="button" disabled={isP1PlusDisabled} onClick={(e) => handleQuickScore(e, 1, 1)} className="w-full py-3 rounded-xl bg-lime-400 hover:bg-lime-300 text-slate-950 font-black text-sm flex items-center justify-center gap-1 transition disabled:opacity-50 disabled:cursor-not-allowed"><Plus className="w-5 h-5" />+1 OYUN</button>
-                    <button type="button" disabled={isPaused} onClick={(e) => handleQuickScore(e, 1, -1)} className="w-full py-2 rounded-xl bg-rose-500/10 text-rose-400 font-bold text-xs flex items-center justify-center gap-1 transition disabled:opacity-50"><Minus className="w-4 h-4" />-1 Düş</button>
+                    <button type="button" disabled={isP1PlusDisabled} onClick={(e) => handleQuickScore(e, 1, 1)} className="w-full py-3 rounded-xl bg-emerald-600/90 hover:bg-emerald-500 text-white font-bold text-sm flex items-center justify-center gap-1 transition disabled:opacity-50 disabled:cursor-not-allowed"><Plus className="w-5 h-5" />+1 OYUN</button>
+                    <button type="button" disabled={isPaused} onClick={(e) => handleQuickScore(e, 1, -1)} className="w-full py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs flex items-center justify-center gap-1 transition disabled:opacity-50"><RotateCcw className="w-3.5 h-3.5" /> Geri Al</button>
                   </div>
                   <div className="flex flex-col gap-1.5">
-                    <button type="button" disabled={isP2PlusDisabled} onClick={(e) => handleQuickScore(e, 2, 1)} className="w-full py-3 rounded-xl bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-black text-sm flex items-center justify-center gap-1 transition disabled:opacity-50 disabled:cursor-not-allowed"><Plus className="w-5 h-5" />+1 OYUN</button>
-                    <button type="button" disabled={isPaused} onClick={(e) => handleQuickScore(e, 2, -1)} className="w-full py-2 rounded-xl bg-rose-500/10 text-cyan-400 font-bold text-xs flex items-center justify-center gap-1 transition disabled:opacity-50"><Minus className="w-4 h-4" />-1 Düş</button>
+                    <button type="button" disabled={isP2PlusDisabled} onClick={(e) => handleQuickScore(e, 2, 1)} className="w-full py-3 rounded-xl bg-emerald-600/90 hover:bg-emerald-500 text-white font-bold text-sm flex items-center justify-center gap-1 transition disabled:opacity-50 disabled:cursor-not-allowed"><Plus className="w-5 h-5" />+1 OYUN</button>
+                    <button type="button" disabled={isPaused} onClick={(e) => handleQuickScore(e, 2, -1)} className="w-full py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs flex items-center justify-center gap-1 transition disabled:opacity-50"><RotateCcw className="w-3.5 h-3.5" /> Geri Al</button>
                   </div>
                 </div>
               </div>
@@ -678,54 +674,55 @@ export const CourtCard: React.FC<CourtCardProps> = ({
         <div className="p-3 sm:p-4 bg-slate-950/70 border-t border-slate-800 flex items-center gap-2">
           {isUpcoming ? (
             <div className="flex items-center gap-2 w-full">
-              {onOpenSetup && <button type="button" onClick={(e) => { e.stopPropagation(); onOpenSetup(match); }} className="py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold text-xs border border-slate-700 transition" title="Kura Çek">🪙 Kura</button>}
+              {onOpenSetup && <button type="button" onClick={(e) => { e.stopPropagation(); onOpenSetup(match); }} className="py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs border border-slate-700 transition" title="Kura Çek">🪙 Kura</button>}
               
               {onEditScore && (
-                <button type="button" onClick={(e) => { e.stopPropagation(); onEditScore(match); }} className="py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-400 font-bold text-xs border border-slate-700 transition flex items-center gap-1.5" title="Hızlı Skor Gir">
+                <button type="button" onClick={(e) => { e.stopPropagation(); onEditScore(match); }} className="py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs border border-slate-700 transition flex items-center gap-1.5" title="Hızlı Skor Gir">
                   <PenLine className="w-3.5 h-3.5" /> Skor
                 </button>
               )}
 
-              <button type="button" onClick={handleStartMatchDirect} className="flex-1 py-2.5 bg-gradient-to-r from-amber-400 to-yellow-400 hover:from-amber-300 hover:to-yellow-300 text-slate-950 font-black text-xs sm:text-sm rounded-xl flex items-center justify-center gap-1.5 transition active:scale-95"><PlayCircle className="w-4 h-4" /> Maçı Başlat</button>
+              <button type="button" onClick={handleStartMatchDirect} className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs sm:text-sm rounded-xl flex items-center justify-center gap-1.5 transition active:scale-95"><PlayCircle className="w-4 h-4" /> Maçı Başlat</button>
             </div>
           ) : isLive || isPaused ? (
             <div className="flex items-center gap-2 w-full">
               {onOpenSetup && (
-                <button type="button" onClick={(e) => { e.stopPropagation(); onOpenSetup(match); }} className="h-12 w-12 flex items-center justify-center shrink-0 bg-slate-800 hover:bg-slate-700 text-amber-400 border border-amber-500/30 rounded-xl transition active:scale-95" title="Maç Formatı ve Kura Ayarları">
+                <button type="button" onClick={(e) => { e.stopPropagation(); onOpenSetup(match); }} className="h-12 w-12 flex items-center justify-center shrink-0 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-xl transition active:scale-95" title="Maç Formatı ve Kura Ayarları">
                   <Settings className="w-5 h-5" />
                 </button>
               )}
               
               {onEditScore && (
-                <button type="button" onClick={(e) => { e.stopPropagation(); onEditScore(match); }} className="h-12 w-12 flex items-center justify-center shrink-0 bg-slate-800 hover:bg-slate-700 text-cyan-400 border border-cyan-500/30 rounded-xl transition active:scale-95" title="Doğrudan Skor Düzenle">
+                <button type="button" onClick={(e) => { e.stopPropagation(); onEditScore(match); }} className="h-12 w-12 flex items-center justify-center shrink-0 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-xl transition active:scale-95" title="Doğrudan Skor Düzenle">
                   <PenLine className="w-5 h-5" />
                 </button>
               )}
 
-              <button type="button" onClick={(e) => { e.stopPropagation(); onFinishMatch(match); }} className="flex-1 h-12 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-sm rounded-xl flex justify-center items-center gap-2 transition active:scale-95"><Trophy className="w-4 h-4 text-cyan-400" /> Maçı Sonlandır</button>
+              <button type="button" onClick={(e) => { e.stopPropagation(); onFinishMatch(match); }} className="flex-1 h-12 bg-slate-800 hover:bg-slate-700 text-white font-bold text-sm rounded-xl flex justify-center items-center gap-2 transition active:scale-95"><Trophy className="w-4 h-4 text-slate-400" /> Maçı Sonlandır</button>
             </div>
           ) : null}
         </div>
       </div>
 
+      {/* KULE HAKEMİ MODU */}
       {isChairMode && (
         <div className="fixed inset-0 z-[50000] bg-slate-950 flex flex-col animate-in fade-in zoom-in-95 duration-200 select-none" style={{ touchAction: 'none' }}>
           
           {toastMessage && (
-            <div className="absolute top-16 left-1/2 -translate-x-1/2 z-[50000] bg-slate-800 text-white px-5 py-3 rounded-2xl border border-slate-700 shadow-2xl animate-in fade-in slide-in-from-top-4 flex items-center gap-3">
-              <Info className="w-5 h-5 text-amber-400 shrink-0" />
+            <div className="absolute top-16 left-1/2 -translate-x-1/2 z-[50000] bg-slate-800 text-white px-5 py-3 rounded-2xl border border-slate-700 shadow-xl animate-in fade-in slide-in-from-top-4 flex items-center gap-3">
+              <Info className="w-5 h-5 text-slate-400 shrink-0" />
               <span className="font-bold text-[11px] sm:text-sm">{toastMessage}</span>
             </div>
           )}
 
-          <div className="bg-slate-900 border-b border-slate-800 px-3 sm:px-4 py-3 flex items-center justify-between shadow-md shrink-0">
+          <div className="bg-slate-900 border-b border-slate-800 px-3 sm:px-4 py-3 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-2 sm:gap-3">
-              <span className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center font-black text-xs sm:text-sm bg-emerald-400 text-slate-950 shadow-md shadow-emerald-400/30 shrink-0">
+              <span className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center font-black text-xs sm:text-sm bg-slate-800 text-white shrink-0 border border-slate-700">
                 {match.Kort.replace('KORT', 'K').trim()}
               </span>
               <div className="flex flex-col">
-                <span className="text-white font-extrabold text-sm sm:text-base leading-none mb-1">Kule Hakemi</span>
-                <span className="text-[9px] sm:text-[10px] text-emerald-400 font-black tracking-widest uppercase flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>Canlı</span>
+                <span className="text-white font-bold text-sm sm:text-base leading-none mb-1">Kule Hakemi</span>
+                <span className="text-[9px] sm:text-[10px] text-emerald-400 font-bold tracking-widest uppercase flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>Canlı</span>
               </div>
             </div>
             
@@ -745,7 +742,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                       });
                     }
                     setIsEditingSetup(true); 
-                  }} className="p-2 sm:px-3 sm:py-2 rounded-xl bg-slate-800 text-slate-400 hover:text-white border border-slate-700 transition flex items-center gap-1.5" title="Saha ve Servis Rotasyonunu Düzenle">
+                  }} className="p-2 sm:px-3 sm:py-2 rounded-xl bg-slate-800 text-slate-300 hover:text-white border border-slate-700 transition flex items-center gap-1.5" title="Saha ve Servis Rotasyonunu Düzenle">
                     <RotateCcw className="w-4 h-4" /> <span className="hidden sm:inline text-xs font-bold">Rotasyon</span>
                   </button>
                 )}
@@ -754,11 +751,11 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                     e.stopPropagation(); 
                     onOpenSetup(match); 
                     showToast('Ayarlara geçmek için lütfen Kule Hakemi modundan çıkış yapınız.');
-                  }} className="p-2 sm:px-3 sm:py-2 rounded-xl bg-amber-500/20 text-amber-400 hover:bg-amber-500 hover:text-slate-950 border border-amber-500/30 transition flex items-center gap-1.5" title="Maç Formatı ve Kura Ayarları">
+                  }} className="p-2 sm:px-3 sm:py-2 rounded-xl bg-slate-800 text-slate-300 hover:text-white border border-slate-700 transition flex items-center gap-1.5" title="Maç Formatı ve Kura Ayarları">
                     <Settings className="w-4 h-4" /> <span className="hidden sm:inline text-xs font-bold">Kurulum</span>
                   </button>
                 )}
-                <button type="button" onClick={handleExitChairMode} className="px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl bg-rose-500/20 hover:bg-rose-500 text-rose-300 hover:text-slate-950 font-black text-xs sm:text-sm flex items-center gap-2 transition active:scale-95 shadow-sm border border-rose-500/30">
+                <button type="button" onClick={handleExitChairMode} className="px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs sm:text-sm flex items-center gap-2 transition active:scale-95 border border-slate-700">
                   <LogOut className="w-4 h-4" /> Çıkış Yap
                 </button>
             </div>
@@ -767,31 +764,31 @@ export const CourtCard: React.FC<CourtCardProps> = ({
           <div className="flex-1 p-2 sm:p-6 w-full max-w-5xl mx-auto flex flex-col justify-center gap-3 overflow-y-auto">
               
               {showSetupOverlay ? (
-                <div className="bg-slate-900 p-4 sm:p-6 rounded-3xl border border-slate-800 text-center space-y-4 sm:space-y-6 shadow-2xl relative animate-in fade-in zoom-in-95 duration-150">
+                <div className="bg-slate-900 p-4 sm:p-6 rounded-3xl border border-slate-800 text-center space-y-4 sm:space-y-6 shadow-xl relative animate-in fade-in zoom-in-95 duration-150">
                   
                   <button 
                     type="button" 
                     onClick={handleCancelSetup} 
-                    className="absolute top-4 right-4 p-2.5 rounded-xl bg-slate-800 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 border border-slate-700/80 transition active:scale-95 flex items-center justify-center"
+                    className="absolute top-4 right-4 p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white border border-slate-700 transition active:scale-95 flex items-center justify-center"
                     title="İptal Et / Kapat"
                   >
                     <X className="w-5 h-5" />
                   </button>
 
                   <div>
-                    <h4 className="text-amber-400 font-black text-base sm:text-xl mb-1 sm:mb-2 flex items-center justify-center gap-2">⚙️ {selectedSet}. Set Anlık Kurulumu</h4>
+                    <h4 className="text-white font-bold text-base sm:text-xl mb-1 sm:mb-2 flex items-center justify-center gap-2">⚙️ {selectedSet}. Set Anlık Kurulumu</h4>
                     <p className="text-[11px] sm:text-sm text-slate-400">Lütfen sahadaki <strong>ŞU ANKİ</strong> durumu seçin. Sistem geri kalanını hesaplar.</p>
                   </div>
                   
                   {isDoubles ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 flex flex-col gap-3">
-                         <h5 className="text-lime-400 font-black text-sm uppercase mb-1">1. Takım (Lime)</h5>
+                         <h5 className="text-emerald-400 font-bold text-sm uppercase mb-1">1. Takım</h5>
                          <div className="text-left">
                            <label className="text-[10px] text-slate-500 font-bold uppercase block mb-1.5">Şu Anki (Sıradaki) Servisçi:</label>
                            <div className="flex gap-2">
                              {t1Players.map((player, idx) => (
-                                <button key={`s1-${idx}`} type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, t1ServerIdx: idx as 0|1}); }} className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition border ${setupForm.t1ServerIdx === idx ? 'bg-lime-500 border-lime-400 text-slate-950 shadow-md' : 'bg-slate-900 border-slate-700 text-slate-300'}`}>{player.split(' ')[0]}</button>
+                                <button key={`s1-${idx}`} type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, t1ServerIdx: idx as 0|1}); }} className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition border ${setupForm.t1ServerIdx === idx ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-slate-900 border-slate-700 text-slate-300'}`}>{player.split(' ')[0]}</button>
                              ))}
                            </div>
                          </div>
@@ -799,19 +796,19 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                            <label className="text-[10px] text-slate-500 font-bold uppercase block mb-1.5">Sağda (Berabere) Karşılayan Kişi:</label>
                            <div className="flex gap-2">
                              {t1Players.map((player, idx) => (
-                                <button key={`r1-${idx}`} type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, t1RecIdx: idx as 0|1}); }} className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition border ${setupForm.t1RecIdx === idx ? 'bg-emerald-500 border-emerald-400 text-slate-950 shadow-md' : 'bg-slate-900 border-slate-700 text-slate-300'}`}>{player.split(' ')[0]}</button>
+                                <button key={`r1-${idx}`} type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, t1RecIdx: idx as 0|1}); }} className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition border ${setupForm.t1RecIdx === idx ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-slate-900 border-slate-700 text-slate-300'}`}>{player.split(' ')[0]}</button>
                              ))}
                            </div>
                          </div>
                       </div>
 
                       <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 flex flex-col gap-3">
-                         <h5 className="text-cyan-400 font-black text-sm uppercase mb-1">2. Takım (Mavi)</h5>
+                         <h5 className="text-blue-400 font-bold text-sm uppercase mb-1">2. Takım</h5>
                          <div className="text-left">
                            <label className="text-[10px] text-slate-500 font-bold uppercase block mb-1.5">Şu Anki (Sıradaki) Servisçi:</label>
                            <div className="flex gap-2">
                              {t2Players.map((player, idx) => (
-                                <button key={`s2-${idx}`} type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, t2ServerIdx: idx as 0|1}); }} className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition border ${setupForm.t2ServerIdx === idx ? 'bg-cyan-500 border-cyan-400 text-slate-950 shadow-md' : 'bg-slate-900 border-slate-700 text-slate-300'}`}>{player.split(' ')[0]}</button>
+                                <button key={`s2-${idx}`} type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, t2ServerIdx: idx as 0|1}); }} className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition border ${setupForm.t2ServerIdx === idx ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-900 border-slate-700 text-slate-300'}`}>{player.split(' ')[0]}</button>
                              ))}
                            </div>
                          </div>
@@ -819,7 +816,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                            <label className="text-[10px] text-slate-500 font-bold uppercase block mb-1.5">Sağda (Berabere) Karşılayan Kişi:</label>
                            <div className="flex gap-2">
                              {t2Players.map((player, idx) => (
-                                <button key={`r2-${idx}`} type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, t2RecIdx: idx as 0|1}); }} className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition border ${setupForm.t2RecIdx === idx ? 'bg-blue-500 border-blue-400 text-slate-950 shadow-md' : 'bg-slate-900 border-slate-700 text-slate-300'}`}>{player.split(' ')[0]}</button>
+                                <button key={`r2-${idx}`} type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, t2RecIdx: idx as 0|1}); }} className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition border ${setupForm.t2RecIdx === idx ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-900 border-slate-700 text-slate-300'}`}>{player.split(' ')[0]}</button>
                              ))}
                            </div>
                          </div>
@@ -827,107 +824,107 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                     </div>
                   ) : (
                     <div className="space-y-2">
-                      <div className="text-[10px] sm:text-xs font-black uppercase text-slate-500 tracking-wider">Şu An Servisi Kim Atıyor?</div>
+                      <div className="text-[10px] sm:text-xs font-bold uppercase text-slate-500 tracking-wider">Şu An Servisi Kim Atıyor?</div>
                       <div className="flex gap-2">
-                        <button type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, firstServingTeam: 1}); }} className={`flex-1 py-3 sm:py-4 rounded-xl text-xs sm:text-sm font-black transition active:scale-95 border-2 ${setupForm.firstServingTeam === 1 ? 'bg-lime-500 border-lime-400 text-slate-950 shadow-lg' : 'bg-slate-950 border-slate-800 text-slate-300'}`}>{match['Oyuncu 1']}</button>
-                        <button type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, firstServingTeam: 2}); }} className={`flex-1 py-3 sm:py-4 rounded-xl text-xs sm:text-sm font-black transition active:scale-95 border-2 ${setupForm.firstServingTeam === 2 ? 'bg-cyan-500 border-cyan-400 text-slate-950 shadow-lg' : 'bg-slate-950 border-slate-800 text-slate-300'}`}>{match['Oyuncu 2']}</button>
+                        <button type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, firstServingTeam: 1}); }} className={`flex-1 py-3 sm:py-4 rounded-xl text-xs sm:text-sm font-bold transition active:scale-95 border ${setupForm.firstServingTeam === 1 ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-slate-950 border-slate-800 text-slate-300'}`}>{match['Oyuncu 1']}</button>
+                        <button type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, firstServingTeam: 2}); }} className={`flex-1 py-3 sm:py-4 rounded-xl text-xs sm:text-sm font-bold transition active:scale-95 border ${setupForm.firstServingTeam === 2 ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-950 border-slate-800 text-slate-300'}`}>{match['Oyuncu 2']}</button>
                       </div>
                     </div>
                   )}
 
                   {isDoubles && (
                     <div className="space-y-2 pt-3 border-t border-slate-800/80">
-                      <div className="text-[10px] sm:text-xs font-black uppercase text-slate-500 tracking-wider">Genel: Şu An Hangi Takım Servis Atıyor?</div>
+                      <div className="text-[10px] sm:text-xs font-bold uppercase text-slate-500 tracking-wider">Genel: Şu An Hangi Takım Servis Atıyor?</div>
                       <div className="flex gap-2">
-                        <button type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, firstServingTeam: 1}); }} className={`flex-1 py-3 rounded-xl text-xs font-black transition border-2 ${setupForm.firstServingTeam === 1 ? 'bg-lime-500 border-lime-400 text-slate-950 shadow-md' : 'bg-slate-950 border-slate-800 text-slate-300'}`}>1. Takım (Lime)</button>
-                        <button type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, firstServingTeam: 2}); }} className={`flex-1 py-3 rounded-xl text-xs font-black transition border-2 ${setupForm.firstServingTeam === 2 ? 'bg-cyan-500 border-cyan-400 text-slate-950 shadow-md' : 'bg-slate-950 border-slate-800 text-slate-300'}`}>2. Takım (Mavi)</button>
+                        <button type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, firstServingTeam: 1}); }} className={`flex-1 py-3 rounded-xl text-xs font-bold transition border ${setupForm.firstServingTeam === 1 ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-slate-950 border-slate-800 text-slate-300'}`}>1. Takım</button>
+                        <button type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, firstServingTeam: 2}); }} className={`flex-1 py-3 rounded-xl text-xs font-bold transition border ${setupForm.firstServingTeam === 2 ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-950 border-slate-800 text-slate-300'}`}>2. Takım</button>
                       </div>
                     </div>
                   )}
 
                   <div className="space-y-2 pt-3 border-t border-slate-800/80">
-                    <div className="text-[10px] sm:text-xs font-black uppercase text-slate-500 tracking-wider">Şu An Sandalyenin Solunda Kim (Hangi Takım) Var?</div>
+                    <div className="text-[10px] sm:text-xs font-bold uppercase text-slate-500 tracking-wider">Şu An Sandalyenin Solunda Kim (Hangi Takım) Var?</div>
                     <div className="flex gap-2">
-                      <button type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, leftTeam: 1}); }} className={`flex-1 py-3 sm:py-4 rounded-xl text-xs sm:text-sm font-black transition active:scale-95 border-2 ${setupForm.leftTeam === 1 ? 'bg-lime-500 border-lime-400 text-slate-950 shadow-lg' : 'bg-slate-950 border-slate-800 text-slate-300'}`}>{isDoubles ? '1. Takım' : match['Oyuncu 1']}</button>
-                      <button type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, leftTeam: 2}); }} className={`flex-1 py-3 sm:py-4 rounded-xl text-xs sm:text-sm font-black transition active:scale-95 border-2 ${setupForm.leftTeam === 2 ? 'bg-cyan-500 border-cyan-400 text-slate-950 shadow-lg' : 'bg-slate-950 border-slate-800 text-slate-300'}`}>{isDoubles ? '2. Takım' : match['Oyuncu 2']}</button>
+                      <button type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, leftTeam: 1}); }} className={`flex-1 py-3 sm:py-4 rounded-xl text-xs sm:text-sm font-bold transition active:scale-95 border ${setupForm.leftTeam === 1 ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-slate-950 border-slate-800 text-slate-300'}`}>{isDoubles ? '1. Takım' : match['Oyuncu 1']}</button>
+                      <button type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, leftTeam: 2}); }} className={`flex-1 py-3 sm:py-4 rounded-xl text-xs sm:text-sm font-bold transition active:scale-95 border ${setupForm.leftTeam === 2 ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-950 border-slate-800 text-slate-300'}`}>{isDoubles ? '2. Takım' : match['Oyuncu 2']}</button>
                     </div>
                   </div>
 
                   <div className="space-y-2 pt-3 border-t border-slate-800/80">
-                    <div className="text-[10px] sm:text-xs font-black uppercase text-slate-500 tracking-wider">Tie-Break Kuralı</div>
+                    <div className="text-[10px] sm:text-xs font-bold uppercase text-slate-500 tracking-wider">Tie-Break Kuralı</div>
                     <div className="flex gap-2">
-                      <button type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, tbType: 'standard'}); }} className={`flex-1 py-3 rounded-xl text-xs font-black transition active:scale-95 border-2 ${setupForm.tbType === 'standard' ? 'bg-amber-500 border-amber-400 text-slate-950 shadow-lg' : 'bg-slate-950 border-slate-800 text-slate-300'}`}>Standart (6'da Bir)</button>
-                      <button type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, tbType: 'coman'}); }} className={`flex-1 py-3 rounded-xl text-xs font-black transition active:scale-95 border-2 ${setupForm.tbType === 'coman' ? 'bg-amber-500 border-amber-400 text-slate-950 shadow-lg' : 'bg-slate-950 border-slate-800 text-slate-300'}`}>Coman (1-5-9)</button>
+                      <button type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, tbType: 'standard'}); }} className={`flex-1 py-3 rounded-xl text-xs font-bold transition active:scale-95 border ${setupForm.tbType === 'standard' ? 'bg-slate-700 border-slate-600 text-white' : 'bg-slate-950 border-slate-800 text-slate-400'}`}>Standart (6'da Bir)</button>
+                      <button type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, tbType: 'coman'}); }} className={`flex-1 py-3 rounded-xl text-xs font-bold transition active:scale-95 border ${setupForm.tbType === 'coman' ? 'bg-slate-700 border-slate-600 text-white' : 'bg-slate-950 border-slate-800 text-slate-400'}`}>Coman (1-5-9)</button>
                     </div>
                   </div>
 
                   <div className="pt-4 flex gap-3">
-                    <button type="button" onClick={handleCancelSetup} className="px-5 py-4 sm:py-5 bg-slate-800 hover:bg-rose-500/20 text-slate-300 hover:text-rose-400 font-black text-sm sm:text-lg rounded-xl transition active:scale-95 shadow-md border border-slate-700">İptal</button>
-                    <button type="button" disabled={!setupForm.firstServingTeam || !setupForm.leftTeam || (isDoubles && (setupForm.t1ServerIdx === undefined || setupForm.t2ServerIdx === undefined))} onClick={handleSaveSetup} className="flex-1 py-4 sm:py-5 bg-gradient-to-r from-emerald-500 to-emerald-400 hover:from-emerald-400 text-slate-950 font-black text-sm sm:text-lg rounded-xl disabled:opacity-50 transition active:scale-95 shadow-xl">Kaydet ve Devam Et</button>
+                    <button type="button" onClick={handleCancelSetup} className="px-5 py-4 sm:py-5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-bold text-sm sm:text-lg rounded-xl transition active:scale-95 border border-slate-700">İptal</button>
+                    <button type="button" disabled={!setupForm.firstServingTeam || !setupForm.leftTeam || (isDoubles && (setupForm.t1ServerIdx === undefined || setupForm.t2ServerIdx === undefined))} onClick={handleSaveSetup} className="flex-1 py-4 sm:py-5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm sm:text-lg rounded-xl disabled:opacity-50 transition active:scale-95">Kaydet ve Devam Et</button>
                   </div>
                 </div>
               ) : (
                 
                 <div className="flex flex-col h-full gap-2 sm:gap-4">
-                  <div className="flex flex-col sm:flex-row justify-between items-center bg-slate-900 rounded-2xl px-3 sm:px-4 py-2 sm:py-3 border border-slate-800 shadow-md gap-2 shrink-0">
+                  <div className="flex flex-col sm:flex-row justify-between items-center bg-slate-900 rounded-2xl px-3 sm:px-4 py-2 sm:py-3 border border-slate-800 gap-2 shrink-0">
                     <div className="flex flex-col items-center sm:flex-row gap-2 sm:gap-3 text-[10px] sm:text-sm font-bold w-full sm:w-auto">
                       
-                      <div className="flex flex-col items-center justify-center bg-slate-950 px-3.5 py-1.5 rounded-xl border border-slate-700/80 shadow-inner">
-                        <span className="text-amber-400 font-extrabold text-xs sm:text-sm tracking-wider uppercase">{selectedSet}. SET</span>
+                      <div className="flex flex-col items-center justify-center bg-slate-950 px-3.5 py-1.5 rounded-xl border border-slate-800">
+                        <span className="text-slate-300 font-bold text-xs sm:text-sm tracking-wider uppercase">{selectedSet}. SET</span>
                         {selectedSet > 1 && (
                           <div className="flex items-center gap-2.5 mt-1 text-xs sm:text-sm font-mono">
-                            {selectedSet >= 2 && <span className="text-slate-300 font-bold">S1: <strong className="text-lime-300 font-black">{s1_p1}-{s1_p2}</strong></span>}
-                            {selectedSet >= 3 && <span className="text-slate-300 font-bold">S2: <strong className="text-cyan-300 font-black">{s2_p1}-{s2_p2}</strong></span>}
+                            {selectedSet >= 2 && <span className="text-slate-500 font-bold">S1: <strong className="text-slate-300 font-bold">{s1_p1}-{s1_p2}</strong></span>}
+                            {selectedSet >= 3 && <span className="text-slate-500 font-bold">S2: <strong className="text-slate-300 font-bold">{s2_p1}-{s2_p2}</strong></span>}
                           </div>
                         )}
                       </div>
 
                       <div className="flex items-center gap-2 w-full justify-center">
-                        <span className="text-lime-400 font-extrabold truncate max-w-[90px] sm:max-w-[150px]">{String(match['Oyuncu 1'] || '')}</span>
-                        <span className="text-white font-mono text-lg sm:text-2xl font-black px-3 py-1 bg-slate-950 rounded-xl border-2 border-slate-700 shadow-inner">
+                        <span className="text-emerald-400 font-bold truncate max-w-[90px] sm:max-w-[150px]">{String(match['Oyuncu 1'] || '')}</span>
+                        <span className="text-white font-mono text-lg sm:text-2xl font-black px-3 py-1 bg-slate-950 rounded-xl border border-slate-800">
                           {currentSetP1Games} - {currentSetP2Games}
                         </span>
-                        <span className="text-cyan-400 font-extrabold truncate max-w-[90px] sm:max-w-[150px]">{String(match['Oyuncu 2'] || '')}</span>
+                        <span className="text-blue-400 font-bold truncate max-w-[90px] sm:max-w-[150px]">{String(match['Oyuncu 2'] || '')}</span>
                       </div>
                     </div>
                     <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-                       {isTB && <div className="px-2 sm:px-3 py-1 bg-amber-500/20 text-amber-400 text-[9px] sm:text-xs font-black uppercase rounded-lg animate-pulse border border-amber-500/30">{chairSetup.tbType === 'coman' ? 'Coman Tie-Break' : 'Standart Tie-Break'}</div>}
-                       {isSideChangePoint && <div className="flex items-center gap-1.5 text-rose-300 font-black text-[9px] sm:text-sm uppercase animate-pulse bg-rose-500/20 border border-rose-500/40 px-2 sm:px-3 py-1 rounded-lg"><ArrowRightLeft className="w-3 h-3 sm:w-4 sm:h-4"/> Saha Değişimi!</div>}
+                       {isTB && <div className="px-2 sm:px-3 py-1 bg-slate-800 text-slate-300 text-[9px] sm:text-xs font-bold uppercase rounded-lg border border-slate-700">{chairSetup.tbType === 'coman' ? 'Coman Tie-Break' : 'Standart Tie-Break'}</div>}
+                       {isSideChangePoint && <div className="flex items-center gap-1.5 text-slate-950 font-bold text-[9px] sm:text-sm uppercase bg-emerald-400 border border-emerald-500 px-2 sm:px-3 py-1 rounded-lg"><ArrowRightLeft className="w-3 h-3 sm:w-4 sm:h-4"/> Saha Değişimi</div>}
                     </div>
                   </div>
 
                   {activeTimer && (
-                    <div className="bg-amber-500/10 border border-amber-500/30 p-2 sm:p-4 rounded-2xl flex items-center justify-between shadow-lg shrink-0">
-                      <span className="text-amber-400 font-black text-sm sm:text-base flex items-center gap-2"><Timer className="w-4 h-4 sm:w-5 sm:h-5" />{activeTimer.label}</span>
+                    <div className="bg-slate-800 border border-slate-700 p-2 sm:p-4 rounded-2xl flex items-center justify-between shrink-0">
+                      <span className="text-slate-300 font-bold text-sm sm:text-base flex items-center gap-2"><Timer className="w-4 h-4 sm:w-5 sm:h-5" />{activeTimer.label}</span>
                       <div className="flex items-center gap-3 sm:gap-4">
-                        <span className={`font-mono font-black text-2xl sm:text-4xl ${activeTimer.seconds === 0 ? 'text-rose-400 animate-pulse' : 'text-amber-300'}`}>
+                        <span className={`font-mono font-black text-2xl sm:text-4xl ${activeTimer.seconds === 0 ? 'text-rose-400 animate-pulse' : 'text-slate-200'}`}>
                           {Math.floor(activeTimer.seconds / 60)}:{(activeTimer.seconds % 60).toString().padStart(2, '0')}
                         </span>
-                        <button type="button" onClick={(e) => { e.stopPropagation(); setActiveTimer(null); }} className="text-amber-500 hover:text-amber-300 p-2 bg-amber-500/10 rounded-xl"><X className="w-5 h-5 sm:w-6 sm:h-6" /></button>
+                        <button type="button" onClick={(e) => { e.stopPropagation(); setActiveTimer(null); }} className="text-slate-400 hover:text-slate-200 p-2 bg-slate-900 rounded-xl"><X className="w-5 h-5 sm:w-6 sm:h-6" /></button>
                       </div>
                     </div>
                   )}
 
                   <div className="grid grid-cols-2 gap-2 sm:gap-6 flex-1 min-h-0">
-                    <div className={`bg-slate-900 rounded-3xl p-2 sm:p-5 border-4 flex flex-col justify-between shadow-2xl overflow-hidden ${computedServerTeam === leftTeamId ? 'border-amber-400 shadow-[0_0_30px_rgba(251,191,36,0.15)]' : 'border-slate-800'}`}>
+                    <div className={`bg-slate-900 rounded-3xl p-2 sm:p-5 border flex flex-col justify-between overflow-hidden ${computedServerTeam === leftTeamId ? 'border-emerald-500/50 bg-slate-800/40' : 'border-slate-800'}`}>
                       <div className="flex flex-col items-center justify-center min-h-[4rem] sm:min-h-[5.5rem] border-b border-slate-800/80 pb-2 mb-2">
-                        <div className={`flex items-start justify-center gap-1 w-full ${leftTeamId === 1 ? 'text-lime-400' : 'text-cyan-400'}`}>
-                           {computedServerTeam === leftTeamId && <span className="text-amber-400 animate-bounce mt-0.5 sm:mt-1.5 shrink-0 text-sm sm:text-xl">🎾</span>}
+                        <div className={`flex items-start justify-center gap-1 w-full ${leftTeamId === 1 ? 'text-emerald-400' : 'text-blue-400'}`}>
+                           {computedServerTeam === leftTeamId && <span className="mt-0.5 sm:mt-1.5 shrink-0 text-sm sm:text-xl">🎾</span>}
                            <div className="flex flex-col items-center">
-                             <span className="font-black text-xs sm:text-xl text-center leading-tight line-clamp-3 break-words whitespace-normal px-1">
+                             <span className="font-bold text-xs sm:text-xl text-center leading-tight line-clamp-3 break-words whitespace-normal px-1">
                                {isDoubles ? String(match[`Oyuncu ${leftTeamId}` as keyof MatchItem] || '') : (leftTeamId === computedServerTeam ? activeServerName : String(match[`Oyuncu ${leftTeamId}` as keyof MatchItem] || ''))}
                              </span>
                              <div className="flex flex-wrap justify-center gap-1 mt-1">
                                {isDoubles && computedServerTeam === leftTeamId && (
-                                 <span className="text-[9px] sm:text-xs bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded font-black uppercase border border-amber-500/30">Servis: {activeServerName.split(' ')[0]}</span>
+                                 <span className="text-[9px] sm:text-xs bg-slate-800 text-slate-300 px-2 py-0.5 rounded font-bold uppercase border border-slate-700">Servis: {activeServerName.split(' ')[0]}</span>
                                )}
                                {isDoubles && computedServerTeam !== leftTeamId && (
-                                 <span className="text-[9px] sm:text-xs bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded font-black uppercase border border-blue-500/30">Karşılama: {activeReceiverName.split(' ')[0]}</span>
+                                 <span className="text-[9px] sm:text-xs bg-slate-800 text-slate-300 px-2 py-0.5 rounded font-bold uppercase border border-slate-700">Karşılama: {activeReceiverName.split(' ')[0]}</span>
                                )}
                              </div>
                            </div>
                         </div>
-                        <div className="text-[8px] sm:text-xs text-slate-500 uppercase font-black mt-1">Sol Saha</div>
+                        <div className="text-[8px] sm:text-xs text-slate-500 uppercase font-bold mt-1">Sol Saha</div>
                       </div>
                       
                       <div className="flex-1 flex justify-center items-center py-2 sm:py-4 min-h-0">
@@ -937,12 +934,12 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                       </div>
 
                       <div className="flex flex-col gap-1.5 sm:gap-2 shrink-0">
-                        <button type="button" disabled={isPaused || isFinished || isCurrentSetComplete} onClick={(e) => handlePointScore(e, leftTeamId)} className="w-full py-8 sm:py-12 bg-gradient-to-t from-emerald-600 to-emerald-400 hover:to-emerald-300 text-slate-950 font-black text-xl sm:text-3xl rounded-2xl shadow-lg active:scale-95 transition disabled:opacity-50 disabled:cursor-not-allowed">
+                        <button type="button" disabled={isPaused || isFinished || isCurrentSetComplete} onClick={(e) => handlePointScore(e, leftTeamId)} className="w-full py-8 sm:py-12 bg-emerald-600/90 hover:bg-emerald-500 text-white font-bold text-xl sm:text-3xl rounded-2xl active:scale-95 transition disabled:opacity-50 disabled:cursor-not-allowed">
                           +1 PUAN
                         </button>
                         <div className="h-10 sm:h-14 w-full">
                            {computedServerTeam === leftTeamId ? (
-                             <button type="button" disabled={isPaused || isFinished || isCurrentSetComplete} onClick={(e) => handleFault(e, leftTeamId)} className={`w-full h-full rounded-xl text-[10px] sm:text-base font-black transition active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed ${firstFault ? 'bg-rose-500 border-2 border-rose-400 text-white animate-pulse' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>
+                             <button type="button" disabled={isPaused || isFinished || isCurrentSetComplete} onClick={(e) => handleFault(e, leftTeamId)} className={`w-full h-full rounded-xl text-[10px] sm:text-base font-bold transition active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed ${firstFault ? 'bg-rose-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>
                                {firstFault ? '2. Hata (Rakibe Puan)' : '1. Servis Hatası'}
                              </button>
                            ) : (
@@ -952,25 +949,25 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                       </div>
                     </div>
 
-                    <div className={`bg-slate-900 rounded-3xl p-2 sm:p-5 border-4 flex flex-col justify-between shadow-2xl overflow-hidden ${computedServerTeam === rightTeamId ? 'border-amber-400 shadow-[0_0_30px_rgba(251,191,36,0.15)]' : 'border-slate-800'}`}>
+                    <div className={`bg-slate-900 rounded-3xl p-2 sm:p-5 border flex flex-col justify-between overflow-hidden ${computedServerTeam === rightTeamId ? 'border-emerald-500/50 bg-slate-800/40' : 'border-slate-800'}`}>
                       <div className="flex flex-col items-center justify-center min-h-[4rem] sm:min-h-[5.5rem] border-b border-slate-800/80 pb-2 mb-2">
-                        <div className={`flex items-start justify-center gap-1 w-full ${rightTeamId === 1 ? 'text-lime-400' : 'text-cyan-400'}`}>
-                           {computedServerTeam === rightTeamId && <span className="text-amber-400 animate-bounce mt-0.5 sm:mt-1.5 shrink-0 text-sm sm:text-xl">🎾</span>}
+                        <div className={`flex items-start justify-center gap-1 w-full ${rightTeamId === 1 ? 'text-emerald-400' : 'text-blue-400'}`}>
+                           {computedServerTeam === rightTeamId && <span className="mt-0.5 sm:mt-1.5 shrink-0 text-sm sm:text-xl">🎾</span>}
                            <div className="flex flex-col items-center">
-                             <span className="font-black text-xs sm:text-xl text-center leading-tight line-clamp-3 break-words whitespace-normal px-1">
+                             <span className="font-bold text-xs sm:text-xl text-center leading-tight line-clamp-3 break-words whitespace-normal px-1">
                                {isDoubles ? String(match[`Oyuncu ${rightTeamId}` as keyof MatchItem] || '') : (rightTeamId === computedServerTeam ? activeServerName : String(match[`Oyuncu ${rightTeamId}` as keyof MatchItem] || ''))}
                              </span>
                              <div className="flex flex-wrap justify-center gap-1 mt-1">
                                {isDoubles && computedServerTeam === rightTeamId && (
-                                 <span className="text-[9px] sm:text-xs bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded font-black uppercase border border-amber-500/30">Servis: {activeServerName.split(' ')[0]}</span>
+                                 <span className="text-[9px] sm:text-xs bg-slate-800 text-slate-300 px-2 py-0.5 rounded font-bold uppercase border border-slate-700">Servis: {activeServerName.split(' ')[0]}</span>
                                )}
                                {isDoubles && computedServerTeam !== rightTeamId && (
-                                 <span className="text-[9px] sm:text-xs bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded font-black uppercase border border-blue-500/30">Karşılama: {activeReceiverName.split(' ')[0]}</span>
+                                 <span className="text-[9px] sm:text-xs bg-slate-800 text-slate-300 px-2 py-0.5 rounded font-bold uppercase border border-slate-700">Karşılama: {activeReceiverName.split(' ')[0]}</span>
                                )}
                              </div>
                            </div>
                         </div>
-                        <div className="text-[8px] sm:text-xs text-slate-500 uppercase font-black mt-1">Sağ Saha</div>
+                        <div className="text-[8px] sm:text-xs text-slate-500 uppercase font-bold mt-1">Sağ Saha</div>
                       </div>
                       
                       <div className="flex-1 flex justify-center items-center py-2 sm:py-4 min-h-0">
@@ -980,12 +977,12 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                       </div>
 
                       <div className="flex flex-col gap-1.5 sm:gap-2 shrink-0">
-                        <button type="button" disabled={isPaused || isFinished || isCurrentSetComplete} onClick={(e) => handlePointScore(e, rightTeamId)} className="w-full py-8 sm:py-12 bg-gradient-to-t from-emerald-600 to-emerald-400 hover:to-emerald-300 text-slate-950 font-black text-xl sm:text-3xl rounded-2xl shadow-lg active:scale-95 transition disabled:opacity-50 disabled:cursor-not-allowed">
+                        <button type="button" disabled={isPaused || isFinished || isCurrentSetComplete} onClick={(e) => handlePointScore(e, rightTeamId)} className="w-full py-8 sm:py-12 bg-emerald-600/90 hover:bg-emerald-500 text-white font-bold text-xl sm:text-3xl rounded-2xl active:scale-95 transition disabled:opacity-50 disabled:cursor-not-allowed">
                           +1 PUAN
                         </button>
                         <div className="h-10 sm:h-14 w-full">
                            {computedServerTeam === rightTeamId ? (
-                             <button type="button" disabled={isPaused || isFinished || isCurrentSetComplete} onClick={(e) => handleFault(e, rightTeamId)} className={`w-full h-full rounded-xl text-[10px] sm:text-base font-black transition active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed ${firstFault ? 'bg-rose-500 border-2 border-rose-400 text-white animate-pulse' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>
+                             <button type="button" disabled={isPaused || isFinished || isCurrentSetComplete} onClick={(e) => handleFault(e, rightTeamId)} className={`w-full h-full rounded-xl text-[10px] sm:text-base font-bold transition active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed ${firstFault ? 'bg-rose-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>
                                {firstFault ? '2. Hata (Rakibe Puan)' : '1. Servis Hatası'}
                              </button>
                            ) : (
@@ -999,16 +996,16 @@ export const CourtCard: React.FC<CourtCardProps> = ({
 
                   <div className="pt-2 border-t border-slate-800 flex flex-col gap-2 sm:gap-3 shrink-0 pb-4">
                     <div className="flex gap-2 sm:gap-3">
-                      <button type="button" onClick={(e) => startTimer(e, 'Saha Değişimi', 90)} className="flex-1 py-3 sm:py-4 bg-slate-900 border border-slate-700 text-slate-300 hover:text-white text-[10px] sm:text-sm font-black rounded-xl transition shadow-md">90s Değişim</button>
-                      <button type="button" onClick={(e) => startTimer(e, 'Set Arası', 120)} className="flex-1 py-3 sm:py-4 bg-slate-900 border border-slate-700 text-slate-300 hover:text-white text-[10px] sm:text-sm font-black rounded-xl transition shadow-md">120s Set</button>
-                      <button type="button" onClick={(e) => startTimer(e, 'Sağlık Molası', 180)} className="flex-1 py-3 sm:py-4 bg-slate-900 border border-slate-700 text-slate-300 hover:text-white text-[10px] sm:text-sm font-black rounded-xl transition shadow-md">3dk MTO</button>
+                      <button type="button" onClick={(e) => startTimer(e, 'Saha Değişimi', 90)} className="flex-1 py-3 sm:py-4 bg-slate-900 border border-slate-700 text-slate-300 hover:text-white text-[10px] sm:text-sm font-bold rounded-xl transition">90s Değişim</button>
+                      <button type="button" onClick={(e) => startTimer(e, 'Set Arası', 120)} className="flex-1 py-3 sm:py-4 bg-slate-900 border border-slate-700 text-slate-300 hover:text-white text-[10px] sm:text-sm font-bold rounded-xl transition">120s Set</button>
+                      <button type="button" onClick={(e) => startTimer(e, 'Sağlık Molası', 180)} className="flex-1 py-3 sm:py-4 bg-slate-900 border border-slate-700 text-slate-300 hover:text-white text-[10px] sm:text-sm font-bold rounded-xl transition">3dk MTO</button>
                     </div>
 
                     <div className="flex gap-2 sm:gap-3">
-                      <button type="button" onClick={handleUndo} disabled={isPaused} className="flex-1 flex items-center justify-center gap-1.5 py-3 sm:py-4 bg-rose-500/10 border border-rose-500/20 hover:bg-rose-500/20 text-rose-400 text-[11px] sm:text-base font-black rounded-xl transition active:scale-95 shadow-sm disabled:opacity-50">
+                      <button type="button" onClick={handleUndo} disabled={isPaused} className="flex-1 flex items-center justify-center gap-1.5 py-3 sm:py-4 bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] sm:text-base font-bold rounded-xl transition active:scale-95 disabled:opacity-50">
                         <RotateCcw className="w-4 h-4 sm:w-5 sm:h-5" /> Geri Al
                       </button>
-                      <button type="button" onClick={toggleSuspend} className={`flex-1 flex items-center justify-center gap-1.5 py-3 sm:py-4 text-[11px] sm:text-base font-black rounded-xl transition active:scale-95 shadow-sm ${isPaused ? 'bg-emerald-500/20 border border-emerald-500/30 text-emerald-400' : 'bg-amber-500/10 border border-amber-500/20 text-amber-400'}`}>
+                      <button type="button" onClick={toggleSuspend} className={`flex-1 flex items-center justify-center gap-1.5 py-3 sm:py-4 text-[11px] sm:text-base font-bold rounded-xl transition active:scale-95 ${isPaused ? 'bg-emerald-600 text-white' : 'bg-slate-800 hover:bg-slate-700 text-slate-300'}`}>
                         {isPaused ? <><PlayCircle className="w-4 h-4 sm:w-5 sm:h-5" /> Devam Et</> : <><PauseCircle className="w-4 h-4 sm:w-5 sm:h-5" /> Askıya Al</>}
                       </button>
                     </div>
