@@ -4,7 +4,7 @@ import { useTennisData } from '../../context/TennisDataContext';
 import { parseScoreString, validateSingleSet } from '../../utils/tennisScoringEngine';
 import {
   Trophy, Clock, CheckCircle2, PlayCircle, Plus, Minus, RotateCcw,
-  Swords, PauseCircle, Timer, X, ArrowRightLeft, Settings, LogOut, Info, PenLine
+  Swords, PauseCircle, Timer, X, ArrowRightLeft, Settings, LogOut, Info, PenLine, Sun, Moon
 } from 'lucide-react';
 
 interface CourtCardProps {
@@ -46,6 +46,29 @@ export const CourtCard: React.FC<CourtCardProps> = ({
   
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   
+  // GECE / GÜNDÜZ MODU
+  const [isLightMode, setIsLightMode] = useState(() => {
+    return localStorage.getItem('courtonline_light_mode') === 'true';
+  });
+
+  const toggleTheme = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsLightMode(prev => {
+      const newVal = !prev;
+      localStorage.setItem('courtonline_light_mode', String(newVal));
+      window.dispatchEvent(new Event('storage'));
+      return newVal;
+    });
+  };
+
+  useEffect(() => {
+    const handleStorage = () => {
+      setIsLightMode(localStorage.getItem('courtonline_light_mode') === 'true');
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, []);
+
   const prevSetRef = useRef<number>(1);
   const [thirdSetWarning, setThirdSetWarning] = useState<{show: boolean, text: string}>({show: false, text: ''});
 
@@ -296,6 +319,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
       }
   }
 
+  // OTOMATİK PİLOT: Kurulum yapılmamış olsa bile sistemi güncel skora göre otomatize ediyoruz.
   if (isSetupValid) {
     const isComan = chairSetup.tbType === 'coman';
     const otherTeam = chairSetup.firstServingTeam === 1 ? 2 : 1;
@@ -366,6 +390,13 @@ export const CourtCard: React.FC<CourtCardProps> = ({
       const activeRecIdx = isDeuceCourt ? deuceRecIdx : adRecIdx;
       activeReceiverName = recPlayers[activeRecIdx] || recPlayers[0];
     }
+  } else {
+    // EĞER KURULUM YAPILMADIYSA, SİSTEM MOTORUNDAN GELEN VARSAYILANI KULLAN (OTOMATİK PİLOT)
+    if (state?.currentServer === 1 || state?.currentServer === 2) {
+      computedServerTeam = state.currentServer as 1 | 2;
+    }
+    // Basit sağ-sol değişimi tahmini: Toplam oyun tek ise saha değişmiştir. 
+    computedLeftTeam = currentSetGames % 2 === 1 ? 2 : 1;
   }
 
   const leftTeamId = computedLeftTeam;
@@ -532,22 +563,29 @@ export const CourtCard: React.FC<CourtCardProps> = ({
       }
   }
 
+  // Dış Kart Görünümleri İçin Stil Tanımlamaları
+  const baseCardClass = `rounded-3xl transition-all duration-200 overflow-hidden flex flex-col justify-between shadow-sm relative ${
+    isLive || isPaused ? (isLightMode ? 'bg-white border-[2px] border-emerald-500' : 'bg-slate-900/95 border border-emerald-500/30')
+    : isUpcoming ? (isLightMode ? 'bg-slate-50 border-2 border-slate-300 cursor-pointer hover:border-slate-400' : 'bg-slate-900 border border-slate-700 cursor-pointer')
+    : (isLightMode ? 'bg-slate-100 border border-slate-300' : 'bg-slate-900/50 border border-slate-800')
+  }`;
+
   return (
     <>
       {thirdSetWarning.show && (
         <div className="fixed inset-0 z-[100000] bg-slate-950/95 flex flex-col items-center justify-center p-6 animate-in fade-in zoom-in duration-300" style={{ touchAction: 'none' }}>
-          <div className="bg-slate-900 border-4 border-amber-500 rounded-3xl p-6 sm:p-8 w-full max-w-lg text-center shadow-xl">
+          <div className={`border-4 rounded-3xl p-6 sm:p-8 w-full max-w-lg text-center shadow-xl ${isLightMode ? 'bg-white border-amber-400' : 'bg-slate-900 border-amber-500'}`}>
             <span className="text-6xl sm:text-7xl mb-3 sm:mb-4 block">⚠️</span>
             <div className="text-amber-500 font-extrabold text-sm sm:text-base tracking-widest mb-1">{match.Kort}</div>
-            <h2 className="text-2xl sm:text-4xl font-black text-amber-400 uppercase tracking-widest mb-4">3. SETE GEÇİLİYOR</h2>
-            <p className="text-base sm:text-xl text-white font-bold mb-2">Lütfen planlanan maça formatına dikkat ediniz:</p>
-            <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 sm:p-5 my-4 sm:my-6">
-              <span className="text-lg sm:text-2xl font-black text-amber-400">{thirdSetWarning.text}</span>
+            <h2 className="text-2xl sm:text-4xl font-black text-amber-500 uppercase tracking-widest mb-4">3. SETE GEÇİLİYOR</h2>
+            <p className={`text-base sm:text-xl font-bold mb-2 ${isLightMode ? 'text-slate-700' : 'text-white'}`}>Lütfen planlanan maça formatına dikkat ediniz:</p>
+            <div className={`rounded-2xl p-4 sm:p-5 my-4 sm:my-6 ${isLightMode ? 'bg-amber-100 border border-amber-300' : 'bg-amber-500/10 border border-amber-500/30'}`}>
+              <span className={`text-lg sm:text-2xl font-black ${isLightMode ? 'text-amber-700' : 'text-amber-400'}`}>{thirdSetWarning.text}</span>
             </div>
-            <p className="text-xs sm:text-sm text-slate-400 mb-6 sm:mb-8 font-medium px-2 sm:px-4">Yanlışlık olduğunu düşünüyorsanız, Ayarlar (⚙️) menüsünden formatı düzeltebilirsiniz.</p>
+            <p className={`text-xs sm:text-sm mb-6 sm:mb-8 font-medium px-2 sm:px-4 ${isLightMode ? 'text-slate-500' : 'text-slate-400'}`}>Yanlışlık olduğunu düşünüyorsanız, Ayarlar (⚙️) menüsünden formatı düzeltebilirsiniz.</p>
             <button 
               onClick={(e) => { e.stopPropagation(); setThirdSetWarning({show: false, text: ''}); }}
-              className="w-full py-4 sm:py-5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-base sm:text-xl rounded-2xl shadow-md transition active:scale-95"
+              className={`w-full py-4 sm:py-5 font-black text-base sm:text-xl rounded-2xl shadow-md transition active:scale-95 ${isLightMode ? 'bg-amber-500 hover:bg-amber-400 text-white' : 'bg-amber-500 hover:bg-amber-400 text-slate-950'}`}
             >
               Anladım, Maça Dön
             </button>
@@ -555,115 +593,108 @@ export const CourtCard: React.FC<CourtCardProps> = ({
         </div>
       )}
 
-      {/* 1. KORT HAKEMİ KART GÖRÜNÜMÜ */}
-      <div
-        onClick={handleCardClick}
-        className={`rounded-3xl transition-all duration-200 overflow-hidden flex flex-col justify-between shadow-sm relative ${
-          isLive || isPaused ? 'bg-slate-900/95 border border-emerald-500/30'
-          : isUpcoming ? 'bg-slate-900 border border-slate-700 cursor-pointer'
-          : 'bg-slate-900/50 border border-slate-800'
-        }`}
-      >
-        <div className={`h-1.5 w-full ${isLive ? 'bg-emerald-500' : isPaused ? 'bg-amber-500' : isUpcoming ? 'bg-slate-600' : 'bg-slate-800'}`} />
+      {/* 1. KORT HAKEMİ ANA KART GÖRÜNÜMÜ */}
+      <div onClick={handleCardClick} className={baseCardClass}>
+        <div className={`h-1.5 w-full ${isLive ? 'bg-emerald-500' : isPaused ? 'bg-amber-500' : isUpcoming ? 'bg-slate-400' : 'bg-slate-300'}`} />
 
-        <div className="px-4 sm:px-5 pt-4 pb-2 flex items-center justify-between border-b border-slate-800/80">
+        <div className={`px-4 sm:px-5 pt-4 pb-2 flex items-center justify-between border-b ${isLightMode ? 'border-slate-200' : 'border-slate-800/80'}`}>
           <div className="flex items-center gap-2.5">
-            <span className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-xs ${isLive || isPaused ? 'bg-emerald-500/20 text-emerald-400' : isUpcoming ? 'bg-slate-800 text-slate-300' : 'bg-slate-800/50 text-slate-500'}`}>
+            <span className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-xs ${isLive || isPaused ? (isLightMode ? 'bg-emerald-100 text-emerald-700' : 'bg-emerald-500/20 text-emerald-400') : isUpcoming ? (isLightMode ? 'bg-slate-200 text-slate-600' : 'bg-slate-800 text-slate-300') : (isLightMode ? 'bg-slate-200 text-slate-500' : 'bg-slate-800/50 text-slate-500')}`}>
               {match.Kort.replace('KORT', 'K').trim()}
             </span>
             <div className="min-w-0">
-              <h3 className="font-extrabold text-white text-base sm:text-lg flex items-center gap-1.5 truncate">
+              <h3 className={`font-extrabold text-base sm:text-lg flex items-center gap-1.5 truncate ${isLightMode ? 'text-slate-900' : 'text-white'}`}>
                 <span>{match.Kort}</span>
-                {isLive && <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-400 shrink-0">CANLI</span>}
+                {isLive && <span className={`px-2 py-0.5 rounded-full text-[10px] font-black shrink-0 ${isLightMode ? 'bg-emerald-100 text-emerald-700' : 'bg-emerald-500/20 text-emerald-400'}`}>CANLI</span>}
               </h3>
-              <p className="text-xs text-slate-400 font-medium truncate max-w-[180px]">{match.Kategori}</p>
+              <p className={`text-xs font-medium truncate max-w-[180px] ${isLightMode ? 'text-slate-500' : 'text-slate-400'}`}>{match.Kategori}</p>
             </div>
           </div>
-          <span className={`px-2.5 py-1 rounded-xl text-xs font-black tracking-wide uppercase shrink-0 ${isLive ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : isPaused ? 'bg-amber-500/20 text-amber-400' : isUpcoming ? 'bg-slate-800 text-slate-400' : 'bg-slate-800 text-slate-500'}`}>
+          <span className={`px-2.5 py-1 rounded-xl text-xs font-black tracking-wide uppercase shrink-0 ${isLive ? (isLightMode ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30') : isPaused ? (isLightMode ? 'bg-amber-100 text-amber-700' : 'bg-amber-500/20 text-amber-400') : isUpcoming ? (isLightMode ? 'bg-slate-200 text-slate-600' : 'bg-slate-800 text-slate-400') : (isLightMode ? 'bg-slate-200 text-slate-500' : 'bg-slate-800 text-slate-500')}`}>
             {match.Durum === 'Retired' ? '✕ RET' : match.Durum === 'Walkover' ? '✕ W/O' : match.Durum === 'Bitti' ? '✕ BİTTİ' : match.Durum === 'Duraklatildi' ? 'ASKIYA' : match.Durum}
           </span>
         </div>
 
-        <div className="px-4 sm:px-5 py-2.5 sm:py-3 bg-slate-950/50 border-b border-slate-800/80 flex items-center justify-between font-mono">
+        <div className={`px-4 sm:px-5 py-2.5 sm:py-3 border-b flex items-center justify-between font-mono ${isLightMode ? 'bg-slate-50 border-slate-200' : 'bg-slate-950/50 border-slate-800/80'}`}>
           <div className="flex items-center gap-2 sm:gap-3">
-            <div className="flex items-center gap-1.5 bg-slate-800/50 px-2.5 py-1 rounded-lg border border-slate-700/50">
-              <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-slate-400" />
+            <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border ${isLightMode ? 'bg-white border-slate-200 text-slate-600' : 'bg-slate-800/50 border-slate-700/50 text-slate-400'}`}>
+              <Clock className="w-4 h-4 sm:w-5 sm:h-5" />
               {match.Saat && (
-                <span className="text-slate-200 font-bold text-sm sm:text-lg tracking-widest">
+                <span className={`font-bold text-sm sm:text-lg tracking-widest ${isLightMode ? 'text-slate-800' : 'text-slate-200'}`}>
                   {match.Saat}
                 </span>
               )}
             </div>
             
             {(isLive || isPaused || isFinished) && (
-               <div className="flex flex-col justify-center border-l border-slate-700/80 pl-2 sm:pl-3">
-                 <span className="text-[9px] sm:text-[10px] text-slate-500 font-bold uppercase leading-none mb-0.5">Fiili Başlama</span>
-                 <strong className="text-slate-300 text-xs sm:text-sm leading-none">{match.Baslangic_Saati && match.Baslangic_Saati !== 'Secilmedi' ? match.Baslangic_Saati : '--:--'}</strong>
+               <div className={`flex flex-col justify-center border-l pl-2 sm:pl-3 ${isLightMode ? 'border-slate-300' : 'border-slate-700/80'}`}>
+                 <span className={`text-[9px] sm:text-[10px] font-bold uppercase leading-none mb-0.5 ${isLightMode ? 'text-slate-500' : 'text-slate-500'}`}>Fiili Başlama</span>
+                 <strong className={`text-xs sm:text-sm leading-none ${isLightMode ? 'text-slate-700' : 'text-slate-300'}`}>{match.Baslangic_Saati && match.Baslangic_Saati !== 'Secilmedi' ? match.Baslangic_Saati : '--:--'}</strong>
                </div>
             )}
           </div>
-          <div className="text-slate-400 font-sans text-[11px] sm:text-xs font-bold truncate pl-2 max-w-[120px] sm:max-w-[150px] text-right leading-tight">
+          <div className={`font-sans text-[11px] sm:text-xs font-bold truncate pl-2 max-w-[120px] sm:max-w-[150px] text-right leading-tight ${isLightMode ? 'text-slate-500' : 'text-slate-400'}`}>
             {match.Skor_Formati}
           </div>
         </div>
 
         <div className="p-4 sm:p-5 space-y-3">
-          <div className="bg-slate-950 rounded-2xl border border-slate-800/90 overflow-hidden">
-            <div className="grid grid-cols-12 bg-slate-900/80 text-[10px] font-extrabold uppercase text-slate-400 py-1.5 px-3 border-b border-slate-800">
+          <div className={`rounded-2xl border overflow-hidden ${isLightMode ? 'bg-white border-slate-200' : 'bg-slate-950 border-slate-800/90'}`}>
+            <div className={`grid grid-cols-12 text-[10px] font-extrabold uppercase py-1.5 px-3 border-b ${isLightMode ? 'bg-slate-100 text-slate-500 border-slate-200' : 'bg-slate-900/80 text-slate-400 border-slate-800'}`}>
               <div className="col-span-6">Oyuncu / Takım</div><div className="col-span-2 text-center">1. Set</div><div className="col-span-2 text-center">2. Set</div><div className="col-span-2 text-center">3. Set</div>
             </div>
             
-            <div className={`grid grid-cols-12 items-center py-2 px-3 border-b border-slate-800/50 ${match.Kazanan === match['Oyuncu 1'] && isFinished ? 'bg-emerald-500/10' : ''}`}>
+            <div className={`grid grid-cols-12 items-center py-2 px-3 border-b ${isLightMode ? 'border-slate-100' : 'border-slate-800/50'} ${match.Kazanan === match['Oyuncu 1'] && isFinished ? (isLightMode ? 'bg-emerald-50' : 'bg-emerald-500/10') : ''}`}>
               <div className="col-span-6 flex items-center gap-2 pr-2 min-w-0">
-                <span className="text-xs sm:text-sm font-bold text-white leading-tight flex items-center gap-1.5 min-w-0 flex-1">
+                <span className={`text-xs sm:text-sm font-bold leading-tight flex items-center gap-1.5 min-w-0 flex-1 ${isLightMode ? 'text-slate-800' : 'text-white'}`}>
                     {computedServerTeam === 1 && computedLeftTeam === 1 && (isLive || isPaused) && (
-                        <span className="text-emerald-400 text-[10px] sm:text-xs shrink-0" title="Servis Atan (Sol Saha)">🎾</span>
+                        <span className="animate-bounce text-[10px] sm:text-xs shrink-0" title="Servis Atan (Sol Saha)">🎾</span>
                     )}
                     <span className="truncate">{match['Oyuncu 1']}</span>
                     {computedServerTeam === 1 && computedLeftTeam !== 1 && (isLive || isPaused) && (
-                        <span className="text-emerald-400 text-[10px] sm:text-xs shrink-0" title="Servis Atan (Sağ Saha)">🎾</span>
+                        <span className="animate-bounce text-[10px] sm:text-xs shrink-0" title="Servis Atan (Sağ Saha)">🎾</span>
                     )}
                 </span>
               </div>
-              <div className="col-span-2 text-center font-mono font-bold text-emerald-400">{isUpcoming ? '-' : s1_p1}</div><div className="col-span-2 text-center font-mono font-bold text-emerald-400">{isUpcoming ? '-' : s2_p1}</div><div className="col-span-2 text-center font-mono font-bold text-emerald-400">{isUpcoming ? '-' : s3_p1}</div>
+              <div className={`col-span-2 text-center font-mono font-bold ${isLightMode ? 'text-emerald-700' : 'text-emerald-400'}`}>{isUpcoming ? '-' : s1_p1}</div><div className={`col-span-2 text-center font-mono font-bold ${isLightMode ? 'text-emerald-700' : 'text-emerald-400'}`}>{isUpcoming ? '-' : s2_p1}</div><div className={`col-span-2 text-center font-mono font-bold ${isLightMode ? 'text-emerald-700' : 'text-emerald-400'}`}>{isUpcoming ? '-' : s3_p1}</div>
             </div>
             
-            <div className={`grid grid-cols-12 items-center py-2 px-3 ${match.Kazanan === match['Oyuncu 2'] && isFinished ? 'bg-blue-500/10' : ''}`}>
+            <div className={`grid grid-cols-12 items-center py-2 px-3 ${match.Kazanan === match['Oyuncu 2'] && isFinished ? (isLightMode ? 'bg-blue-50' : 'bg-blue-500/10') : ''}`}>
               <div className="col-span-6 flex items-center gap-2 pr-2 min-w-0">
-                <span className="text-xs sm:text-sm font-bold text-white leading-tight flex items-center gap-1.5 min-w-0 flex-1">
+                <span className={`text-xs sm:text-sm font-bold leading-tight flex items-center gap-1.5 min-w-0 flex-1 ${isLightMode ? 'text-slate-800' : 'text-white'}`}>
                     {computedServerTeam === 2 && computedLeftTeam === 2 && (isLive || isPaused) && (
-                        <span className="text-blue-400 text-[10px] sm:text-xs shrink-0" title="Servis Atan (Sol Saha)">🎾</span>
+                        <span className="animate-bounce text-[10px] sm:text-xs shrink-0" title="Servis Atan (Sol Saha)">🎾</span>
                     )}
                     <span className="truncate">{match['Oyuncu 2']}</span>
                     {computedServerTeam === 2 && computedLeftTeam !== 2 && (isLive || isPaused) && (
-                        <span className="text-blue-400 text-[10px] sm:text-xs shrink-0" title="Servis Atan (Sağ Saha)">🎾</span>
+                        <span className="animate-bounce text-[10px] sm:text-xs shrink-0" title="Servis Atan (Sağ Saha)">🎾</span>
                     )}
                 </span>
               </div>
-              <div className="col-span-2 text-center font-mono font-bold text-blue-400">{isUpcoming ? '-' : s1_p2}</div><div className="col-span-2 text-center font-mono font-bold text-blue-400">{isUpcoming ? '-' : s2_p2}</div><div className="col-span-2 text-center font-mono font-bold text-blue-400">{isUpcoming ? '-' : s3_p2}</div>
+              <div className={`col-span-2 text-center font-mono font-bold ${isLightMode ? 'text-blue-700' : 'text-blue-400'}`}>{isUpcoming ? '-' : s1_p2}</div><div className={`col-span-2 text-center font-mono font-bold ${isLightMode ? 'text-blue-700' : 'text-blue-400'}`}>{isUpcoming ? '-' : s2_p2}</div><div className={`col-span-2 text-center font-mono font-bold ${isLightMode ? 'text-blue-700' : 'text-blue-400'}`}>{isUpcoming ? '-' : s3_p2}</div>
             </div>
           </div>
 
           {(isLive || isPaused) && (
-            <div className="bg-slate-900 border border-slate-700/80 rounded-2xl p-3 mt-2">
-              <button type="button" onClick={(e) => { e.stopPropagation(); setIsChairMode(true); }} className="w-full py-3 mb-3 bg-slate-700 hover:bg-slate-600 text-white font-bold rounded-xl transition active:scale-95 flex items-center justify-center gap-2">
+            <div className={`border rounded-2xl p-3 mt-2 ${isLightMode ? 'bg-slate-50 border-slate-200' : 'bg-slate-900 border-slate-700/80'}`}>
+              <button type="button" onClick={(e) => { e.stopPropagation(); setIsChairMode(true); }} className={`w-full py-3 mb-3 font-bold rounded-xl transition active:scale-95 flex items-center justify-center gap-2 ${isLightMode ? 'bg-slate-800 hover:bg-slate-700 text-white' : 'bg-slate-700 hover:bg-slate-600 text-white'}`}>
                 <Swords className="w-4 h-4" /> Kule Hakemi Moduna Geç
               </button>
 
               <div className="animate-in fade-in zoom-in-95 duration-200">
-                <div className="flex bg-slate-950 p-1 rounded-xl mb-3 border border-slate-800">
-                  <button type="button" onClick={(e) => { e.stopPropagation(); setSelectedSet(1); }} className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-colors ${selectedSet === 1 ? 'bg-slate-800 text-white shadow' : 'text-slate-400 hover:text-slate-300'}`}>1. SET</button>
-                  <button type="button" onClick={(e) => { e.stopPropagation(); setSelectedSet(2); }} className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-colors ${selectedSet === 2 ? 'bg-slate-800 text-white shadow' : 'text-slate-400 hover:text-slate-300'}`}>2. SET</button>
-                  <button type="button" onClick={(e) => { e.stopPropagation(); setSelectedSet(3); }} className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-colors ${selectedSet === 3 ? 'bg-slate-800 text-white shadow' : 'text-slate-400 hover:text-slate-300'}`}>3. SET</button>
+                <div className={`flex p-1 rounded-xl mb-3 border ${isLightMode ? 'bg-slate-100 border-slate-200' : 'bg-slate-950 border-slate-800'}`}>
+                  <button type="button" onClick={(e) => { e.stopPropagation(); setSelectedSet(1); }} className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-colors ${selectedSet === 1 ? (isLightMode ? 'bg-white text-slate-800 shadow' : 'bg-slate-800 text-white shadow') : (isLightMode ? 'text-slate-500' : 'text-slate-400 hover:text-slate-300')}`}>1. SET</button>
+                  <button type="button" onClick={(e) => { e.stopPropagation(); setSelectedSet(2); }} className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-colors ${selectedSet === 2 ? (isLightMode ? 'bg-white text-slate-800 shadow' : 'bg-slate-800 text-white shadow') : (isLightMode ? 'text-slate-500' : 'text-slate-400 hover:text-slate-300')}`}>2. SET</button>
+                  <button type="button" onClick={(e) => { e.stopPropagation(); setSelectedSet(3); }} className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-colors ${selectedSet === 3 ? (isLightMode ? 'bg-white text-slate-800 shadow' : 'bg-slate-800 text-white shadow') : (isLightMode ? 'text-slate-500' : 'text-slate-400 hover:text-slate-300')}`}>3. SET</button>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="flex flex-col gap-1.5">
-                    <button type="button" disabled={isP1PlusDisabled} onClick={(e) => handleQuickScore(e, 1, 1)} className="w-full py-3 rounded-xl bg-emerald-600/90 hover:bg-emerald-500 text-white font-bold text-sm flex items-center justify-center gap-1 transition disabled:opacity-50 disabled:cursor-not-allowed"><Plus className="w-5 h-5" />+1 OYUN</button>
-                    <button type="button" disabled={isPaused} onClick={(e) => handleQuickScore(e, 1, -1)} className="w-full py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs flex items-center justify-center gap-1 transition disabled:opacity-50"><RotateCcw className="w-3.5 h-3.5" /> Geri Al</button>
+                    <button type="button" disabled={isP1PlusDisabled} onClick={(e) => handleQuickScore(e, 1, 1)} className={`w-full py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-1 transition disabled:opacity-50 disabled:cursor-not-allowed ${isLightMode ? 'bg-emerald-600 hover:bg-emerald-500 text-white' : 'bg-emerald-600/90 hover:bg-emerald-500 text-white'}`}><Plus className="w-5 h-5" />+1 OYUN</button>
+                    <button type="button" disabled={isPaused} onClick={(e) => handleQuickScore(e, 1, -1)} className={`w-full py-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1 transition disabled:opacity-50 ${isLightMode ? 'bg-slate-200 hover:bg-slate-300 text-slate-700' : 'bg-slate-800 hover:bg-slate-700 text-slate-300'}`}><RotateCcw className="w-3.5 h-3.5" /> Geri Al</button>
                   </div>
                   <div className="flex flex-col gap-1.5">
-                    <button type="button" disabled={isP2PlusDisabled} onClick={(e) => handleQuickScore(e, 2, 1)} className="w-full py-3 rounded-xl bg-emerald-600/90 hover:bg-emerald-500 text-white font-bold text-sm flex items-center justify-center gap-1 transition disabled:opacity-50 disabled:cursor-not-allowed"><Plus className="w-5 h-5" />+1 OYUN</button>
-                    <button type="button" disabled={isPaused} onClick={(e) => handleQuickScore(e, 2, -1)} className="w-full py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs flex items-center justify-center gap-1 transition disabled:opacity-50"><RotateCcw className="w-3.5 h-3.5" /> Geri Al</button>
+                    <button type="button" disabled={isP2PlusDisabled} onClick={(e) => handleQuickScore(e, 2, 1)} className={`w-full py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-1 transition disabled:opacity-50 disabled:cursor-not-allowed ${isLightMode ? 'bg-blue-600 hover:bg-blue-500 text-white' : 'bg-blue-600/90 hover:bg-blue-500 text-white'}`}><Plus className="w-5 h-5" />+1 OYUN</button>
+                    <button type="button" disabled={isPaused} onClick={(e) => handleQuickScore(e, 2, -1)} className={`w-full py-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1 transition disabled:opacity-50 ${isLightMode ? 'bg-slate-200 hover:bg-slate-300 text-slate-700' : 'bg-slate-800 hover:bg-slate-700 text-slate-300'}`}><RotateCcw className="w-3.5 h-3.5" /> Geri Al</button>
                   </div>
                 </div>
               </div>
@@ -671,34 +702,34 @@ export const CourtCard: React.FC<CourtCardProps> = ({
           )}
         </div>
 
-        <div className="p-3 sm:p-4 bg-slate-950/70 border-t border-slate-800 flex items-center gap-2">
+        <div className={`p-3 sm:p-4 border-t flex items-center gap-2 ${isLightMode ? 'bg-slate-50 border-slate-200' : 'bg-slate-950/70 border-slate-800'}`}>
           {isUpcoming ? (
             <div className="flex items-center gap-2 w-full">
-              {onOpenSetup && <button type="button" onClick={(e) => { e.stopPropagation(); onOpenSetup(match); }} className="py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs border border-slate-700 transition" title="Kura Çek">🪙 Kura</button>}
+              {onOpenSetup && <button type="button" onClick={(e) => { e.stopPropagation(); onOpenSetup(match); }} className={`py-2.5 px-3 rounded-xl font-bold text-xs border transition ${isLightMode ? 'bg-white hover:bg-slate-100 text-slate-700 border-slate-300' : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'}`} title="Kura Çek">🪙 Kura</button>}
               
               {onEditScore && (
-                <button type="button" onClick={(e) => { e.stopPropagation(); onEditScore(match); }} className="py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs border border-slate-700 transition flex items-center gap-1.5" title="Hızlı Skor Gir">
+                <button type="button" onClick={(e) => { e.stopPropagation(); onEditScore(match); }} className={`py-2.5 px-3 rounded-xl font-bold text-xs border transition flex items-center gap-1.5 ${isLightMode ? 'bg-white hover:bg-slate-100 text-slate-700 border-slate-300' : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'}`} title="Hızlı Skor Gir">
                   <PenLine className="w-3.5 h-3.5" /> Skor
                 </button>
               )}
 
-              <button type="button" onClick={handleStartMatchDirect} className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs sm:text-sm rounded-xl flex items-center justify-center gap-1.5 transition active:scale-95"><PlayCircle className="w-4 h-4" /> Maçı Başlat</button>
+              <button type="button" onClick={handleStartMatchDirect} className={`flex-1 py-2.5 font-bold text-xs sm:text-sm rounded-xl flex items-center justify-center gap-1.5 transition active:scale-95 ${isLightMode ? 'bg-emerald-600 hover:bg-emerald-500 text-white' : 'bg-emerald-600 hover:bg-emerald-500 text-white'}`}><PlayCircle className="w-4 h-4" /> Maçı Başlat</button>
             </div>
           ) : isLive || isPaused ? (
             <div className="flex items-center gap-2 w-full">
               {onOpenSetup && (
-                <button type="button" onClick={(e) => { e.stopPropagation(); onOpenSetup(match); }} className="h-12 w-12 flex items-center justify-center shrink-0 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-xl transition active:scale-95" title="Maç Formatı ve Kura Ayarları">
+                <button type="button" onClick={(e) => { e.stopPropagation(); onOpenSetup(match); }} className={`h-12 w-12 flex items-center justify-center shrink-0 border rounded-xl transition active:scale-95 ${isLightMode ? 'bg-white hover:bg-slate-100 text-slate-700 border-slate-300' : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'}`} title="Maç Formatı ve Kura Ayarları">
                   <Settings className="w-5 h-5" />
                 </button>
               )}
               
               {onEditScore && (
-                <button type="button" onClick={(e) => { e.stopPropagation(); onEditScore(match); }} className="h-12 w-12 flex items-center justify-center shrink-0 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-xl transition active:scale-95" title="Doğrudan Skor Düzenle">
+                <button type="button" onClick={(e) => { e.stopPropagation(); onEditScore(match); }} className={`h-12 w-12 flex items-center justify-center shrink-0 border rounded-xl transition active:scale-95 ${isLightMode ? 'bg-white hover:bg-slate-100 text-slate-700 border-slate-300' : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'}`} title="Doğrudan Skor Düzenle">
                   <PenLine className="w-5 h-5" />
                 </button>
               )}
 
-              <button type="button" onClick={(e) => { e.stopPropagation(); onFinishMatch(match); }} className="flex-1 h-12 bg-slate-800 hover:bg-slate-700 text-white font-bold text-sm rounded-xl flex justify-center items-center gap-2 transition active:scale-95"><Trophy className="w-4 h-4 text-slate-400" /> Maçı Sonlandır</button>
+              <button type="button" onClick={(e) => { e.stopPropagation(); onFinishMatch(match); }} className={`flex-1 h-12 font-bold text-sm rounded-xl flex justify-center items-center gap-2 transition active:scale-95 ${isLightMode ? 'bg-slate-800 hover:bg-slate-700 text-white' : 'bg-slate-800 hover:bg-slate-700 text-white'}`}><Trophy className={`w-4 h-4 ${isLightMode ? 'text-amber-400' : 'text-slate-400'}`} /> Maçı Sonlandır</button>
             </div>
           ) : null}
         </div>
@@ -706,23 +737,23 @@ export const CourtCard: React.FC<CourtCardProps> = ({
 
       {/* KULE HAKEMİ MODU */}
       {isChairMode && (
-        <div className="fixed inset-0 z-[50000] bg-slate-950 flex flex-col animate-in fade-in zoom-in-95 duration-200 select-none" style={{ touchAction: 'none' }}>
+        <div className={`fixed inset-0 z-[50000] flex flex-col animate-in fade-in zoom-in-95 duration-200 select-none ${isLightMode ? 'bg-slate-100' : 'bg-slate-950'}`} style={{ touchAction: 'none' }}>
           
           {toastMessage && (
-            <div className="absolute top-16 left-1/2 -translate-x-1/2 z-[50000] bg-slate-800 text-white px-5 py-3 rounded-2xl border border-slate-700 shadow-xl animate-in fade-in slide-in-from-top-4 flex items-center gap-3">
-              <Info className="w-5 h-5 text-slate-400 shrink-0" />
+            <div className={`absolute top-16 left-1/2 -translate-x-1/2 z-[50000] px-5 py-3 rounded-2xl border shadow-xl animate-in fade-in slide-in-from-top-4 flex items-center gap-3 ${isLightMode ? 'bg-white text-slate-800 border-slate-300' : 'bg-slate-800 text-white border-slate-700'}`}>
+              <Info className={`w-5 h-5 shrink-0 ${isLightMode ? 'text-slate-500' : 'text-slate-400'}`} />
               <span className="font-bold text-[11px] sm:text-sm">{toastMessage}</span>
             </div>
           )}
 
-          <div className="bg-slate-900 border-b border-slate-800 px-3 sm:px-4 py-3 flex items-center justify-between shrink-0">
+          <div className={`border-b px-3 sm:px-4 py-3 flex items-center justify-between shrink-0 ${isLightMode ? 'bg-white border-slate-300' : 'bg-slate-900 border-slate-800'}`}>
             <div className="flex items-center gap-2 sm:gap-3">
-              <span className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center font-black text-xs sm:text-sm bg-slate-800 text-white shrink-0 border border-slate-700">
+              <span className={`w-8 h-8 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center font-black text-xs sm:text-sm shrink-0 border ${isLightMode ? 'bg-slate-100 text-slate-800 border-slate-300' : 'bg-slate-800 text-white border-slate-700'}`}>
                 {match.Kort.replace('KORT', 'K').trim()}
               </span>
               <div className="flex flex-col">
-                <span className="text-white font-bold text-sm sm:text-base leading-none mb-1">Kule Hakemi</span>
-                <span className="text-[9px] sm:text-[10px] text-emerald-400 font-bold tracking-widest uppercase flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>Canlı</span>
+                <span className={`font-bold text-sm sm:text-base leading-none mb-1 ${isLightMode ? 'text-slate-900' : 'text-white'}`}>Kule Hakemi</span>
+                <span className={`text-[9px] sm:text-[10px] font-bold tracking-widest uppercase flex items-center gap-1 ${isLightMode ? 'text-emerald-600' : 'text-emerald-400'}`}><span className={`w-1.5 h-1.5 rounded-full ${isLightMode ? 'bg-emerald-600' : 'bg-emerald-400'}`}></span>Canlı</span>
               </div>
             </div>
             
@@ -742,7 +773,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                       });
                     }
                     setIsEditingSetup(true); 
-                  }} className="p-2 sm:px-3 sm:py-2 rounded-xl bg-slate-800 text-slate-300 hover:text-white border border-slate-700 transition flex items-center gap-1.5" title="Saha ve Servis Rotasyonunu Düzenle">
+                  }} className={`p-2 sm:px-3 sm:py-2 rounded-xl border transition flex items-center gap-1.5 ${isLightMode ? 'bg-white text-slate-600 hover:text-slate-900 border-slate-300' : 'bg-slate-800 text-slate-300 hover:text-white border-slate-700'}`} title="Saha ve Servis Rotasyonunu Düzenle">
                     <RotateCcw className="w-4 h-4" /> <span className="hidden sm:inline text-xs font-bold">Rotasyon</span>
                   </button>
                 )}
@@ -751,11 +782,17 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                     e.stopPropagation(); 
                     onOpenSetup(match); 
                     showToast('Ayarlara geçmek için lütfen Kule Hakemi modundan çıkış yapınız.');
-                  }} className="p-2 sm:px-3 sm:py-2 rounded-xl bg-slate-800 text-slate-300 hover:text-white border border-slate-700 transition flex items-center gap-1.5" title="Maç Formatı ve Kura Ayarları">
+                  }} className={`p-2 sm:px-3 sm:py-2 rounded-xl border transition flex items-center gap-1.5 ${isLightMode ? 'bg-white text-slate-600 hover:text-slate-900 border-slate-300' : 'bg-slate-800 text-slate-300 hover:text-white border-slate-700'}`} title="Maç Formatı ve Kura Ayarları">
                     <Settings className="w-4 h-4" /> <span className="hidden sm:inline text-xs font-bold">Kurulum</span>
                   </button>
                 )}
-                <button type="button" onClick={handleExitChairMode} className="px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs sm:text-sm flex items-center gap-2 transition active:scale-95 border border-slate-700">
+
+                {/* GECE GÜNDÜZ MODU SEÇİCİSİ */}
+                <button onClick={toggleTheme} className={`p-2 rounded-xl border transition flex items-center justify-center ${isLightMode ? 'bg-white hover:bg-slate-100 border-slate-300 text-amber-600' : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-amber-300'}`} title="Temayı Değiştir">
+                  {isLightMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+                </button>
+
+                <button type="button" onClick={handleExitChairMode} className={`px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl font-bold text-xs sm:text-sm flex items-center gap-2 transition active:scale-95 border ${isLightMode ? 'bg-white hover:bg-slate-100 text-slate-800 border-slate-300' : 'bg-slate-800 hover:bg-slate-700 text-white border-slate-700'}`}>
                   <LogOut className="w-4 h-4" /> Çıkış Yap
                 </button>
             </div>
@@ -764,59 +801,59 @@ export const CourtCard: React.FC<CourtCardProps> = ({
           <div className="flex-1 p-2 sm:p-6 w-full max-w-5xl mx-auto flex flex-col justify-center gap-3 overflow-y-auto">
               
               {showSetupOverlay ? (
-                <div className="bg-slate-900 p-4 sm:p-6 rounded-3xl border border-slate-800 text-center space-y-4 sm:space-y-6 shadow-xl relative animate-in fade-in zoom-in-95 duration-150">
+                <div className={`p-4 sm:p-6 rounded-3xl border text-center space-y-4 sm:space-y-6 shadow-xl relative animate-in fade-in zoom-in-95 duration-150 ${isLightMode ? 'bg-white border-slate-300' : 'bg-slate-900 border-slate-800'}`}>
                   
                   <button 
                     type="button" 
                     onClick={handleCancelSetup} 
-                    className="absolute top-4 right-4 p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white border border-slate-700 transition active:scale-95 flex items-center justify-center"
+                    className={`absolute top-4 right-4 p-2.5 rounded-xl border transition active:scale-95 flex items-center justify-center ${isLightMode ? 'bg-slate-100 hover:bg-rose-50 text-slate-500 hover:text-rose-600 border-slate-200' : 'bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white border-slate-700'}`}
                     title="İptal Et / Kapat"
                   >
                     <X className="w-5 h-5" />
                   </button>
 
                   <div>
-                    <h4 className="text-white font-bold text-base sm:text-xl mb-1 sm:mb-2 flex items-center justify-center gap-2">⚙️ {selectedSet}. Set Anlık Kurulumu</h4>
-                    <p className="text-[11px] sm:text-sm text-slate-400">Lütfen sahadaki <strong>ŞU ANKİ</strong> durumu seçin. Sistem geri kalanını hesaplar.</p>
+                    <h4 className={`font-bold text-base sm:text-xl mb-1 sm:mb-2 flex items-center justify-center gap-2 ${isLightMode ? 'text-slate-900' : 'text-white'}`}>⚙️ {selectedSet}. Set Anlık Kurulumu</h4>
+                    <p className={`text-[11px] sm:text-sm ${isLightMode ? 'text-slate-500' : 'text-slate-400'}`}>Lütfen sahadaki <strong>ŞU ANKİ</strong> durumu seçin. Sistem geri kalanını hesaplar.</p>
                   </div>
                   
                   {isDoubles ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 flex flex-col gap-3">
-                         <h5 className="text-emerald-400 font-bold text-sm uppercase mb-1">1. Takım</h5>
+                      <div className={`p-4 rounded-2xl border flex flex-col gap-3 ${isLightMode ? 'bg-slate-50 border-slate-200' : 'bg-slate-950 border-slate-800'}`}>
+                         <h5 className={`font-bold text-sm uppercase mb-1 ${isLightMode ? 'text-emerald-700' : 'text-emerald-400'}`}>1. Takım</h5>
                          <div className="text-left">
-                           <label className="text-[10px] text-slate-500 font-bold uppercase block mb-1.5">Şu Anki (Sıradaki) Servisçi:</label>
+                           <label className={`text-[10px] font-bold uppercase block mb-1.5 ${isLightMode ? 'text-slate-500' : 'text-slate-500'}`}>Şu Anki (Sıradaki) Servisçi:</label>
                            <div className="flex gap-2">
                              {t1Players.map((player, idx) => (
-                                <button key={`s1-${idx}`} type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, t1ServerIdx: idx as 0|1}); }} className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition border ${setupForm.t1ServerIdx === idx ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-slate-900 border-slate-700 text-slate-300'}`}>{player.split(' ')[0]}</button>
+                                <button key={`s1-${idx}`} type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, t1ServerIdx: idx as 0|1}); }} className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition border ${setupForm.t1ServerIdx === idx ? 'bg-emerald-600 border-emerald-500 text-white' : (isLightMode ? 'bg-white border-slate-300 text-slate-700' : 'bg-slate-900 border-slate-700 text-slate-300')}`}>{player.split(' ')[0]}</button>
                              ))}
                            </div>
                          </div>
                          <div className="text-left">
-                           <label className="text-[10px] text-slate-500 font-bold uppercase block mb-1.5">Sağda (Berabere) Karşılayan Kişi:</label>
+                           <label className={`text-[10px] font-bold uppercase block mb-1.5 ${isLightMode ? 'text-slate-500' : 'text-slate-500'}`}>Sağda (Berabere) Karşılayan Kişi:</label>
                            <div className="flex gap-2">
                              {t1Players.map((player, idx) => (
-                                <button key={`r1-${idx}`} type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, t1RecIdx: idx as 0|1}); }} className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition border ${setupForm.t1RecIdx === idx ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-slate-900 border-slate-700 text-slate-300'}`}>{player.split(' ')[0]}</button>
+                                <button key={`r1-${idx}`} type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, t1RecIdx: idx as 0|1}); }} className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition border ${setupForm.t1RecIdx === idx ? 'bg-emerald-600 border-emerald-500 text-white' : (isLightMode ? 'bg-white border-slate-300 text-slate-700' : 'bg-slate-900 border-slate-700 text-slate-300')}`}>{player.split(' ')[0]}</button>
                              ))}
                            </div>
                          </div>
                       </div>
 
-                      <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 flex flex-col gap-3">
-                         <h5 className="text-blue-400 font-bold text-sm uppercase mb-1">2. Takım</h5>
+                      <div className={`p-4 rounded-2xl border flex flex-col gap-3 ${isLightMode ? 'bg-slate-50 border-slate-200' : 'bg-slate-950 border-slate-800'}`}>
+                         <h5 className={`font-bold text-sm uppercase mb-1 ${isLightMode ? 'text-blue-700' : 'text-blue-400'}`}>2. Takım</h5>
                          <div className="text-left">
-                           <label className="text-[10px] text-slate-500 font-bold uppercase block mb-1.5">Şu Anki (Sıradaki) Servisçi:</label>
+                           <label className={`text-[10px] font-bold uppercase block mb-1.5 ${isLightMode ? 'text-slate-500' : 'text-slate-500'}`}>Şu Anki (Sıradaki) Servisçi:</label>
                            <div className="flex gap-2">
                              {t2Players.map((player, idx) => (
-                                <button key={`s2-${idx}`} type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, t2ServerIdx: idx as 0|1}); }} className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition border ${setupForm.t2ServerIdx === idx ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-900 border-slate-700 text-slate-300'}`}>{player.split(' ')[0]}</button>
+                                <button key={`s2-${idx}`} type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, t2ServerIdx: idx as 0|1}); }} className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition border ${setupForm.t2ServerIdx === idx ? 'bg-blue-600 border-blue-500 text-white' : (isLightMode ? 'bg-white border-slate-300 text-slate-700' : 'bg-slate-900 border-slate-700 text-slate-300')}`}>{player.split(' ')[0]}</button>
                              ))}
                            </div>
                          </div>
                          <div className="text-left">
-                           <label className="text-[10px] text-slate-500 font-bold uppercase block mb-1.5">Sağda (Berabere) Karşılayan Kişi:</label>
+                           <label className={`text-[10px] font-bold uppercase block mb-1.5 ${isLightMode ? 'text-slate-500' : 'text-slate-500'}`}>Sağda (Berabere) Karşılayan Kişi:</label>
                            <div className="flex gap-2">
                              {t2Players.map((player, idx) => (
-                                <button key={`r2-${idx}`} type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, t2RecIdx: idx as 0|1}); }} className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition border ${setupForm.t2RecIdx === idx ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-900 border-slate-700 text-slate-300'}`}>{player.split(' ')[0]}</button>
+                                <button key={`r2-${idx}`} type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, t2RecIdx: idx as 0|1}); }} className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition border ${setupForm.t2RecIdx === idx ? 'bg-blue-600 border-blue-500 text-white' : (isLightMode ? 'bg-white border-slate-300 text-slate-700' : 'bg-slate-900 border-slate-700 text-slate-300')}`}>{player.split(' ')[0]}</button>
                              ))}
                            </div>
                          </div>
@@ -824,122 +861,126 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                     </div>
                   ) : (
                     <div className="space-y-2">
-                      <div className="text-[10px] sm:text-xs font-bold uppercase text-slate-500 tracking-wider">Şu An Servisi Kim Atıyor?</div>
+                      <div className={`text-[10px] sm:text-xs font-bold uppercase tracking-wider ${isLightMode ? 'text-slate-500' : 'text-slate-500'}`}>Şu An Servisi Kim Atıyor?</div>
                       <div className="flex gap-2">
-                        <button type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, firstServingTeam: 1}); }} className={`flex-1 py-3 sm:py-4 rounded-xl text-xs sm:text-sm font-bold transition active:scale-95 border ${setupForm.firstServingTeam === 1 ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-slate-950 border-slate-800 text-slate-300'}`}>{match['Oyuncu 1']}</button>
-                        <button type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, firstServingTeam: 2}); }} className={`flex-1 py-3 sm:py-4 rounded-xl text-xs sm:text-sm font-bold transition active:scale-95 border ${setupForm.firstServingTeam === 2 ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-950 border-slate-800 text-slate-300'}`}>{match['Oyuncu 2']}</button>
+                        <button type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, firstServingTeam: 1}); }} className={`flex-1 py-3 sm:py-4 rounded-xl text-xs sm:text-sm font-bold transition active:scale-95 border ${setupForm.firstServingTeam === 1 ? 'bg-emerald-600 border-emerald-500 text-white' : (isLightMode ? 'bg-white border-slate-300 text-slate-700' : 'bg-slate-950 border-slate-800 text-slate-300')}`}>
+                          {setupForm.firstServingTeam === 1 && <span className="animate-bounce mr-2">🎾</span>}{match['Oyuncu 1']}
+                        </button>
+                        <button type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, firstServingTeam: 2}); }} className={`flex-1 py-3 sm:py-4 rounded-xl text-xs sm:text-sm font-bold transition active:scale-95 border ${setupForm.firstServingTeam === 2 ? 'bg-blue-600 border-blue-500 text-white' : (isLightMode ? 'bg-white border-slate-300 text-slate-700' : 'bg-slate-950 border-slate-800 text-slate-300')}`}>
+                          {setupForm.firstServingTeam === 2 && <span className="animate-bounce mr-2">🎾</span>}{match['Oyuncu 2']}
+                        </button>
                       </div>
                     </div>
                   )}
 
                   {isDoubles && (
-                    <div className="space-y-2 pt-3 border-t border-slate-800/80">
-                      <div className="text-[10px] sm:text-xs font-bold uppercase text-slate-500 tracking-wider">Genel: Şu An Hangi Takım Servis Atıyor?</div>
+                    <div className={`space-y-2 pt-3 border-t ${isLightMode ? 'border-slate-200' : 'border-slate-800/80'}`}>
+                      <div className={`text-[10px] sm:text-xs font-bold uppercase tracking-wider ${isLightMode ? 'text-slate-500' : 'text-slate-500'}`}>Genel: Şu An Hangi Takım Servis Atıyor?</div>
                       <div className="flex gap-2">
-                        <button type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, firstServingTeam: 1}); }} className={`flex-1 py-3 rounded-xl text-xs font-bold transition border ${setupForm.firstServingTeam === 1 ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-slate-950 border-slate-800 text-slate-300'}`}>1. Takım</button>
-                        <button type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, firstServingTeam: 2}); }} className={`flex-1 py-3 rounded-xl text-xs font-bold transition border ${setupForm.firstServingTeam === 2 ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-950 border-slate-800 text-slate-300'}`}>2. Takım</button>
+                        <button type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, firstServingTeam: 1}); }} className={`flex-1 py-3 rounded-xl text-xs font-bold transition border ${setupForm.firstServingTeam === 1 ? 'bg-emerald-600 border-emerald-500 text-white' : (isLightMode ? 'bg-white border-slate-300 text-slate-700' : 'bg-slate-950 border-slate-800 text-slate-300')}`}>1. Takım</button>
+                        <button type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, firstServingTeam: 2}); }} className={`flex-1 py-3 rounded-xl text-xs font-bold transition border ${setupForm.firstServingTeam === 2 ? 'bg-blue-600 border-blue-500 text-white' : (isLightMode ? 'bg-white border-slate-300 text-slate-700' : 'bg-slate-950 border-slate-800 text-slate-300')}`}>2. Takım</button>
                       </div>
                     </div>
                   )}
 
-                  <div className="space-y-2 pt-3 border-t border-slate-800/80">
-                    <div className="text-[10px] sm:text-xs font-bold uppercase text-slate-500 tracking-wider">Şu An Sandalyenin Solunda Kim (Hangi Takım) Var?</div>
+                  <div className={`space-y-2 pt-3 border-t ${isLightMode ? 'border-slate-200' : 'border-slate-800/80'}`}>
+                    <div className={`text-[10px] sm:text-xs font-bold uppercase tracking-wider ${isLightMode ? 'text-slate-500' : 'text-slate-500'}`}>Şu An Sandalyenin Solunda Kim (Hangi Takım) Var?</div>
                     <div className="flex gap-2">
-                      <button type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, leftTeam: 1}); }} className={`flex-1 py-3 sm:py-4 rounded-xl text-xs sm:text-sm font-bold transition active:scale-95 border ${setupForm.leftTeam === 1 ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-slate-950 border-slate-800 text-slate-300'}`}>{isDoubles ? '1. Takım' : match['Oyuncu 1']}</button>
-                      <button type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, leftTeam: 2}); }} className={`flex-1 py-3 sm:py-4 rounded-xl text-xs sm:text-sm font-bold transition active:scale-95 border ${setupForm.leftTeam === 2 ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-950 border-slate-800 text-slate-300'}`}>{isDoubles ? '2. Takım' : match['Oyuncu 2']}</button>
+                      <button type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, leftTeam: 1}); }} className={`flex-1 py-3 sm:py-4 rounded-xl text-xs sm:text-sm font-bold transition active:scale-95 border ${setupForm.leftTeam === 1 ? 'bg-emerald-600 border-emerald-500 text-white' : (isLightMode ? 'bg-white border-slate-300 text-slate-700' : 'bg-slate-950 border-slate-800 text-slate-300')}`}>{isDoubles ? '1. Takım' : match['Oyuncu 1']}</button>
+                      <button type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, leftTeam: 2}); }} className={`flex-1 py-3 sm:py-4 rounded-xl text-xs sm:text-sm font-bold transition active:scale-95 border ${setupForm.leftTeam === 2 ? 'bg-blue-600 border-blue-500 text-white' : (isLightMode ? 'bg-white border-slate-300 text-slate-700' : 'bg-slate-950 border-slate-800 text-slate-300')}`}>{isDoubles ? '2. Takım' : match['Oyuncu 2']}</button>
                     </div>
                   </div>
 
-                  <div className="space-y-2 pt-3 border-t border-slate-800/80">
-                    <div className="text-[10px] sm:text-xs font-bold uppercase text-slate-500 tracking-wider">Tie-Break Kuralı</div>
+                  <div className={`space-y-2 pt-3 border-t ${isLightMode ? 'border-slate-200' : 'border-slate-800/80'}`}>
+                    <div className={`text-[10px] sm:text-xs font-bold uppercase tracking-wider ${isLightMode ? 'text-slate-500' : 'text-slate-500'}`}>Tie-Break Kuralı</div>
                     <div className="flex gap-2">
-                      <button type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, tbType: 'standard'}); }} className={`flex-1 py-3 rounded-xl text-xs font-bold transition active:scale-95 border ${setupForm.tbType === 'standard' ? 'bg-slate-700 border-slate-600 text-white' : 'bg-slate-950 border-slate-800 text-slate-400'}`}>Standart (6'da Bir)</button>
-                      <button type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, tbType: 'coman'}); }} className={`flex-1 py-3 rounded-xl text-xs font-bold transition active:scale-95 border ${setupForm.tbType === 'coman' ? 'bg-slate-700 border-slate-600 text-white' : 'bg-slate-950 border-slate-800 text-slate-400'}`}>Coman (1-5-9)</button>
+                      <button type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, tbType: 'standard'}); }} className={`flex-1 py-3 rounded-xl text-xs font-bold transition active:scale-95 border ${setupForm.tbType === 'standard' ? (isLightMode ? 'bg-slate-700 border-slate-800 text-white' : 'bg-slate-700 border-slate-600 text-white') : (isLightMode ? 'bg-white border-slate-300 text-slate-700' : 'bg-slate-950 border-slate-800 text-slate-400')}`}>Standart (6'da Bir)</button>
+                      <button type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, tbType: 'coman'}); }} className={`flex-1 py-3 rounded-xl text-xs font-bold transition active:scale-95 border ${setupForm.tbType === 'coman' ? (isLightMode ? 'bg-slate-700 border-slate-800 text-white' : 'bg-slate-700 border-slate-600 text-white') : (isLightMode ? 'bg-white border-slate-300 text-slate-700' : 'bg-slate-950 border-slate-800 text-slate-400')}`}>Coman (1-5-9)</button>
                     </div>
                   </div>
 
                   <div className="pt-4 flex gap-3">
-                    <button type="button" onClick={handleCancelSetup} className="px-5 py-4 sm:py-5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-bold text-sm sm:text-lg rounded-xl transition active:scale-95 border border-slate-700">İptal</button>
+                    <button type="button" onClick={handleCancelSetup} className={`px-5 py-4 sm:py-5 font-bold text-sm sm:text-lg rounded-xl transition active:scale-95 border ${isLightMode ? 'bg-white hover:bg-slate-100 text-slate-700 border-slate-300' : 'bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border-slate-700'}`}>İptal</button>
                     <button type="button" disabled={!setupForm.firstServingTeam || !setupForm.leftTeam || (isDoubles && (setupForm.t1ServerIdx === undefined || setupForm.t2ServerIdx === undefined))} onClick={handleSaveSetup} className="flex-1 py-4 sm:py-5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm sm:text-lg rounded-xl disabled:opacity-50 transition active:scale-95">Kaydet ve Devam Et</button>
                   </div>
                 </div>
               ) : (
                 
                 <div className="flex flex-col h-full gap-2 sm:gap-4">
-                  <div className="flex flex-col sm:flex-row justify-between items-center bg-slate-900 rounded-2xl px-3 sm:px-4 py-2 sm:py-3 border border-slate-800 gap-2 shrink-0">
+                  <div className={`flex flex-col sm:flex-row justify-between items-center rounded-2xl px-3 sm:px-4 py-2 sm:py-3 border gap-2 shrink-0 ${isLightMode ? 'bg-white border-slate-300' : 'bg-slate-900 border-slate-800'}`}>
                     <div className="flex flex-col items-center sm:flex-row gap-2 sm:gap-3 text-[10px] sm:text-sm font-bold w-full sm:w-auto">
                       
-                      <div className="flex flex-col items-center justify-center bg-slate-950 px-3.5 py-1.5 rounded-xl border border-slate-800">
-                        <span className="text-slate-300 font-bold text-xs sm:text-sm tracking-wider uppercase">{selectedSet}. SET</span>
+                      <div className={`flex flex-col items-center justify-center px-3.5 py-1.5 rounded-xl border ${isLightMode ? 'bg-slate-50 border-slate-200' : 'bg-slate-950 border-slate-800'}`}>
+                        <span className={`font-bold text-xs sm:text-sm tracking-wider uppercase ${isLightMode ? 'text-slate-700' : 'text-slate-300'}`}>{selectedSet}. SET</span>
                         {selectedSet > 1 && (
                           <div className="flex items-center gap-2.5 mt-1 text-xs sm:text-sm font-mono">
-                            {selectedSet >= 2 && <span className="text-slate-500 font-bold">S1: <strong className="text-slate-300 font-bold">{s1_p1}-{s1_p2}</strong></span>}
-                            {selectedSet >= 3 && <span className="text-slate-500 font-bold">S2: <strong className="text-slate-300 font-bold">{s2_p1}-{s2_p2}</strong></span>}
+                            {selectedSet >= 2 && <span className={`font-bold ${isLightMode ? 'text-slate-500' : 'text-slate-500'}`}>S1: <strong className={isLightMode ? 'text-slate-800' : 'text-slate-300'}>{s1_p1}-{s1_p2}</strong></span>}
+                            {selectedSet >= 3 && <span className={`font-bold ${isLightMode ? 'text-slate-500' : 'text-slate-500'}`}>S2: <strong className={isLightMode ? 'text-slate-800' : 'text-slate-300'}>{s2_p1}-{s2_p2}</strong></span>}
                           </div>
                         )}
                       </div>
 
                       <div className="flex items-center gap-2 w-full justify-center">
-                        <span className="text-emerald-400 font-bold truncate max-w-[90px] sm:max-w-[150px]">{String(match['Oyuncu 1'] || '')}</span>
-                        <span className="text-white font-mono text-lg sm:text-2xl font-black px-3 py-1 bg-slate-950 rounded-xl border border-slate-800">
+                        <span className={`font-bold truncate max-w-[90px] sm:max-w-[150px] ${isLightMode ? 'text-emerald-700' : 'text-emerald-400'}`}>{String(match['Oyuncu 1'] || '')}</span>
+                        <span className={`font-mono text-lg sm:text-2xl font-black px-3 py-1 rounded-xl border ${isLightMode ? 'bg-white border-slate-200 text-slate-900' : 'bg-slate-950 border-slate-800 text-white'}`}>
                           {currentSetP1Games} - {currentSetP2Games}
                         </span>
-                        <span className="text-blue-400 font-bold truncate max-w-[90px] sm:max-w-[150px]">{String(match['Oyuncu 2'] || '')}</span>
+                        <span className={`font-bold truncate max-w-[90px] sm:max-w-[150px] ${isLightMode ? 'text-blue-700' : 'text-blue-400'}`}>{String(match['Oyuncu 2'] || '')}</span>
                       </div>
                     </div>
                     <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-                       {isTB && <div className="px-2 sm:px-3 py-1 bg-slate-800 text-slate-300 text-[9px] sm:text-xs font-bold uppercase rounded-lg border border-slate-700">{chairSetup.tbType === 'coman' ? 'Coman Tie-Break' : 'Standart Tie-Break'}</div>}
-                       {isSideChangePoint && <div className="flex items-center gap-1.5 text-slate-950 font-bold text-[9px] sm:text-sm uppercase bg-emerald-400 border border-emerald-500 px-2 sm:px-3 py-1 rounded-lg"><ArrowRightLeft className="w-3 h-3 sm:w-4 sm:h-4"/> Saha Değişimi</div>}
+                       {isTB && <div className={`px-2 sm:px-3 py-1 text-[9px] sm:text-xs font-bold uppercase rounded-lg border ${isLightMode ? 'bg-slate-100 text-slate-600 border-slate-300' : 'bg-slate-800 text-slate-300 border-slate-700'}`}>{chairSetup.tbType === 'coman' ? 'Coman Tie-Break' : 'Standart Tie-Break'}</div>}
+                       {isSideChangePoint && <div className={`flex items-center gap-1.5 font-bold text-[9px] sm:text-sm uppercase px-2 sm:px-3 py-1 rounded-lg border ${isLightMode ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : 'text-slate-950 bg-emerald-400 border-emerald-500'}`}><ArrowRightLeft className="w-3 h-3 sm:w-4 sm:h-4"/> Saha Değişimi</div>}
                     </div>
                   </div>
 
                   {activeTimer && (
-                    <div className="bg-slate-800 border border-slate-700 p-2 sm:p-4 rounded-2xl flex items-center justify-between shrink-0">
-                      <span className="text-slate-300 font-bold text-sm sm:text-base flex items-center gap-2"><Timer className="w-4 h-4 sm:w-5 sm:h-5" />{activeTimer.label}</span>
+                    <div className={`border p-2 sm:p-4 rounded-2xl flex items-center justify-between shrink-0 ${isLightMode ? 'bg-white border-slate-300' : 'bg-slate-800 border-slate-700'}`}>
+                      <span className={`font-bold text-sm sm:text-base flex items-center gap-2 ${isLightMode ? 'text-slate-800' : 'text-slate-300'}`}><Timer className="w-4 h-4 sm:w-5 sm:h-5" />{activeTimer.label}</span>
                       <div className="flex items-center gap-3 sm:gap-4">
-                        <span className={`font-mono font-black text-2xl sm:text-4xl ${activeTimer.seconds === 0 ? 'text-rose-400 animate-pulse' : 'text-slate-200'}`}>
+                        <span className={`font-mono font-black text-2xl sm:text-4xl ${activeTimer.seconds === 0 ? 'text-rose-500 animate-pulse' : (isLightMode ? 'text-slate-900' : 'text-slate-200')}`}>
                           {Math.floor(activeTimer.seconds / 60)}:{(activeTimer.seconds % 60).toString().padStart(2, '0')}
                         </span>
-                        <button type="button" onClick={(e) => { e.stopPropagation(); setActiveTimer(null); }} className="text-slate-400 hover:text-slate-200 p-2 bg-slate-900 rounded-xl"><X className="w-5 h-5 sm:w-6 sm:h-6" /></button>
+                        <button type="button" onClick={(e) => { e.stopPropagation(); setActiveTimer(null); }} className={`p-2 rounded-xl transition ${isLightMode ? 'bg-slate-100 text-slate-500 hover:text-slate-800 hover:bg-slate-200' : 'text-slate-400 hover:text-slate-200 bg-slate-900'}`}><X className="w-5 h-5 sm:w-6 sm:h-6" /></button>
                       </div>
                     </div>
                   )}
 
                   <div className="grid grid-cols-2 gap-2 sm:gap-6 flex-1 min-h-0">
-                    <div className={`bg-slate-900 rounded-3xl p-2 sm:p-5 border flex flex-col justify-between overflow-hidden ${computedServerTeam === leftTeamId ? 'border-emerald-500/50 bg-slate-800/40' : 'border-slate-800'}`}>
-                      <div className="flex flex-col items-center justify-center min-h-[4rem] sm:min-h-[5.5rem] border-b border-slate-800/80 pb-2 mb-2">
-                        <div className={`flex items-start justify-center gap-1 w-full ${leftTeamId === 1 ? 'text-emerald-400' : 'text-blue-400'}`}>
-                           {computedServerTeam === leftTeamId && <span className="mt-0.5 sm:mt-1.5 shrink-0 text-sm sm:text-xl">🎾</span>}
+                    <div className={`rounded-3xl p-2 sm:p-5 flex flex-col justify-between overflow-hidden transition-all duration-300 ${computedServerTeam === leftTeamId ? (isLightMode ? 'bg-white border-[4px] border-amber-500 shadow-[0_0_20px_rgba(245,158,11,0.2)]' : 'bg-slate-800/40 border-[4px] border-amber-400 shadow-[0_0_30px_rgba(251,191,36,0.15)]') : (isLightMode ? 'bg-white border-2 border-slate-200' : 'bg-slate-900 border-2 border-slate-800')}`}>
+                      <div className={`flex flex-col items-center justify-center min-h-[4rem] sm:min-h-[5.5rem] border-b pb-2 mb-2 ${isLightMode ? 'border-slate-200' : 'border-slate-800/80'}`}>
+                        <div className={`flex items-start justify-center gap-1 w-full ${leftTeamId === 1 ? (isLightMode ? 'text-emerald-700' : 'text-emerald-400') : (isLightMode ? 'text-blue-700' : 'text-blue-400')}`}>
+                           {computedServerTeam === leftTeamId && <span className="mt-0.5 sm:mt-1.5 shrink-0 text-sm sm:text-xl animate-bounce">🎾</span>}
                            <div className="flex flex-col items-center">
                              <span className="font-bold text-xs sm:text-xl text-center leading-tight line-clamp-3 break-words whitespace-normal px-1">
                                {isDoubles ? String(match[`Oyuncu ${leftTeamId}` as keyof MatchItem] || '') : (leftTeamId === computedServerTeam ? activeServerName : String(match[`Oyuncu ${leftTeamId}` as keyof MatchItem] || ''))}
                              </span>
                              <div className="flex flex-wrap justify-center gap-1 mt-1">
                                {isDoubles && computedServerTeam === leftTeamId && (
-                                 <span className="text-[9px] sm:text-xs bg-slate-800 text-slate-300 px-2 py-0.5 rounded font-bold uppercase border border-slate-700">Servis: {activeServerName.split(' ')[0]}</span>
+                                 <span className={`text-[9px] sm:text-xs px-2 py-0.5 rounded font-bold uppercase border ${isLightMode ? 'bg-slate-100 text-slate-600 border-slate-300' : 'bg-slate-800 text-slate-300 border-slate-700'}`}>Servis: {activeServerName.split(' ')[0]}</span>
                                )}
                                {isDoubles && computedServerTeam !== leftTeamId && (
-                                 <span className="text-[9px] sm:text-xs bg-slate-800 text-slate-300 px-2 py-0.5 rounded font-bold uppercase border border-slate-700">Karşılama: {activeReceiverName.split(' ')[0]}</span>
+                                 <span className={`text-[9px] sm:text-xs px-2 py-0.5 rounded font-bold uppercase border ${isLightMode ? 'bg-slate-100 text-slate-600 border-slate-300' : 'bg-slate-800 text-slate-300 border-slate-700'}`}>Karşılama: {activeReceiverName.split(' ')[0]}</span>
                                )}
                              </div>
                            </div>
                         </div>
-                        <div className="text-[8px] sm:text-xs text-slate-500 uppercase font-bold mt-1">Sol Saha</div>
+                        <div className={`text-[8px] sm:text-xs uppercase font-bold mt-1 ${isLightMode ? 'text-slate-500' : 'text-slate-500'}`}>Sol Saha</div>
                       </div>
                       
                       <div className="flex-1 flex justify-center items-center py-2 sm:py-4 min-h-0">
-                         <span className="text-[4.5rem] sm:text-[9rem] font-mono font-black tracking-tighter text-white leading-none">
+                         <span className={`text-[4.5rem] sm:text-[9rem] font-mono font-black tracking-tighter leading-none ${isLightMode ? 'text-slate-900' : 'text-white'}`}>
                            {isTB ? (leftTeamId === 1 ? state?.tiebreak_p1 : state?.tiebreak_p2) || '0' : (leftTeamId === 1 ? state?.gamePoint_p1 : state?.gamePoint_p2) || '0'}
                          </span>
                       </div>
 
                       <div className="flex flex-col gap-1.5 sm:gap-2 shrink-0">
-                        <button type="button" disabled={isPaused || isFinished || isCurrentSetComplete} onClick={(e) => handlePointScore(e, leftTeamId)} className="w-full py-8 sm:py-12 bg-emerald-600/90 hover:bg-emerald-500 text-white font-bold text-xl sm:text-3xl rounded-2xl active:scale-95 transition disabled:opacity-50 disabled:cursor-not-allowed">
+                        <button type="button" disabled={isPaused || isFinished || isCurrentSetComplete} onClick={(e) => handlePointScore(e, leftTeamId)} className={`w-full py-8 sm:py-12 font-black text-xl sm:text-3xl rounded-2xl active:scale-95 transition disabled:opacity-50 disabled:cursor-not-allowed ${leftTeamId === 1 ? (isLightMode ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg' : 'bg-emerald-600/90 hover:bg-emerald-500 text-white shadow-lg') : (isLightMode ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg' : 'bg-blue-600/90 hover:bg-blue-500 text-white shadow-lg')}`}>
                           +1 PUAN
                         </button>
                         <div className="h-10 sm:h-14 w-full">
                            {computedServerTeam === leftTeamId ? (
-                             <button type="button" disabled={isPaused || isFinished || isCurrentSetComplete} onClick={(e) => handleFault(e, leftTeamId)} className={`w-full h-full rounded-xl text-[10px] sm:text-base font-bold transition active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed ${firstFault ? 'bg-rose-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>
+                             <button type="button" disabled={isPaused || isFinished || isCurrentSetComplete} onClick={(e) => handleFault(e, leftTeamId)} className={`w-full h-full rounded-xl text-[10px] sm:text-base font-bold transition active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed ${firstFault ? 'bg-rose-500 text-white animate-pulse border-2 border-rose-400' : (isLightMode ? 'bg-slate-200 text-slate-700 hover:bg-slate-300' : 'bg-slate-800 text-slate-300 hover:bg-slate-700')}`}>
                                {firstFault ? '2. Hata (Rakibe Puan)' : '1. Servis Hatası'}
                              </button>
                            ) : (
@@ -949,40 +990,40 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                       </div>
                     </div>
 
-                    <div className={`bg-slate-900 rounded-3xl p-2 sm:p-5 border flex flex-col justify-between overflow-hidden ${computedServerTeam === rightTeamId ? 'border-emerald-500/50 bg-slate-800/40' : 'border-slate-800'}`}>
-                      <div className="flex flex-col items-center justify-center min-h-[4rem] sm:min-h-[5.5rem] border-b border-slate-800/80 pb-2 mb-2">
-                        <div className={`flex items-start justify-center gap-1 w-full ${rightTeamId === 1 ? 'text-emerald-400' : 'text-blue-400'}`}>
-                           {computedServerTeam === rightTeamId && <span className="mt-0.5 sm:mt-1.5 shrink-0 text-sm sm:text-xl">🎾</span>}
+                    <div className={`rounded-3xl p-2 sm:p-5 border flex flex-col justify-between overflow-hidden transition-all duration-300 ${computedServerTeam === rightTeamId ? (isLightMode ? 'bg-white border-[4px] border-amber-500 shadow-[0_0_20px_rgba(245,158,11,0.2)]' : 'bg-slate-800/40 border-[4px] border-amber-400 shadow-[0_0_30px_rgba(251,191,36,0.15)]') : (isLightMode ? 'bg-white border-2 border-slate-200' : 'bg-slate-900 border-2 border-slate-800')}`}>
+                      <div className={`flex flex-col items-center justify-center min-h-[4rem] sm:min-h-[5.5rem] border-b pb-2 mb-2 ${isLightMode ? 'border-slate-200' : 'border-slate-800/80'}`}>
+                        <div className={`flex items-start justify-center gap-1 w-full ${rightTeamId === 1 ? (isLightMode ? 'text-emerald-700' : 'text-emerald-400') : (isLightMode ? 'text-blue-700' : 'text-blue-400')}`}>
+                           {computedServerTeam === rightTeamId && <span className="mt-0.5 sm:mt-1.5 shrink-0 text-sm sm:text-xl animate-bounce">🎾</span>}
                            <div className="flex flex-col items-center">
                              <span className="font-bold text-xs sm:text-xl text-center leading-tight line-clamp-3 break-words whitespace-normal px-1">
                                {isDoubles ? String(match[`Oyuncu ${rightTeamId}` as keyof MatchItem] || '') : (rightTeamId === computedServerTeam ? activeServerName : String(match[`Oyuncu ${rightTeamId}` as keyof MatchItem] || ''))}
                              </span>
                              <div className="flex flex-wrap justify-center gap-1 mt-1">
                                {isDoubles && computedServerTeam === rightTeamId && (
-                                 <span className="text-[9px] sm:text-xs bg-slate-800 text-slate-300 px-2 py-0.5 rounded font-bold uppercase border border-slate-700">Servis: {activeServerName.split(' ')[0]}</span>
+                                 <span className={`text-[9px] sm:text-xs px-2 py-0.5 rounded font-bold uppercase border ${isLightMode ? 'bg-slate-100 text-slate-600 border-slate-300' : 'bg-slate-800 text-slate-300 border-slate-700'}`}>Servis: {activeServerName.split(' ')[0]}</span>
                                )}
                                {isDoubles && computedServerTeam !== rightTeamId && (
-                                 <span className="text-[9px] sm:text-xs bg-slate-800 text-slate-300 px-2 py-0.5 rounded font-bold uppercase border border-slate-700">Karşılama: {activeReceiverName.split(' ')[0]}</span>
+                                 <span className={`text-[9px] sm:text-xs px-2 py-0.5 rounded font-bold uppercase border ${isLightMode ? 'bg-slate-100 text-slate-600 border-slate-300' : 'bg-slate-800 text-slate-300 border-slate-700'}`}>Karşılama: {activeReceiverName.split(' ')[0]}</span>
                                )}
                              </div>
                            </div>
                         </div>
-                        <div className="text-[8px] sm:text-xs text-slate-500 uppercase font-bold mt-1">Sağ Saha</div>
+                        <div className={`text-[8px] sm:text-xs uppercase font-bold mt-1 ${isLightMode ? 'text-slate-500' : 'text-slate-500'}`}>Sağ Saha</div>
                       </div>
                       
                       <div className="flex-1 flex justify-center items-center py-2 sm:py-4 min-h-0">
-                         <span className="text-[4.5rem] sm:text-[9rem] font-mono font-black tracking-tighter text-white leading-none">
+                         <span className={`text-[4.5rem] sm:text-[9rem] font-mono font-black tracking-tighter leading-none ${isLightMode ? 'text-slate-900' : 'text-white'}`}>
                            {isTB ? (rightTeamId === 1 ? state?.tiebreak_p1 : state?.tiebreak_p2) || '0' : (rightTeamId === 1 ? state?.gamePoint_p1 : state?.gamePoint_p2) || '0'}
                          </span>
                       </div>
 
                       <div className="flex flex-col gap-1.5 sm:gap-2 shrink-0">
-                        <button type="button" disabled={isPaused || isFinished || isCurrentSetComplete} onClick={(e) => handlePointScore(e, rightTeamId)} className="w-full py-8 sm:py-12 bg-emerald-600/90 hover:bg-emerald-500 text-white font-bold text-xl sm:text-3xl rounded-2xl active:scale-95 transition disabled:opacity-50 disabled:cursor-not-allowed">
+                        <button type="button" disabled={isPaused || isFinished || isCurrentSetComplete} onClick={(e) => handlePointScore(e, rightTeamId)} className={`w-full py-8 sm:py-12 font-black text-xl sm:text-3xl rounded-2xl active:scale-95 transition disabled:opacity-50 disabled:cursor-not-allowed ${rightTeamId === 1 ? (isLightMode ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg' : 'bg-emerald-600/90 hover:bg-emerald-500 text-white shadow-lg') : (isLightMode ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg' : 'bg-blue-600/90 hover:bg-blue-500 text-white shadow-lg')}`}>
                           +1 PUAN
                         </button>
                         <div className="h-10 sm:h-14 w-full">
                            {computedServerTeam === rightTeamId ? (
-                             <button type="button" disabled={isPaused || isFinished || isCurrentSetComplete} onClick={(e) => handleFault(e, rightTeamId)} className={`w-full h-full rounded-xl text-[10px] sm:text-base font-bold transition active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed ${firstFault ? 'bg-rose-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>
+                             <button type="button" disabled={isPaused || isFinished || isCurrentSetComplete} onClick={(e) => handleFault(e, rightTeamId)} className={`w-full h-full rounded-xl text-[10px] sm:text-base font-bold transition active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed ${firstFault ? 'bg-rose-500 text-white animate-pulse border-2 border-rose-400' : (isLightMode ? 'bg-slate-200 text-slate-700 hover:bg-slate-300' : 'bg-slate-800 text-slate-300 hover:bg-slate-700')}`}>
                                {firstFault ? '2. Hata (Rakibe Puan)' : '1. Servis Hatası'}
                              </button>
                            ) : (
@@ -994,18 +1035,18 @@ export const CourtCard: React.FC<CourtCardProps> = ({
 
                   </div>
 
-                  <div className="pt-2 border-t border-slate-800 flex flex-col gap-2 sm:gap-3 shrink-0 pb-4">
+                  <div className={`pt-2 border-t flex flex-col gap-2 sm:gap-3 shrink-0 pb-4 ${isLightMode ? 'border-slate-300' : 'border-slate-800'}`}>
                     <div className="flex gap-2 sm:gap-3">
-                      <button type="button" onClick={(e) => startTimer(e, 'Saha Değişimi', 90)} className="flex-1 py-3 sm:py-4 bg-slate-900 border border-slate-700 text-slate-300 hover:text-white text-[10px] sm:text-sm font-bold rounded-xl transition">90s Değişim</button>
-                      <button type="button" onClick={(e) => startTimer(e, 'Set Arası', 120)} className="flex-1 py-3 sm:py-4 bg-slate-900 border border-slate-700 text-slate-300 hover:text-white text-[10px] sm:text-sm font-bold rounded-xl transition">120s Set</button>
-                      <button type="button" onClick={(e) => startTimer(e, 'Sağlık Molası', 180)} className="flex-1 py-3 sm:py-4 bg-slate-900 border border-slate-700 text-slate-300 hover:text-white text-[10px] sm:text-sm font-bold rounded-xl transition">3dk MTO</button>
+                      <button type="button" onClick={(e) => startTimer(e, 'Saha Değişimi', 90)} className={`flex-1 py-3 sm:py-4 border text-[10px] sm:text-sm font-bold rounded-xl transition ${isLightMode ? 'bg-white border-slate-300 text-slate-700 hover:bg-slate-100' : 'bg-slate-900 border-slate-700 text-slate-300 hover:text-white'}`}>90s Değişim</button>
+                      <button type="button" onClick={(e) => startTimer(e, 'Set Arası', 120)} className={`flex-1 py-3 sm:py-4 border text-[10px] sm:text-sm font-bold rounded-xl transition ${isLightMode ? 'bg-white border-slate-300 text-slate-700 hover:bg-slate-100' : 'bg-slate-900 border-slate-700 text-slate-300 hover:text-white'}`}>120s Set</button>
+                      <button type="button" onClick={(e) => startTimer(e, 'Sağlık Molası', 180)} className={`flex-1 py-3 sm:py-4 border text-[10px] sm:text-sm font-bold rounded-xl transition ${isLightMode ? 'bg-white border-slate-300 text-slate-700 hover:bg-slate-100' : 'bg-slate-900 border-slate-700 text-slate-300 hover:text-white'}`}>3dk MTO</button>
                     </div>
 
                     <div className="flex gap-2 sm:gap-3">
-                      <button type="button" onClick={handleUndo} disabled={isPaused} className="flex-1 flex items-center justify-center gap-1.5 py-3 sm:py-4 bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] sm:text-base font-bold rounded-xl transition active:scale-95 disabled:opacity-50">
+                      <button type="button" onClick={handleUndo} disabled={isPaused} className={`flex-1 flex items-center justify-center gap-1.5 py-3 sm:py-4 border text-[11px] sm:text-base font-bold rounded-xl transition active:scale-95 disabled:opacity-50 ${isLightMode ? 'bg-white border-slate-300 text-slate-700 hover:bg-slate-100' : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'}`}>
                         <RotateCcw className="w-4 h-4 sm:w-5 sm:h-5" /> Geri Al
                       </button>
-                      <button type="button" onClick={toggleSuspend} className={`flex-1 flex items-center justify-center gap-1.5 py-3 sm:py-4 text-[11px] sm:text-base font-bold rounded-xl transition active:scale-95 ${isPaused ? 'bg-emerald-600 text-white' : 'bg-slate-800 hover:bg-slate-700 text-slate-300'}`}>
+                      <button type="button" onClick={toggleSuspend} className={`flex-1 flex items-center justify-center gap-1.5 py-3 sm:py-4 text-[11px] sm:text-base font-bold rounded-xl transition active:scale-95 border ${isPaused ? (isLightMode ? 'bg-emerald-600 text-white border-emerald-700' : 'bg-emerald-600 text-white border-emerald-700') : (isLightMode ? 'bg-white border-slate-300 text-slate-700 hover:bg-slate-100' : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700')}`}>
                         {isPaused ? <><PlayCircle className="w-4 h-4 sm:w-5 sm:h-5" /> Devam Et</> : <><PauseCircle className="w-4 h-4 sm:w-5 sm:h-5" /> Askıya Al</>}
                       </button>
                     </div>
