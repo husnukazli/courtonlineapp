@@ -38,6 +38,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
   onOpenSetup,
 }) => {
   const { updateGameScore, setMatchStatus, awardPointToMatch, undoLastPoint, tournamentInfo } = useTennisData();
+  const lastScoreClickRef = useRef<number>(0);
 
   const [selectedSet, setSelectedSet] = useState<1 | 2 | 3>(1);
   const [isChairMode, setIsChairMode] = useState<boolean>(false);
@@ -393,7 +394,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
     // SADECE DIŞ EKRANDAN GİRİLEN VEYA KURULUM YAPILMAYAN OYUNLAR İÇİN OTOMATİK HESAPLAMA
     const totalGamesMatch = s1_p1 + s1_p2 + s2_p1 + s2_p2 + s3_p1 + s3_p2;
     
-    // 1. SERVİS KİMDE?
+    // 1. SERVİS KİMDE? (Toplam oyuna göre şaşmaz dönüşüm)
     if (!isTB) {
         computedServerTeam = (totalGamesMatch % 2 === 0) ? 1 : 2;
     } else {
@@ -405,7 +406,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
         }
     }
 
-    // 2. SAHA DEĞİŞİMİ
+    // 2. SAHA DEĞİŞİMİ (Set başı ve set içi tekli oyun değişimleri)
     let oddSetsBefore = 0;
     if (selectedSet > 1 && (s1_p1 + s1_p2) % 2 === 1) oddSetsBefore++;
     if (selectedSet > 2 && (s2_p1 + s2_p2) % 2 === 1) oddSetsBefore++;
@@ -514,23 +515,28 @@ export const CourtCard: React.FC<CourtCardProps> = ({
     return () => clearInterval(interval);
   }, [activeTimer]);
 
+  // ORİJİNAL, KUSURSUZ ÇALIŞAN ÇİFT TIKLAMA KORUMASI (DEBOUNCE) GERİ YÜKLENDİ
   const handleQuickScore = (e: React.MouseEvent, player: 1 | 2, delta: number) => {
-    e.preventDefault();
     e.stopPropagation();
+    const now = Date.now();
+    if (now - lastScoreClickRef.current < 400) return; 
+    lastScoreClickRef.current = now;
     vibrateDevice(40); 
     updateGameScore(match.id, selectedSet, player, delta);
   };
 
+  // ORİJİNAL, KUSURSUZ ÇALIŞAN ÇİFT TIKLAMA KORUMASI (DEBOUNCE) GERİ YÜKLENDİ
   const handlePointScore = (e: React.MouseEvent, teamId: 1 | 2) => {
-    e.preventDefault();
     e.stopPropagation();
+    const now = Date.now();
+    if (now - lastScoreClickRef.current < 400) return; 
+    lastScoreClickRef.current = now;
     vibrateDevice(50); 
     setFirstFault(false); 
     awardPointToMatch(match.id, teamId, 'NORMAL'); 
   };
 
   const handleFault = (e: React.MouseEvent, serverTeamId: 1 | 2) => {
-    e.preventDefault();
     e.stopPropagation();
     vibrateDevice(50); 
     if (!firstFault) setFirstFault(true);
@@ -589,6 +595,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
       }
   }
 
+  // Dış Kart Görünümleri İçin Stil Tanımlamaları
   const baseCardClass = `rounded-3xl transition-all duration-200 overflow-hidden flex flex-col justify-between shadow-md relative ${
     isLive || isPaused ? (isLightMode ? 'bg-white border-[3px] border-emerald-500' : 'bg-slate-900/95 border border-emerald-500/30')
     : isUpcoming ? (isLightMode ? 'bg-slate-50 border-2 border-slate-300 cursor-pointer hover:border-slate-400' : 'bg-slate-900 border border-slate-700 cursor-pointer')
@@ -747,13 +754,13 @@ export const CourtCard: React.FC<CourtCardProps> = ({
           )}
         </div>
 
-        <div className={`p-3 sm:p-4 border-t flex items-center gap-2 ${isLightMode ? 'bg-slate-100 border-slate-300' : 'bg-slate-950/70 border-slate-800'}`}>
+        <div className={`p-3 sm:p-4 border-t flex items-center gap-2 ${isLightMode ? 'bg-slate-50 border-slate-200' : 'bg-slate-950/70 border-slate-800'}`}>
           {isUpcoming ? (
             <div className="flex items-center gap-2 w-full">
-              {onOpenSetup && <button type="button" onClick={(e) => { e.stopPropagation(); onOpenSetup(match); }} className={`py-2.5 px-3 rounded-xl font-black text-xs border transition shadow-sm ${isLightMode ? 'bg-white hover:bg-slate-200 text-slate-800 border-slate-300' : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'}`} title="Kura Çek">🪙 Kura</button>}
+              {onOpenSetup && <button type="button" onClick={(e) => { e.stopPropagation(); onOpenSetup(match); }} className={`py-2.5 px-3 rounded-xl font-bold text-xs border transition shadow-sm ${isLightMode ? 'bg-white hover:bg-slate-200 text-slate-800 border-slate-300' : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'}`} title="Kura Çek">🪙 Kura</button>}
               
               {onEditScore && (
-                <button type="button" onClick={(e) => { e.stopPropagation(); onEditScore(match); }} className={`py-2.5 px-3 rounded-xl font-black text-xs border transition flex items-center gap-1.5 shadow-sm ${isLightMode ? 'bg-white hover:bg-slate-200 text-slate-800 border-slate-300' : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'}`} title="Hızlı Skor Gir">
+                <button type="button" onClick={(e) => { e.stopPropagation(); onEditScore(match); }} className={`py-2.5 px-3 rounded-xl font-bold text-xs border transition flex items-center gap-1.5 shadow-sm ${isLightMode ? 'bg-white hover:bg-slate-200 text-slate-800 border-slate-300' : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'}`} title="Hızlı Skor Gir">
                   <PenLine className="w-3.5 h-3.5" /> Skor
                 </button>
               )}
