@@ -4,7 +4,7 @@ import { useTennisData } from '../../context/TennisDataContext';
 import { parseScoreString, validateSingleSet } from '../../utils/tennisScoringEngine';
 import {
   Trophy, Clock, CheckCircle2, PlayCircle, Plus, Minus, RotateCcw,
-  Swords, PauseCircle, Timer, X, ArrowRightLeft, Settings, LogOut, Info, PenLine, Sun, Moon
+  Swords, PauseCircle, Timer, X, ArrowRightLeft, Settings, LogOut, Info, PenLine
 } from 'lucide-react';
 
 interface CourtCardProps {
@@ -46,20 +46,10 @@ export const CourtCard: React.FC<CourtCardProps> = ({
   
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   
-  // GECE / GÜNDÜZ MODU
+  // GECE / GÜNDÜZ MODU (Sadece dinleyici, buton dış sayfada olacak)
   const [isLightMode, setIsLightMode] = useState(() => {
     return localStorage.getItem('courtonline_light_mode') === 'true';
   });
-
-  const toggleTheme = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setIsLightMode(prev => {
-      const newVal = !prev;
-      localStorage.setItem('courtonline_light_mode', String(newVal));
-      window.dispatchEvent(new Event('storage'));
-      return newVal;
-    });
-  };
 
   useEffect(() => {
     const handleStorage = () => {
@@ -836,11 +826,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                     <Settings className="w-4 h-4" /> <span className="hidden sm:inline text-xs font-bold">Kurulum</span>
                   </button>
                 )}
-
-                {/* GECE GÜNDÜZ MODU SEÇİCİSİ */}
-                <button onClick={toggleTheme} className={`p-2 rounded-xl border transition flex items-center justify-center ${isLightMode ? 'bg-white hover:bg-slate-100 border-slate-300 text-amber-600' : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-amber-300'}`} title="Temayı Değiştir">
-                  {isLightMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-                </button>
 
                 <button type="button" onClick={handleExitChairMode} className={`px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl font-bold text-xs sm:text-sm flex items-center gap-2 transition active:scale-95 border ${isLightMode ? 'bg-white hover:bg-slate-100 text-slate-800 border-slate-300' : 'bg-slate-800 hover:bg-slate-700 text-white border-slate-700'}`}>
                   <LogOut className="w-4 h-4" /> Çıkış Yap
