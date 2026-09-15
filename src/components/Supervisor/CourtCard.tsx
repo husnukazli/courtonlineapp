@@ -319,7 +319,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
       }
   }
 
-  // OTOMATİK PİLOT: Kurulum yapılmamış olsa bile sistemi güncel skora göre otomatize ediyoruz.
+  // --- KUSURSUZ OTOMATİK PİLOT (Kurulum kullanılmadıysa) ---
   if (isSetupValid) {
     const isComan = chairSetup.tbType === 'coman';
     const otherTeam = chairSetup.firstServingTeam === 1 ? 2 : 1;
@@ -391,12 +391,42 @@ export const CourtCard: React.FC<CourtCardProps> = ({
       activeReceiverName = recPlayers[activeRecIdx] || recPlayers[0];
     }
   } else {
-    // EĞER KURULUM YAPILMADIYSA, SİSTEM MOTORUNDAN GELEN VARSAYILANI KULLAN (OTOMATİK PİLOT)
-    if (state?.currentServer === 1 || state?.currentServer === 2) {
-      computedServerTeam = state.currentServer as 1 | 2;
+    // SADECE DIŞ EKRANDAN GİRİLEN OYUNLAR İÇİN OTOMATİK HESAPLAMA
+    const totalGamesMatch = s1_p1 + s1_p2 + s2_p1 + s2_p2 + s3_p1 + s3_p2;
+    
+    // 1. SERVİS KİMDE? (Toplam oyuna göre şaşmaz dönüşüm)
+    if (!isTB) {
+        computedServerTeam = (totalGamesMatch % 2 === 0) ? 1 : 2;
+    } else {
+        const tbStartServer = (totalGamesMatch % 2 === 0) ? 1 : 2;
+        if (tbPoints === 0) computedServerTeam = tbStartServer;
+        else {
+            const block = Math.floor((tbPoints - 1) / 2);
+            computedServerTeam = block % 2 === 0 ? (tbStartServer === 1 ? 2 : 1) : tbStartServer;
+        }
     }
-    // Basit sağ-sol değişimi tahmini: Toplam oyun tek ise saha değişmiştir. 
-    computedLeftTeam = currentSetGames % 2 === 1 ? 2 : 1;
+
+    // 2. SAHA DEĞİŞİMİ (Set başı ve set içi tekli oyun değişimleri)
+    let oddSetsBefore = 0;
+    if (selectedSet > 1 && (s1_p1 + s1_p2) % 2 === 1) oddSetsBefore++;
+    if (selectedSet > 2 && (s2_p1 + s2_p2) % 2 === 1) oddSetsBefore++;
+    
+    const baseSide = oddSetsBefore % 2 === 1 ? 2 : 1;
+    
+    if (!isTB) {
+        const changeInCurrentSet = (currentSetGames % 4 === 1 || currentSetGames % 4 === 2);
+        computedLeftTeam = changeInCurrentSet ? (baseSide === 1 ? 2 : 1) : baseSide;
+    } else {
+        const tbStartSide = (currentSetGames % 4 === 1 || currentSetGames % 4 === 2) ? (baseSide === 1 ? 2 : 1) : baseSide;
+        if (tbPoints === 0) computedLeftTeam = tbStartSide;
+        else if (globalTbType === 'coman') {
+            const block = Math.floor((tbPoints + 3) / 4);
+            computedLeftTeam = block % 2 === 1 ? (tbStartSide === 1 ? 2 : 1) : tbStartSide;
+        } else {
+            const block = Math.floor(tbPoints / 6);
+            computedLeftTeam = block % 2 === 1 ? (tbStartSide === 1 ? 2 : 1) : tbStartSide;
+        }
+    }
   }
 
   const leftTeamId = computedLeftTeam;
@@ -593,7 +623,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
         </div>
       )}
 
-      {/* 1. KORT HAKEMİ ANA KART GÖRÜNÜMÜ */}
+      {/* 1. DIŞ EKRAN / HIZLI KART GÖRÜNÜMÜ */}
       <div onClick={handleCardClick} className={baseCardClass}>
         <div className={`h-1.5 w-full ${isLive ? 'bg-emerald-500' : isPaused ? 'bg-amber-500' : isUpcoming ? 'bg-slate-400' : 'bg-slate-300'}`} />
 
@@ -646,6 +676,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
             
             <div className={`grid grid-cols-12 items-center py-2 px-3 border-b ${isLightMode ? 'border-slate-100' : 'border-slate-800/50'} ${match.Kazanan === match['Oyuncu 1'] && isFinished ? (isLightMode ? 'bg-emerald-50' : 'bg-emerald-500/10') : ''}`}>
               <div className="col-span-6 flex items-center gap-2 pr-2 min-w-0">
+                <span className={`w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full shrink-0 ${isLightMode ? 'bg-emerald-500' : 'bg-emerald-400'}`}></span>
                 <span className={`text-xs sm:text-sm font-bold leading-tight flex items-center gap-1.5 min-w-0 flex-1 ${isLightMode ? 'text-slate-800' : 'text-white'}`}>
                     {computedServerTeam === 1 && computedLeftTeam === 1 && (isLive || isPaused) && (
                         <span className="animate-bounce text-[10px] sm:text-xs shrink-0" title="Servis Atan (Sol Saha)">🎾</span>
@@ -661,6 +692,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
             
             <div className={`grid grid-cols-12 items-center py-2 px-3 ${match.Kazanan === match['Oyuncu 2'] && isFinished ? (isLightMode ? 'bg-blue-50' : 'bg-blue-500/10') : ''}`}>
               <div className="col-span-6 flex items-center gap-2 pr-2 min-w-0">
+                <span className={`w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full shrink-0 ${isLightMode ? 'bg-blue-500' : 'bg-blue-400'}`}></span>
                 <span className={`text-xs sm:text-sm font-bold leading-tight flex items-center gap-1.5 min-w-0 flex-1 ${isLightMode ? 'text-slate-800' : 'text-white'}`}>
                     {computedServerTeam === 2 && computedLeftTeam === 2 && (isLive || isPaused) && (
                         <span className="animate-bounce text-[10px] sm:text-xs shrink-0" title="Servis Atan (Sol Saha)">🎾</span>
@@ -687,14 +719,32 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                   <button type="button" onClick={(e) => { e.stopPropagation(); setSelectedSet(2); }} className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-colors ${selectedSet === 2 ? (isLightMode ? 'bg-white text-slate-800 shadow' : 'bg-slate-800 text-white shadow') : (isLightMode ? 'text-slate-500' : 'text-slate-400 hover:text-slate-300')}`}>2. SET</button>
                   <button type="button" onClick={(e) => { e.stopPropagation(); setSelectedSet(3); }} className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-colors ${selectedSet === 3 ? (isLightMode ? 'bg-white text-slate-800 shadow' : 'bg-slate-800 text-white shadow') : (isLightMode ? 'text-slate-500' : 'text-slate-400 hover:text-slate-300')}`}>3. SET</button>
                 </div>
+                
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="flex flex-col gap-1.5">
-                    <button type="button" disabled={isP1PlusDisabled} onClick={(e) => handleQuickScore(e, 1, 1)} className={`w-full py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-1 transition disabled:opacity-50 disabled:cursor-not-allowed ${isLightMode ? 'bg-emerald-600 hover:bg-emerald-500 text-white' : 'bg-emerald-600/90 hover:bg-emerald-500 text-white'}`}><Plus className="w-5 h-5" />+1 OYUN</button>
-                    <button type="button" disabled={isPaused} onClick={(e) => handleQuickScore(e, 1, -1)} className={`w-full py-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1 transition disabled:opacity-50 ${isLightMode ? 'bg-slate-200 hover:bg-slate-300 text-slate-700' : 'bg-slate-800 hover:bg-slate-700 text-slate-300'}`}><RotateCcw className="w-3.5 h-3.5" /> Geri Al</button>
+                  {/* DIŞ EKRAN - OYUNCU 1 BUTONLARI (ZÜMRÜT YEŞİLİ KUTU) */}
+                  <div className={`flex flex-col gap-1.5 p-2 sm:p-2.5 rounded-xl border ${isLightMode ? 'bg-emerald-50 border-emerald-200' : 'bg-emerald-950/20 border-emerald-500/20'}`}>
+                    <div className={`text-center font-black text-[11px] sm:text-xs truncate ${isLightMode ? 'text-emerald-700' : 'text-emerald-400'}`}>
+                      {match['Oyuncu 1']}
+                    </div>
+                    <button type="button" disabled={isP1PlusDisabled} onClick={(e) => handleQuickScore(e, 1, 1)} className={`w-full py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-1 transition disabled:opacity-50 disabled:cursor-not-allowed ${isLightMode ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm' : 'bg-emerald-600/90 hover:bg-emerald-500 text-white'}`}>
+                      <Plus className="w-5 h-5" />+1 OYUN
+                    </button>
+                    <button type="button" disabled={isPaused} onClick={(e) => handleQuickScore(e, 1, -1)} className={`w-full py-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1 transition disabled:opacity-50 ${isLightMode ? 'bg-white hover:bg-slate-100 text-slate-600 border border-slate-200' : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700'}`}>
+                      <RotateCcw className="w-3.5 h-3.5" /> Geri Al
+                    </button>
                   </div>
-                  <div className="flex flex-col gap-1.5">
-                    <button type="button" disabled={isP2PlusDisabled} onClick={(e) => handleQuickScore(e, 2, 1)} className={`w-full py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-1 transition disabled:opacity-50 disabled:cursor-not-allowed ${isLightMode ? 'bg-blue-600 hover:bg-blue-500 text-white' : 'bg-blue-600/90 hover:bg-blue-500 text-white'}`}><Plus className="w-5 h-5" />+1 OYUN</button>
-                    <button type="button" disabled={isPaused} onClick={(e) => handleQuickScore(e, 2, -1)} className={`w-full py-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1 transition disabled:opacity-50 ${isLightMode ? 'bg-slate-200 hover:bg-slate-300 text-slate-700' : 'bg-slate-800 hover:bg-slate-700 text-slate-300'}`}><RotateCcw className="w-3.5 h-3.5" /> Geri Al</button>
+                  
+                  {/* DIŞ EKRAN - OYUNCU 2 BUTONLARI (MAVİ KUTU) */}
+                  <div className={`flex flex-col gap-1.5 p-2 sm:p-2.5 rounded-xl border ${isLightMode ? 'bg-blue-50 border-blue-200' : 'bg-blue-950/20 border-blue-500/20'}`}>
+                    <div className={`text-center font-black text-[11px] sm:text-xs truncate ${isLightMode ? 'text-blue-700' : 'text-blue-400'}`}>
+                      {match['Oyuncu 2']}
+                    </div>
+                    <button type="button" disabled={isP2PlusDisabled} onClick={(e) => handleQuickScore(e, 2, 1)} className={`w-full py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-1 transition disabled:opacity-50 disabled:cursor-not-allowed ${isLightMode ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-sm' : 'bg-blue-600/90 hover:bg-blue-500 text-white'}`}>
+                      <Plus className="w-5 h-5" />+1 OYUN
+                    </button>
+                    <button type="button" disabled={isPaused} onClick={(e) => handleQuickScore(e, 2, -1)} className={`w-full py-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1 transition disabled:opacity-50 ${isLightMode ? 'bg-white hover:bg-slate-100 text-slate-600 border border-slate-200' : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700'}`}>
+                      <RotateCcw className="w-3.5 h-3.5" /> Geri Al
+                    </button>
                   </div>
                 </div>
               </div>
@@ -735,7 +785,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
         </div>
       </div>
 
-      {/* KULE HAKEMİ MODU */}
+      {/* 2. KULE HAKEMİ MODU (TAM EKRANLI İÇ DETAY) */}
       {isChairMode && (
         <div className={`fixed inset-0 z-[50000] flex flex-col animate-in fade-in zoom-in-95 duration-200 select-none ${isLightMode ? 'bg-slate-100' : 'bg-slate-950'}`} style={{ touchAction: 'none' }}>
           
