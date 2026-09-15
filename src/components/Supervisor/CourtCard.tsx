@@ -274,18 +274,10 @@ export const CourtCard: React.FC<CourtCardProps> = ({
     }
   }, [selectedSet, isDoubles, setupsBySet, s1_p1, s1_p2, s2_p1, s2_p2, s3_p1, s3_p2, match.pointHistory]);
 
-  useEffect(() => {
-    if (showSetupOverlay && !isEditingSetup && setupForm.firstServingTeam === null) {
-      if (state?.currentServer === 1 || state?.currentServer === 2) {
-        setSetupForm(prev => ({ 
-            ...prev, 
-            firstServingTeam: state.currentServer as 1 | 2,
-            tbType: globalTbType 
-        }));
-      }
-    }
-  }, [showSetupOverlay, isEditingSetup, state?.currentServer, globalTbType]);
 
+  // --------------------------------------------------------------------------------
+  // OTOMATİK PİLOT HESAPLAMALARI (RENDER İÇİNDE DİNAMİK OLARAK YAPILIYOR)
+  // --------------------------------------------------------------------------------
   const currentSetGames = selectedSet === 1 ? s1_p1 + s1_p2 : selectedSet === 2 ? s2_p1 + s2_p2 : s3_p1 + s3_p2;
   const isTB = state?.isTiebreak || false;
   const tbPoints = isTB ? Number(state?.tiebreak_p1 || 0) + Number(state?.tiebreak_p2 || 0) : 0;
@@ -432,6 +424,26 @@ export const CourtCard: React.FC<CourtCardProps> = ({
   const leftTeamId = computedLeftTeam;
   const rightTeamId = computedLeftTeam === 1 ? 2 : 1;
 
+  // --------------------------------------------------------------------------------
+  // YENİ VE KUSURSUZ: KULE HAKEMİ KURULUM EKRANINA "OTOMATİK" VERİ DOLDURMA
+  // --------------------------------------------------------------------------------
+  useEffect(() => {
+    // Kurulum ekranı açıldığında, eğer form henüz doldurulmadıysa, MOTORUN hesapladığı 
+    // güncel servisçi ve saha yönünü forma otomatik olarak yapıştır.
+    if (showSetupOverlay && setupForm.firstServingTeam === null) {
+      setSetupForm({
+        firstServingTeam: computedServerTeam,
+        leftTeam: computedLeftTeam,
+        tbType: chairSetup?.tbType || globalTbType,
+        t1ServerIdx: currentT1ServerIdx as 0 | 1,
+        t2ServerIdx: currentT2ServerIdx as 0 | 1,
+        t1RecIdx: chairSetup?.t1DeuceReceiverIdx || 0,
+        t2RecIdx: chairSetup?.t2DeuceReceiverIdx || 0
+      });
+    }
+  }, [showSetupOverlay, setupForm.firstServingTeam, computedServerTeam, computedLeftTeam, chairSetup, globalTbType, currentT1ServerIdx, currentT2ServerIdx]);
+
+
   const handleCancelSetup = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (isSetupValid) {
@@ -443,6 +455,8 @@ export const CourtCard: React.FC<CourtCardProps> = ({
         setIsChairMode(false);
       }
     }
+    // İptal edilirse hafızayı temizle, bir sonraki açılışta tekrar otomatik pilotu okusun
+    setSetupForm(prev => ({ ...prev, firstServingTeam: null, leftTeam: null }));
   };
 
   const handleSaveSetup = (e: React.MouseEvent) => {
@@ -505,6 +519,8 @@ export const CourtCard: React.FC<CourtCardProps> = ({
     }));
 
     setIsEditingSetup(false);
+    // Kaydettikten sonra formu sıfırla ki, bir dahaki açılışta güncel durumu otomatik okusun
+    setSetupForm(prev => ({ ...prev, firstServingTeam: null, leftTeam: null }));
   };
 
   useEffect(() => {
@@ -515,28 +531,23 @@ export const CourtCard: React.FC<CourtCardProps> = ({
     return () => clearInterval(interval);
   }, [activeTimer]);
 
-  // ORİJİNAL, KUSURSUZ ÇALIŞAN ÇİFT TIKLAMA KORUMASI (DEBOUNCE) GERİ YÜKLENDİ
   const handleQuickScore = (e: React.MouseEvent, player: 1 | 2, delta: number) => {
+    e.preventDefault();
     e.stopPropagation();
-    const now = Date.now();
-    if (now - lastScoreClickRef.current < 400) return; 
-    lastScoreClickRef.current = now;
     vibrateDevice(40); 
     updateGameScore(match.id, selectedSet, player, delta);
   };
 
-  // ORİJİNAL, KUSURSUZ ÇALIŞAN ÇİFT TIKLAMA KORUMASI (DEBOUNCE) GERİ YÜKLENDİ
   const handlePointScore = (e: React.MouseEvent, teamId: 1 | 2) => {
+    e.preventDefault();
     e.stopPropagation();
-    const now = Date.now();
-    if (now - lastScoreClickRef.current < 400) return; 
-    lastScoreClickRef.current = now;
     vibrateDevice(50); 
     setFirstFault(false); 
     awardPointToMatch(match.id, teamId, 'NORMAL'); 
   };
 
   const handleFault = (e: React.MouseEvent, serverTeamId: 1 | 2) => {
+    e.preventDefault();
     e.stopPropagation();
     vibrateDevice(50); 
     if (!firstFault) setFirstFault(true);
@@ -711,7 +722,23 @@ export const CourtCard: React.FC<CourtCardProps> = ({
 
           {(isLive || isPaused) && (
             <div className={`border rounded-2xl p-3 mt-2 ${isLightMode ? 'bg-slate-100 border-slate-300' : 'bg-slate-900 border-slate-700/80'}`}>
-              <button type="button" onClick={(e) => { e.stopPropagation(); setIsChairMode(true); }} className={`w-full py-3 mb-3 font-black rounded-xl transition active:scale-95 flex items-center justify-center gap-2 shadow-sm ${isLightMode ? 'bg-slate-800 hover:bg-slate-900 text-white' : 'bg-slate-700 hover:bg-slate-600 text-white'}`}>
+              <button type="button" onClick={(e) => { 
+                  e.stopPropagation(); 
+                  setIsChairMode(true); 
+                  // Eğer kurulum yapılmamışsa, sistemin otomatik pilotundaki güncel hesaplamayı "Kurulum Ekranına" enjekte et
+                  if (!isSetupValid) {
+                     setSetupForm({
+                        firstServingTeam: computedServerTeam,
+                        leftTeam: computedLeftTeam,
+                        tbType: globalTbType,
+                        t1ServerIdx: currentT1ServerIdx as 0|1,
+                        t2ServerIdx: currentT2ServerIdx as 0|1,
+                        t1RecIdx: 0,
+                        t2RecIdx: 0
+                     });
+                  }
+                }} 
+                className={`w-full py-3 mb-3 font-black rounded-xl transition active:scale-95 flex items-center justify-center gap-2 shadow-sm ${isLightMode ? 'bg-slate-800 hover:bg-slate-900 text-white' : 'bg-slate-700 hover:bg-slate-600 text-white'}`}>
                 <Swords className="w-4 h-4" /> Kule Hakemi Moduna Geç
               </button>
 
