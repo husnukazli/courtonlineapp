@@ -41,10 +41,61 @@ export const CourtCard: React.FC<CourtCardProps> = ({
   const lastScoreClickRef = useRef<number>(0);
 
   const [selectedSet, setSelectedSet] = useState<1 | 2 | 3>(1);
-  const [isChairMode, setIsChairMode] = useState<boolean>(false);
   const [isEditingSetup, setIsEditingSetup] = useState<boolean>(false);
-  
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const [isChairMode, setIsChairMode] = useState<boolean>(() => {
+    return localStorage.getItem('courtonline_active_chair_match') === match.id;
+  });
+
+  useEffect(() => {
+    if (isChairMode) {
+      localStorage.setItem('courtonline_active_chair_match', match.id);
+    } else {
+      if (localStorage.getItem('courtonline_active_chair_match') === match.id) {
+        localStorage.removeItem('courtonline_active_chair_match');
+      }
+    }
+  }, [isChairMode, match.id]);
+
+  const handleExitChairMode = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (window.confirm('Kule hakemi modundan çıkıp genel maç ekranına dönmek istiyor musunuz?')) {
+      setIsChairMode(false);
+      localStorage.removeItem('courtonline_active_chair_match');
+    }
+  };
+
+  useEffect(() => {
+    const handlePopState = () => {
+      if (isChairMode) {
+        if (window.confirm('Kule hakemi modundan çıkmak istiyor musunuz?')) {
+          setIsChairMode(false);
+          localStorage.removeItem('courtonline_active_chair_match');
+        } else {
+          window.history.pushState(null, '', window.location.href);
+        }
+      }
+    };
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => { if (isChairMode) { e.preventDefault(); e.returnValue = ''; } };
+
+    if (isChairMode) {
+      window.history.pushState(null, '', window.location.href);
+      window.addEventListener('popstate', handlePopState);
+      window.addEventListener('beforeunload', handleBeforeUnload);
+      document.body.style.overscrollBehaviorY = 'none';
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overscrollBehaviorY = 'auto';
+      document.body.style.overflow = 'auto';
+    }
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      document.body.style.overscrollBehaviorY = 'auto';
+      document.body.style.overflow = 'auto';
+    };
+  }, [isChairMode]);
   
   // GECE / GÜNDÜZ MODU
   const [isLightMode, setIsLightMode] = useState(() => {
@@ -123,38 +174,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
   };
-
-  const handleExitChairMode = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (window.confirm('Kule hakemi modundan çıkıp genel maç ekranına dönmek istiyor musunuz?')) setIsChairMode(false);
-  };
-
-  useEffect(() => {
-    const handlePopState = () => {
-      if (isChairMode) {
-        if (window.confirm('Kule hakemi modundan çıkmak istiyor musunuz?')) setIsChairMode(false);
-        else window.history.pushState(null, '', window.location.href);
-      }
-    };
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => { if (isChairMode) { e.preventDefault(); e.returnValue = ''; } };
-
-    if (isChairMode) {
-      window.history.pushState(null, '', window.location.href);
-      window.addEventListener('popstate', handlePopState);
-      window.addEventListener('beforeunload', handleBeforeUnload);
-      document.body.style.overscrollBehaviorY = 'none';
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overscrollBehaviorY = 'auto';
-      document.body.style.overflow = 'auto';
-    }
-    return () => {
-      window.removeEventListener('popstate', handlePopState);
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-      document.body.style.overscrollBehaviorY = 'auto';
-      document.body.style.overflow = 'auto';
-    };
-  }, [isChairMode]);
 
   useEffect(() => {
     if (isLive) {
@@ -274,10 +293,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
     }
   }, [selectedSet, isDoubles, setupsBySet, s1_p1, s1_p2, s2_p1, s2_p2, s3_p1, s3_p2, match.pointHistory]);
 
-
-  // --------------------------------------------------------------------------------
-  // OTOMATİK PİLOT HESAPLAMALARI (RENDER İÇİNDE DİNAMİK OLARAK YAPILIYOR)
-  // --------------------------------------------------------------------------------
   const currentSetGames = selectedSet === 1 ? s1_p1 + s1_p2 : selectedSet === 2 ? s2_p1 + s2_p2 : s3_p1 + s3_p2;
   const isTB = state?.isTiebreak || false;
   const tbPoints = isTB ? Number(state?.tiebreak_p1 || 0) + Number(state?.tiebreak_p2 || 0) : 0;
@@ -311,7 +326,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
       }
   }
 
-  // --- KUSURSUZ OTOMATİK PİLOT ---
   if (isSetupValid) {
     const isComan = chairSetup.tbType === 'coman';
     const otherTeam = chairSetup.firstServingTeam === 1 ? 2 : 1;
@@ -383,10 +397,8 @@ export const CourtCard: React.FC<CourtCardProps> = ({
       activeReceiverName = recPlayers[activeRecIdx] || recPlayers[0];
     }
   } else {
-    // SADECE DIŞ EKRANDAN GİRİLEN VEYA KURULUM YAPILMAYAN OYUNLAR İÇİN OTOMATİK HESAPLAMA
     const totalGamesMatch = s1_p1 + s1_p2 + s2_p1 + s2_p2 + s3_p1 + s3_p2;
     
-    // 1. SERVİS KİMDE? (Toplam oyuna göre şaşmaz dönüşüm)
     if (!isTB) {
         computedServerTeam = (totalGamesMatch % 2 === 0) ? 1 : 2;
     } else {
@@ -398,7 +410,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
         }
     }
 
-    // 2. SAHA DEĞİŞİMİ (Set başı ve set içi tekli oyun değişimleri)
     let oddSetsBefore = 0;
     if (selectedSet > 1 && (s1_p1 + s1_p2) % 2 === 1) oddSetsBefore++;
     if (selectedSet > 2 && (s2_p1 + s2_p2) % 2 === 1) oddSetsBefore++;
@@ -424,12 +435,16 @@ export const CourtCard: React.FC<CourtCardProps> = ({
   const leftTeamId = computedLeftTeam;
   const rightTeamId = computedLeftTeam === 1 ? 2 : 1;
 
-  // --------------------------------------------------------------------------------
-  // YENİ VE KUSURSUZ: KULE HAKEMİ KURULUM EKRANINA "OTOMATİK" VERİ DOLDURMA
-  // --------------------------------------------------------------------------------
+  // AKILLI MOLA UYARI MOTORU:
+  const isSetBreak = isGameStart && currentSetGames === 0 && selectedSet > 1 && !isFinished;
+  const isFirstGameChange = !isTB && currentSetGames === 1 && isGameStart;
+  
+  // Set arası ise her halükarda 120s yanıp söner
+  const shouldBlink120s = isSetBreak && !isPaused;
+  // Saha değişimi varsa, 1. oyun değilse, set arası değilse ve Tie-Break değilse 90s yanıp söner (TB'de dinlenme yoktur)
+  const shouldBlink90s = isSideChangePoint && !isFirstGameChange && !isSetBreak && !isTB && !isFinished && !isPaused;
+
   useEffect(() => {
-    // Kurulum ekranı açıldığında, eğer form henüz doldurulmadıysa, MOTORUN hesapladığı 
-    // güncel servisçi ve saha yönünü forma otomatik olarak yapıştır.
     if (showSetupOverlay && setupForm.firstServingTeam === null) {
       setSetupForm({
         firstServingTeam: computedServerTeam,
@@ -455,7 +470,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
         setIsChairMode(false);
       }
     }
-    // İptal edilirse hafızayı temizle, bir sonraki açılışta tekrar otomatik pilotu okusun
     setSetupForm(prev => ({ ...prev, firstServingTeam: null, leftTeam: null }));
   };
 
@@ -519,7 +533,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
     }));
 
     setIsEditingSetup(false);
-    // Kaydettikten sonra formu sıfırla ki, bir dahaki açılışta güncel durumu otomatik okusun
     setSetupForm(prev => ({ ...prev, firstServingTeam: null, leftTeam: null }));
   };
 
@@ -606,7 +619,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
       }
   }
 
-  // Dış Kart Görünümleri İçin Stil Tanımlamaları
   const baseCardClass = `rounded-3xl transition-all duration-200 overflow-hidden flex flex-col justify-between shadow-md relative ${
     isLive || isPaused ? (isLightMode ? 'bg-white border-[3px] border-emerald-500' : 'bg-slate-900/95 border border-emerald-500/30')
     : isUpcoming ? (isLightMode ? 'bg-slate-50 border-2 border-slate-300 cursor-pointer hover:border-slate-400' : 'bg-slate-900 border border-slate-700 cursor-pointer')
@@ -725,7 +737,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
               <button type="button" onClick={(e) => { 
                   e.stopPropagation(); 
                   setIsChairMode(true); 
-                  // Eğer kurulum yapılmamışsa, sistemin otomatik pilotundaki güncel hesaplamayı "Kurulum Ekranına" enjekte et
                   if (!isSetupValid) {
                      setSetupForm({
                         firstServingTeam: computedServerTeam,
@@ -750,7 +761,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                 </div>
                 
                 <div className="grid grid-cols-2 gap-3">
-                  {/* DIŞ EKRAN - OYUNCU 1 BUTONLARI (YEŞİL KUTU) */}
+                  {/* DIŞ EKRAN - OYUNCU 1 BUTONLARI */}
                   <div className={`flex flex-col gap-1.5 p-2 sm:p-2.5 rounded-xl border ${isLightMode ? 'bg-green-50 border-green-300' : 'bg-emerald-950/20 border-emerald-500/20'}`}>
                     <div className={`text-center font-black text-[11px] sm:text-xs truncate ${isLightMode ? 'text-green-800' : 'text-emerald-400'}`}>
                       {match['Oyuncu 1']}
@@ -763,7 +774,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                     </button>
                   </div>
                   
-                  {/* DIŞ EKRAN - OYUNCU 2 BUTONLARI (MAVİ KUTU) */}
+                  {/* DIŞ EKRAN - OYUNCU 2 BUTONLARI */}
                   <div className={`flex flex-col gap-1.5 p-2 sm:p-2.5 rounded-xl border ${isLightMode ? 'bg-blue-50 border-blue-300' : 'bg-blue-950/20 border-blue-500/20'}`}>
                     <div className={`text-center font-black text-[11px] sm:text-xs truncate ${isLightMode ? 'text-blue-800' : 'text-blue-400'}`}>
                       {match['Oyuncu 2']}
@@ -865,6 +876,11 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                     <Settings className="w-4 h-4" /> <span className="hidden sm:inline text-xs font-bold">Kurulum</span>
                   </button>
                 )}
+
+                {/* GECE GÜNDÜZ MODU SEÇİCİSİ */}
+                <button onClick={toggleTheme} className={`p-2 rounded-xl border transition flex items-center justify-center shadow-sm ${isLightMode ? 'bg-white hover:bg-slate-200 border-slate-400 text-amber-600' : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-amber-300'}`} title="Temayı Değiştir">
+                  {isLightMode ? <Sun className="w-5 h-5 font-black" /> : <Moon className="w-5 h-5" />}
+                </button>
 
                 <button type="button" onClick={handleExitChairMode} className={`px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl font-black text-xs sm:text-sm flex items-center gap-2 transition active:scale-95 border shadow-md ${isLightMode ? 'bg-rose-600 hover:bg-rose-700 text-white border-rose-800' : 'bg-slate-800 hover:bg-slate-700 text-white border-slate-700'}`}>
                   <LogOut className="w-4 h-4" /> Çıkış Yap
@@ -1004,7 +1020,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                     </div>
                     <div className="flex items-center gap-1 sm:gap-2 shrink-0">
                        {isTB && <div className={`px-2 sm:px-3 py-1 text-[9px] sm:text-xs font-black uppercase rounded-lg border ${isLightMode ? 'bg-slate-200 text-slate-800 border-slate-400' : 'bg-slate-800 text-slate-300 border-slate-700'}`}>{chairSetup.tbType === 'coman' ? 'Coman Tie-Break' : 'Standart Tie-Break'}</div>}
-                       {isSideChangePoint && <div className={`flex items-center gap-1.5 font-black text-[9px] sm:text-sm uppercase px-2 sm:px-3 py-1 rounded-lg border shadow-sm ${isLightMode ? 'bg-amber-400 text-black border-amber-600' : 'text-slate-950 bg-emerald-400 border-emerald-500'}`}><ArrowRightLeft className="w-3 h-3 sm:w-4 sm:h-4"/> Saha Değişimi</div>}
+                       {isSideChangePoint && <div className={`flex items-center gap-1.5 font-black text-[9px] sm:text-sm uppercase px-2 sm:px-3 py-1 rounded-lg border shadow-sm animate-pulse bg-rose-500 text-white border-rose-600`}><ArrowRightLeft className="w-3 h-3 sm:w-4 sm:h-4"/> Saha Değişimi</div>}
                     </div>
                   </div>
 
@@ -1069,7 +1085,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                       </div>
                     </div>
 
-                    <div className={`rounded-3xl p-2 sm:p-5 border flex flex-col justify-between overflow-hidden transition-all duration-300 ${computedServerTeam === rightTeamId ? (isLightMode ? 'bg-white border-[5px] border-amber-400 shadow-[0_0_25px_rgba(251,191,36,0.3)]' : 'bg-slate-800/40 border-[4px] border-amber-400 shadow-[0_0_30px_rgba(251,191,36,0.15)]') : (isLightMode ? 'bg-slate-50 border-2 border-slate-300' : 'bg-slate-900 border-2 border-slate-800')}`}>
+                    <div className={`rounded-3xl p-2 sm:p-5 border flex flex-col justify-between overflow-hidden transition-all duration-300 ${computedServerTeam === rightTeamId ? (isLightMode ? 'bg-white border-[5px] border-amber-400 shadow-[0_0_25px_rgba(251,191,36,0.3)]' : 'bg-slate-800/40 border-[4px] border-amber-400 shadow-[0_0_30px_rgba(251,191,36,0.15)]') : (isLightMode ? 'bg-white border-2 border-slate-200' : 'bg-slate-900 border-2 border-slate-800')}`}>
                       <div className={`flex flex-col items-center justify-center min-h-[4rem] sm:min-h-[5.5rem] border-b pb-2 mb-2 ${isLightMode ? 'border-slate-300' : 'border-slate-800/80'}`}>
                         <div className={`flex items-start justify-center gap-1 w-full ${rightTeamId === 1 ? (isLightMode ? 'text-green-700' : 'text-emerald-400') : (isLightMode ? 'text-blue-700' : 'text-blue-400')}`}>
                            {computedServerTeam === rightTeamId && (
@@ -1121,8 +1137,8 @@ export const CourtCard: React.FC<CourtCardProps> = ({
 
                   <div className={`pt-2 border-t flex flex-col gap-2 sm:gap-3 shrink-0 pb-4 ${isLightMode ? 'border-slate-300' : 'border-slate-800'}`}>
                     <div className="flex gap-2 sm:gap-3">
-                      <button type="button" onClick={(e) => startTimer(e, 'Saha Değişimi', 90)} className={`flex-1 py-3 sm:py-4 border text-[10px] sm:text-sm font-black rounded-xl transition ${isLightMode ? 'bg-white border-slate-400 text-slate-800 shadow-sm hover:bg-slate-100' : 'bg-slate-900 border-slate-700 text-slate-300 hover:text-white'}`}>90s Değişim</button>
-                      <button type="button" onClick={(e) => startTimer(e, 'Set Arası', 120)} className={`flex-1 py-3 sm:py-4 border text-[10px] sm:text-sm font-black rounded-xl transition ${isLightMode ? 'bg-white border-slate-400 text-slate-800 shadow-sm hover:bg-slate-100' : 'bg-slate-900 border-slate-700 text-slate-300 hover:text-white'}`}>120s Set</button>
+                      <button type="button" onClick={(e) => startTimer(e, 'Saha Değişimi', 90)} className={`flex-1 py-3 sm:py-4 border text-[10px] sm:text-sm font-black rounded-xl transition ${shouldBlink90s ? 'animate-pulse bg-rose-500 text-white border-rose-600 shadow-md' : (isLightMode ? 'bg-white border-slate-400 text-slate-800 shadow-sm hover:bg-slate-100' : 'bg-slate-900 border-slate-700 text-slate-300 hover:text-white')}`}>90s Değişim</button>
+                      <button type="button" onClick={(e) => startTimer(e, 'Set Arası', 120)} className={`flex-1 py-3 sm:py-4 border text-[10px] sm:text-sm font-black rounded-xl transition ${shouldBlink120s ? 'animate-pulse bg-rose-500 text-white border-rose-600 shadow-md' : (isLightMode ? 'bg-white border-slate-400 text-slate-800 shadow-sm hover:bg-slate-100' : 'bg-slate-900 border-slate-700 text-slate-300 hover:text-white')}`}>120s Set</button>
                       <button type="button" onClick={(e) => startTimer(e, 'Sağlık Molası', 180)} className={`flex-1 py-3 sm:py-4 border text-[10px] sm:text-sm font-black rounded-xl transition ${isLightMode ? 'bg-white border-slate-400 text-slate-800 shadow-sm hover:bg-slate-100' : 'bg-slate-900 border-slate-700 text-slate-300 hover:text-white'}`}>3dk MTO</button>
                     </div>
 
