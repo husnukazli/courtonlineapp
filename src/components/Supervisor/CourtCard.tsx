@@ -214,6 +214,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
     prevSetRef.current = selectedSet;
   }, [selectedSet, format]);
 
+  // SET BİTİMİNDEKİ YENİ SET KURULUM HESAPLAMALARI
   useEffect(() => {
     if (selectedSet > 1 && !setupsBySet[selectedSet] && setupsBySet[selectedSet - 1]) {
       const prevSet = selectedSet - 1;
@@ -234,20 +235,29 @@ export const CourtCard: React.FC<CourtCardProps> = ({
         if (wasTiebreak) {
           let finalTbPoints = 0;
           if (match.pointHistory && match.pointHistory.length > 0) {
-            let maxTb1 = 0; let maxTb2 = 0;
+            let maxTbSum = 0;
+            // Puan geçmişini geriye doğru tarayarak tie-break içindeki son skoru yakala
             for (let i = match.pointHistory.length - 1; i >= 0; i--) {
                const snap = match.pointHistory[i].snapshot;
+               // Tie-Break içindeyken (set henüz bitmeden hemen önceki puan)
                if (snap.currentSet === prevSet && snap.isTiebreak) {
-                  maxTb1 = Math.max(maxTb1, snap.tiebreak_p1);
-                  maxTb2 = Math.max(maxTb2, snap.tiebreak_p2);
+                  const sum = snap.tiebreak_p1 + snap.tiebreak_p2;
+                  if (sum > maxTbSum) maxTbSum = sum;
                }
             }
-            if (maxTb1 > 0 || maxTb2 > 0) finalTbPoints = maxTb1 + maxTb2; 
+            // Snapshot, puan KAZANILMADAN ÖNCEKİ durumu kaydeder. 
+            // Bu nedenle oynanan toplam puan, bu toplama son puanın (1) eklenmesiyle bulunur.
+            if (maxTbSum > 0) finalTbPoints = maxTbSum + 1; 
           }
-          if (finalTbPoints === 0) finalTbPoints = 12; 
+
+          // Eğer hakem puanları girmeden ("+1 Oyun" tuşuyla vs) doğrudan seti bitirdiyse varsayılan sayılara düş:
+          if (finalTbPoints === 0) {
+             if (prevS1 === 7 || prevS2 === 7) finalTbPoints = 13; // 7-6 bitmiştir, 13 puan
+             else if (prevS1 === 5 || prevS2 === 5) finalTbPoints = 9; // Kısa set 5-4 bitmiştir, 9 puan
+             else finalTbPoints = 13;
+          }
           
           const pointsBeforeLastPoint = finalTbPoints - 1; 
-          
           const gamesBeforeTB = totalGamesPrevSet - 1;
           const tbStartSide = (gamesBeforeTB % 4 === 1 || gamesBeforeTB % 4 === 2) ? (prevSetup.leftTeam === 1 ? 2 : 1) : prevSetup.leftTeam;
           
@@ -260,9 +270,11 @@ export const CourtCard: React.FC<CourtCardProps> = ({
              sideDuringLastPoint = block % 2 === 1 ? (tbStartSide === 1 ? 2 : 1) : tbStartSide;
           }
 
+          // ITF Kuralı: Yeni setteki yön, tie-break'in bittiği andaki (son oynanan puanın) yönünün tam zıttıdır!
           nextLeftTeam = sideDuringLastPoint === 1 ? 2 : 1;
 
         } else {
+          // Tie-break yoksa normal oyuna göre sağ/sol geçişi
           const sideDuringLastGame = ((totalGamesPrevSet - 1) % 4 === 1 || (totalGamesPrevSet - 1) % 4 === 2) ? (prevSetup.leftTeam === 1 ? 2 : 1) : prevSetup.leftTeam;
           const changeEnds = totalGamesPrevSet % 2 !== 0; 
           nextLeftTeam = changeEnds ? (sideDuringLastGame === 1 ? 2 : 1) : sideDuringLastGame;
@@ -326,6 +338,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
       }
   }
 
+  // --- KUSURSUZ OTOMATİK PİLOT ---
   if (isSetupValid) {
     const isComan = chairSetup.tbType === 'coman';
     const otherTeam = chairSetup.firstServingTeam === 1 ? 2 : 1;
@@ -397,6 +410,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
       activeReceiverName = recPlayers[activeRecIdx] || recPlayers[0];
     }
   } else {
+    // SADECE DIŞ EKRANDAN GİRİLEN VEYA KURULUM YAPILMAYAN OYUNLAR İÇİN OTOMATİK HESAPLAMA
     const totalGamesMatch = s1_p1 + s1_p2 + s2_p1 + s2_p2 + s3_p1 + s3_p2;
     
     if (!isTB) {
@@ -435,15 +449,9 @@ export const CourtCard: React.FC<CourtCardProps> = ({
   const leftTeamId = computedLeftTeam;
   const rightTeamId = computedLeftTeam === 1 ? 2 : 1;
 
-  // AKILLI MOLA UYARI MOTORU:
-  const isSetBreak = isGameStart && currentSetGames === 0 && selectedSet > 1 && !isFinished;
-  const isFirstGameChange = !isTB && currentSetGames === 1 && isGameStart;
-  
-  // Set arası ise her halükarda 120s yanıp söner
-  const shouldBlink120s = isSetBreak && !isPaused;
-  // Saha değişimi varsa, 1. oyun değilse, set arası değilse ve Tie-Break değilse 90s yanıp söner (TB'de dinlenme yoktur)
-  const shouldBlink90s = isSideChangePoint && !isFirstGameChange && !isSetBreak && !isTB && !isFinished && !isPaused;
-
+  // --------------------------------------------------------------------------------
+  // YENİ VE KUSURSUZ: KULE HAKEMİ KURULUM EKRANINA "OTOMATİK" VERİ DOLDURMA
+  // --------------------------------------------------------------------------------
   useEffect(() => {
     if (showSetupOverlay && setupForm.firstServingTeam === null) {
       setSetupForm({
@@ -458,6 +466,14 @@ export const CourtCard: React.FC<CourtCardProps> = ({
     }
   }, [showSetupOverlay, setupForm.firstServingTeam, computedServerTeam, computedLeftTeam, chairSetup, globalTbType, currentT1ServerIdx, currentT2ServerIdx]);
 
+  // AKILLI MOLA UYARI MOTORU
+  const isSetBreak = isGameStart && currentSetGames === 0 && selectedSet > 1 && !isFinished;
+  const isFirstGameChange = !isTB && currentSetGames === 1 && isGameStart;
+  
+  // Set arası ise (120s) yanıp söner (Set arası zaten saha değişimidir, ama mola uzundur)
+  const shouldBlink120s = isSetBreak && !isPaused;
+  // Saha değişimi varsa, İlk oyun(1-0) DEĞİLSE, Set arası DEĞİLSE ve Tie-Break DEĞİLSE (90s) yanıp söner
+  const shouldBlink90s = isSideChangePoint && !isFirstGameChange && !isSetBreak && !isTB && !isFinished && !isPaused;
 
   const handleCancelSetup = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -761,7 +777,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                 </div>
                 
                 <div className="grid grid-cols-2 gap-3">
-                  {/* DIŞ EKRAN - OYUNCU 1 BUTONLARI */}
                   <div className={`flex flex-col gap-1.5 p-2 sm:p-2.5 rounded-xl border ${isLightMode ? 'bg-green-50 border-green-300' : 'bg-emerald-950/20 border-emerald-500/20'}`}>
                     <div className={`text-center font-black text-[11px] sm:text-xs truncate ${isLightMode ? 'text-green-800' : 'text-emerald-400'}`}>
                       {match['Oyuncu 1']}
@@ -774,7 +789,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                     </button>
                   </div>
                   
-                  {/* DIŞ EKRAN - OYUNCU 2 BUTONLARI */}
                   <div className={`flex flex-col gap-1.5 p-2 sm:p-2.5 rounded-xl border ${isLightMode ? 'bg-blue-50 border-blue-300' : 'bg-blue-950/20 border-blue-500/20'}`}>
                     <div className={`text-center font-black text-[11px] sm:text-xs truncate ${isLightMode ? 'text-blue-800' : 'text-blue-400'}`}>
                       {match['Oyuncu 2']}
@@ -877,7 +891,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                   </button>
                 )}
 
-                {/* GECE GÜNDÜZ MODU SEÇİCİSİ */}
                 <button onClick={toggleTheme} className={`p-2 rounded-xl border transition flex items-center justify-center shadow-sm ${isLightMode ? 'bg-white hover:bg-slate-200 border-slate-400 text-amber-600' : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-amber-300'}`} title="Temayı Değiştir">
                   {isLightMode ? <Sun className="w-5 h-5 font-black" /> : <Moon className="w-5 h-5" />}
                 </button>
@@ -1020,7 +1033,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                     </div>
                     <div className="flex items-center gap-1 sm:gap-2 shrink-0">
                        {isTB && <div className={`px-2 sm:px-3 py-1 text-[9px] sm:text-xs font-black uppercase rounded-lg border ${isLightMode ? 'bg-slate-200 text-slate-800 border-slate-400' : 'bg-slate-800 text-slate-300 border-slate-700'}`}>{chairSetup.tbType === 'coman' ? 'Coman Tie-Break' : 'Standart Tie-Break'}</div>}
-                       {isSideChangePoint && <div className={`flex items-center gap-1.5 font-black text-[9px] sm:text-sm uppercase px-2 sm:px-3 py-1 rounded-lg border shadow-sm animate-pulse bg-rose-500 text-white border-rose-600`}><ArrowRightLeft className="w-3 h-3 sm:w-4 sm:h-4"/> Saha Değişimi</div>}
+                       {isSideChangePoint && <div className={`flex items-center gap-1.5 font-black text-[9px] sm:text-sm uppercase px-2 sm:px-3 py-1 rounded-lg border shadow-sm animate-pulse text-white bg-rose-500 border-rose-600`}><ArrowRightLeft className="w-3 h-3 sm:w-4 sm:h-4"/> Saha Değişimi</div>}
                     </div>
                   </div>
 
