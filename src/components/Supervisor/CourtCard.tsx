@@ -112,7 +112,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
     };
   }, [isChairMode]);
   
-  // GECE / GÜNDÜZ MODU
   const [isLightMode, setIsLightMode] = useState(() => {
     return localStorage.getItem('courtonline_light_mode') === 'true';
   });
@@ -241,7 +240,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
 
 
   // --------------------------------------------------------------------------------
-  // KUSURSUZ TENİS MATEMATİĞİ - KURULUMLA BİRLİKTE YENİ SETE GEÇİŞ (TIE-BREAK DÜZELTİLDİ)
+  // KUSURSUZ TENİS MATEMATİĞİ - SET GEÇİŞİ HESAPLAMALARI
   // --------------------------------------------------------------------------------
   useEffect(() => {
     if (selectedSet > 1 && !setupsBySet[selectedSet] && setupsBySet[selectedSet - 1]) {
@@ -253,12 +252,9 @@ export const CourtCard: React.FC<CourtCardProps> = ({
       const totalGamesPrevSet = prevS1 + prevS2;
       
       if (totalGamesPrevSet > 0) {
-        // 1. SERVİS EL DEĞİŞİMİ KURALI
         const nextServerTeam = totalGamesPrevSet % 2 === 0 ? prevSetup.firstServingTeam : (prevSetup.firstServingTeam === 1 ? 2 : 1);
-        
         let nextLeftTeam = prevSetup.leftTeam;
         
-        // 2. SAHA DEĞİŞİMİ KURALI (TIE-BREAK ve NORMAL OYUN AYRIMI)
         const isTBSet = (prevS1 === 7 && prevS2 === 6) || (prevS1 === 6 && prevS2 === 7) || 
                         (prevS1 === 5 && prevS2 === 4 && format.includes('Kısa')) || 
                         (prevS1 === 4 && prevS2 === 5 && format.includes('Kısa'));
@@ -342,6 +338,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
   let currentT1ServerIdx: 0 | 1 = 0;
   let currentT2ServerIdx: 0 | 1 = 0;
 
+  // MOTOR SAHA DEĞİŞİMİ TESPİTİ
   let isSideChangePoint = !!state?.needsChangeover;
   const isGameStart = state?.gamePoint_p1 === '0' && state?.gamePoint_p2 === '0';
 
@@ -405,10 +402,10 @@ export const CourtCard: React.FC<CourtCardProps> = ({
       const tbStartSide = (currentSetGames % 4 === 1 || currentSetGames % 4 === 2) ? (chairSetup.leftTeam === 1 ? 2 : 1) : chairSetup.leftTeam;
       if (tbPoints === 0) computedLeftTeam = tbStartSide;
       else if (isComan) {
-        const block = Math.floor((tbPoints - 1 + 3) / 4); 
+        const block = Math.floor((tbPoints + 3) / 4); 
         computedLeftTeam = block % 2 === 1 ? (tbStartSide === 1 ? 2 : 1) : tbStartSide;
       } else {
-        const block = Math.floor((tbPoints - 1) / 6); 
+        const block = Math.floor(tbPoints / 6); 
         computedLeftTeam = block % 2 === 1 ? (tbStartSide === 1 ? 2 : 1) : tbStartSide;
       }
 
@@ -457,7 +454,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                 const tbStartSide = (currentSetGames % 4 === 1 || currentSetGames % 4 === 2) ? (autoLeft === 1 ? 2 : 1) : autoLeft;
                 if (tbPoints === 0) autoLeft = tbStartSide;
                 else {
-                    const block = globalTbType === 'coman' ? Math.floor((tbPoints - 1 + 3) / 4) : Math.floor((tbPoints - 1) / 6);
+                    const block = globalTbType === 'coman' ? Math.floor((tbPoints + 3) / 4) : Math.floor(tbPoints / 6);
                     autoLeft = block % 2 === 1 ? (tbStartSide === 1 ? 2 : 1) : tbStartSide;
                 }
             }
@@ -529,7 +526,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
     }
   }, [showSetupOverlay, setupForm.firstServingTeam, computedServerTeam, computedLeftTeam, chairSetup, globalTbType, currentT1ServerIdx, currentT2ServerIdx]);
 
-  // AKILLI MOLA UYARI MOTORU
   const isSetBreak = isGameStart && currentSetGames === 0 && selectedSet > 1 && !isFinished;
   const isFirstGameChange = !isTB && currentSetGames === 1 && isGameStart;
   
@@ -571,10 +567,10 @@ export const CourtCard: React.FC<CourtCardProps> = ({
       let tbStartSide = setupForm.leftTeam;
       if (tbPoints > 0) {
         if (setupForm.tbType === 'coman') {
-          const block = Math.floor((tbPoints - 1 + 3) / 4); 
+          const block = Math.floor((tbPoints + 3) / 4); 
           tbStartSide = block % 2 === 1 ? (setupForm.leftTeam === 1 ? 2 : 1) : setupForm.leftTeam;
         } else {
-          const block = Math.floor((tbPoints - 1) / 6); 
+          const block = Math.floor(tbPoints / 6); 
           tbStartSide = block % 2 === 1 ? (setupForm.leftTeam === 1 ? 2 : 1) : setupForm.leftTeam;
         }
       }
@@ -838,6 +834,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                 </div>
                 
                 <div className="grid grid-cols-2 gap-3">
+                  {/* DIŞ EKRAN - OYUNCU 1 BUTONLARI */}
                   <div className={`flex flex-col gap-1.5 p-2 sm:p-2.5 rounded-xl border ${isLightMode ? 'bg-green-50 border-green-300' : 'bg-emerald-950/20 border-emerald-500/20'}`}>
                     <div className={`text-center font-black text-[11px] sm:text-xs truncate ${isLightMode ? 'text-green-800' : 'text-emerald-400'}`}>
                       {match['Oyuncu 1']}
@@ -850,6 +847,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                     </button>
                   </div>
                   
+                  {/* DIŞ EKRAN - OYUNCU 2 BUTONLARI */}
                   <div className={`flex flex-col gap-1.5 p-2 sm:p-2.5 rounded-xl border ${isLightMode ? 'bg-blue-50 border-blue-300' : 'bg-blue-950/20 border-blue-500/20'}`}>
                     <div className={`text-center font-black text-[11px] sm:text-xs truncate ${isLightMode ? 'text-blue-800' : 'text-blue-400'}`}>
                       {match['Oyuncu 2']}
