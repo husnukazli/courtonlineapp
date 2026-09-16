@@ -240,7 +240,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
 
 
   // --------------------------------------------------------------------------------
-  // KUSURSUZ TENİS MATEMATİĞİ - SET GEÇİŞİ HESAPLAMALARI
+  // KUSURSUZ TENİS MATEMATİĞİ - KURULUMLA BİRLİKTE YENİ SETE GEÇİŞ
   // --------------------------------------------------------------------------------
   useEffect(() => {
     if (selectedSet > 1 && !setupsBySet[selectedSet] && setupsBySet[selectedSet - 1]) {
@@ -338,19 +338,25 @@ export const CourtCard: React.FC<CourtCardProps> = ({
   let currentT1ServerIdx: 0 | 1 = 0;
   let currentT2ServerIdx: 0 | 1 = 0;
 
-  // MOTOR SAHA DEĞİŞİMİ TESPİTİ
+  // MOTOR SAHA DEĞİŞİMİ TESPİTİ (Puan Girilince Otomatik Kapanır)
   let isSideChangePoint = !!state?.needsChangeover;
   const isGameStart = state?.gamePoint_p1 === '0' && state?.gamePoint_p2 === '0';
 
-  if (!isSideChangePoint) {
-    if (isTB) {
-      if (isSetupValid && chairSetup.tbType === 'coman') {
-        isSideChangePoint = tbPoints > 0 && ((tbPoints - 1) % 4 === 0);
-      } else {
-        isSideChangePoint = tbPoints > 0 && (tbPoints % 6 === 0);
-      }
+  if (isTB) {
+    const expectedChange = (isSetupValid && chairSetup.tbType === 'coman') 
+      ? (tbPoints > 0 && (tbPoints - 1) % 4 === 0) 
+      : (tbPoints > 0 && (tbPoints % 6 === 0));
+
+    if (isSideChangePoint && !expectedChange) {
+      isSideChangePoint = false;
+    } else if (!isSideChangePoint && expectedChange) {
+      isSideChangePoint = true;
+    }
+  } else {
+    if (!isGameStart) {
+      isSideChangePoint = false;
     } else {
-      if (isGameStart) {
+      if (!isSideChangePoint) {
         if (currentSetGames > 0 && currentSetGames % 2 === 1) {
           isSideChangePoint = true;
         } else if (currentSetGames === 0 && selectedSet > 1) {
@@ -402,10 +408,10 @@ export const CourtCard: React.FC<CourtCardProps> = ({
       const tbStartSide = (currentSetGames % 4 === 1 || currentSetGames % 4 === 2) ? (chairSetup.leftTeam === 1 ? 2 : 1) : chairSetup.leftTeam;
       if (tbPoints === 0) computedLeftTeam = tbStartSide;
       else if (isComan) {
-        const block = Math.floor((tbPoints + 3) / 4); 
+        const block = Math.floor((tbPoints - 1 + 3) / 4); 
         computedLeftTeam = block % 2 === 1 ? (tbStartSide === 1 ? 2 : 1) : tbStartSide;
       } else {
-        const block = Math.floor(tbPoints / 6); 
+        const block = Math.floor((tbPoints - 1) / 6); 
         computedLeftTeam = block % 2 === 1 ? (tbStartSide === 1 ? 2 : 1) : tbStartSide;
       }
 
@@ -526,11 +532,12 @@ export const CourtCard: React.FC<CourtCardProps> = ({
     }
   }, [showSetupOverlay, setupForm.firstServingTeam, computedServerTeam, computedLeftTeam, chairSetup, globalTbType, currentT1ServerIdx, currentT2ServerIdx]);
 
+  // AKILLI MOLA UYARI MOTORU
   const isSetBreak = isGameStart && currentSetGames === 0 && selectedSet > 1 && !isFinished;
   const isFirstGameChange = !isTB && currentSetGames === 1 && isGameStart;
   
-  const shouldBlink120s = isSetBreak && !isPaused;
-  const shouldBlink90s = isSideChangePoint && !isFirstGameChange && !isSetBreak && !isTB && !isFinished && !isPaused;
+  const shouldBlink120s = isSetBreak && !isPaused && !activeTimer;
+  const shouldBlink90s = isSideChangePoint && !isFirstGameChange && !isSetBreak && !isTB && !isFinished && !isPaused && !activeTimer;
 
   const handleCancelSetup = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -567,10 +574,10 @@ export const CourtCard: React.FC<CourtCardProps> = ({
       let tbStartSide = setupForm.leftTeam;
       if (tbPoints > 0) {
         if (setupForm.tbType === 'coman') {
-          const block = Math.floor((tbPoints + 3) / 4); 
+          const block = Math.floor((tbPoints - 1 + 3) / 4); 
           tbStartSide = block % 2 === 1 ? (setupForm.leftTeam === 1 ? 2 : 1) : setupForm.leftTeam;
         } else {
-          const block = Math.floor(tbPoints / 6); 
+          const block = Math.floor((tbPoints - 1) / 6); 
           tbStartSide = block % 2 === 1 ? (setupForm.leftTeam === 1 ? 2 : 1) : setupForm.leftTeam;
         }
       }
@@ -611,10 +618,20 @@ export const CourtCard: React.FC<CourtCardProps> = ({
 
   useEffect(() => {
     let interval: any;
-    if (activeTimer && activeTimer.seconds > 0) {
-      interval = setInterval(() => setActiveTimer((prev) => prev ? { ...prev, seconds: prev.seconds - 1 } : null), 1000);
+    let timeout: any;
+    if (activeTimer) {
+      if (activeTimer.seconds > 0) {
+        interval = setInterval(() => {
+          setActiveTimer((prev) => prev ? { ...prev, seconds: prev.seconds - 1 } : null);
+        }, 1000);
+      } else {
+        timeout = setTimeout(() => setActiveTimer(null), 2000);
+      }
     }
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      clearTimeout(timeout);
+    };
   }, [activeTimer]);
 
   const handleQuickScore = (e: React.MouseEvent, player: 1 | 2, delta: number) => {
@@ -868,10 +885,10 @@ export const CourtCard: React.FC<CourtCardProps> = ({
         <div className={`p-3 sm:p-4 border-t flex items-center gap-2 ${isLightMode ? 'bg-slate-50 border-slate-200' : 'bg-slate-950/70 border-slate-800'}`}>
           {isUpcoming ? (
             <div className="flex items-center gap-2 w-full">
-              {onOpenSetup && <button type="button" onClick={(e) => { e.stopPropagation(); onOpenSetup(match); }} className={`py-2.5 px-3 rounded-xl font-black text-xs border transition shadow-sm ${isLightMode ? 'bg-white hover:bg-slate-200 text-slate-800 border-slate-300' : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'}`} title="Kura Çek">🪙 Kura</button>}
+              {onOpenSetup && <button type="button" onClick={(e) => { e.stopPropagation(); onOpenSetup(match); }} className={`py-2.5 px-3 rounded-xl font-bold text-xs border transition shadow-sm ${isLightMode ? 'bg-white hover:bg-slate-200 text-slate-800 border-slate-300' : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'}`} title="Kura Çek">🪙 Kura</button>}
               
               {onEditScore && (
-                <button type="button" onClick={(e) => { e.stopPropagation(); onEditScore(match); }} className={`py-2.5 px-3 rounded-xl font-black text-xs border transition flex items-center gap-1.5 shadow-sm ${isLightMode ? 'bg-white hover:bg-slate-200 text-slate-800 border-slate-300' : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'}`} title="Hızlı Skor Gir">
+                <button type="button" onClick={(e) => { e.stopPropagation(); onEditScore(match); }} className={`py-2.5 px-3 rounded-xl font-bold text-xs border transition flex items-center gap-1.5 shadow-sm ${isLightMode ? 'bg-white hover:bg-slate-200 text-slate-800 border-slate-300' : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'}`} title="Hızlı Skor Gir">
                   <PenLine className="w-3.5 h-3.5" /> Skor
                 </button>
               )}
@@ -1092,7 +1109,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                     </div>
                     <div className="flex items-center gap-1 sm:gap-2 shrink-0">
                        {isTB && <div className={`px-2 sm:px-3 py-1 text-[9px] sm:text-xs font-black uppercase rounded-lg border ${isLightMode ? 'bg-slate-200 text-slate-800 border-slate-400' : 'bg-slate-800 text-slate-300 border-slate-700'}`}>{chairSetup.tbType === 'coman' ? 'Coman Tie-Break' : 'Standart Tie-Break'}</div>}
-                       {isSideChangePoint && <div className={`flex items-center gap-1.5 font-black text-[9px] sm:text-sm uppercase px-2 sm:px-3 py-1 rounded-lg border shadow-sm animate-pulse text-white bg-rose-500 border-rose-600`}><ArrowRightLeft className="w-3 h-3 sm:w-4 sm:h-4"/> Saha Değişimi</div>}
+                       {isSideChangePoint && <div className={`flex items-center gap-1.5 font-black text-[9px] sm:text-sm uppercase px-2 sm:px-3 py-1 rounded-lg border shadow-sm text-white bg-rose-500 border-rose-600 ${!activeTimer ? 'animate-pulse' : ''}`}><ArrowRightLeft className="w-3 h-3 sm:w-4 sm:h-4"/> Saha Değişimi</div>}
                     </div>
                   </div>
 
@@ -1100,7 +1117,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                     <div className={`border p-2 sm:p-4 rounded-2xl flex items-center justify-between shrink-0 shadow-md ${isLightMode ? 'bg-white border-slate-400' : 'bg-slate-800 border-slate-700'}`}>
                       <span className={`font-black text-sm sm:text-base flex items-center gap-2 ${isLightMode ? 'text-black' : 'text-slate-300'}`}><Timer className="w-4 h-4 sm:w-5 sm:h-5" />{activeTimer.label}</span>
                       <div className="flex items-center gap-3 sm:gap-4">
-                        <span className={`font-mono font-black text-2xl sm:text-4xl ${activeTimer.seconds === 0 ? 'text-rose-600 animate-pulse' : (isLightMode ? 'text-slate-900' : 'text-slate-200')}`}>
+                        <span className={`font-mono font-black text-2xl sm:text-4xl ${activeTimer.seconds <= 15 ? 'text-rose-600 animate-pulse' : (isLightMode ? 'text-slate-900' : 'text-slate-200')}`}>
                           {Math.floor(activeTimer.seconds / 60)}:{(activeTimer.seconds % 60).toString().padStart(2, '0')}
                         </span>
                         <button type="button" onClick={(e) => { e.stopPropagation(); setActiveTimer(null); }} className={`p-2 rounded-xl transition ${isLightMode ? 'bg-slate-100 text-slate-600 hover:text-black hover:bg-slate-200 border border-slate-300' : 'text-slate-400 hover:text-slate-200 bg-slate-900'}`}><X className="w-5 h-5 sm:w-6 sm:h-6" /></button>
