@@ -408,10 +408,10 @@ export const CourtCard: React.FC<CourtCardProps> = ({
       const tbStartSide = (currentSetGames % 4 === 1 || currentSetGames % 4 === 2) ? (chairSetup.leftTeam === 1 ? 2 : 1) : chairSetup.leftTeam;
       if (tbPoints === 0) computedLeftTeam = tbStartSide;
       else if (isComan) {
-        const block = Math.floor((tbPoints - 1 + 3) / 4); 
+        const block = Math.floor((tbPoints + 3) / 4); 
         computedLeftTeam = block % 2 === 1 ? (tbStartSide === 1 ? 2 : 1) : tbStartSide;
       } else {
-        const block = Math.floor((tbPoints - 1) / 6); 
+        const block = Math.floor(tbPoints / 6); 
         computedLeftTeam = block % 2 === 1 ? (tbStartSide === 1 ? 2 : 1) : tbStartSide;
       }
 
@@ -440,19 +440,34 @@ export const CourtCard: React.FC<CourtCardProps> = ({
     }
   } else {
     // --- DIŞ EKRAN İÇİN MÜTHİŞ OTOMATİK PİLOT (KURULUM OLMADIĞINDA) ---
-    let autoServer: 1 | 2 = (state?.currentServer === 2) ? 2 : 1;
-    let autoLeft: 1 | 2 = 1;
-    
-    if (match.Saha_Tarafi && match.Kura_Kazanan && match.Kura_Kazanan !== 'Secilmedi') {
-        if (match.Kura_Kazanan === match['Oyuncu 1']) {
-            if (match.Saha_Tarafi.toLowerCase().includes('sol')) autoLeft = 1;
-            else if (match.Saha_Tarafi.toLowerCase().includes('sağ') || match.Saha_Tarafi.toLowerCase().includes('sag')) autoLeft = 2;
-        } else if (match.Kura_Kazanan === match['Oyuncu 2']) {
-            if (match.Saha_Tarafi.toLowerCase().includes('sol')) autoLeft = 2;
-            else if (match.Saha_Tarafi.toLowerCase().includes('sağ') || match.Saha_Tarafi.toLowerCase().includes('sag')) autoLeft = 1;
+    // 1. Kurulum (MatchSetupModal) verilerinden Başlangıç Durumunu (0-0) Tespit Et
+    let initialServer: 1 | 2 = state?.currentServer === 2 ? 2 : 1;
+    let initialLeft: 1 | 2 = 1;
+
+    if (match.Kura_Kazanan && match.Kura_Kazanan !== 'Secilmedi' && match.Kura_Tercih) {
+        const isWinnerP1 = match.Kura_Kazanan === match['Oyuncu 1'];
+        if (match.Kura_Tercih === 'Servis') {
+            initialServer = isWinnerP1 ? 1 : 2;
+        } else if (match.Kura_Tercih === 'Karşılama') {
+            initialServer = isWinnerP1 ? 2 : 1;
         }
     }
+
+    if (match.Saha_Tarafi && match.Kura_Kazanan && match.Kura_Kazanan !== 'Secilmedi') {
+        const isWinnerP1 = match.Kura_Kazanan === match['Oyuncu 1'];
+        const saha = match.Saha_Tarafi.toLowerCase();
+        
+        if (saha.includes('sol')) {
+            initialLeft = isWinnerP1 ? 1 : 2;
+        } else if (saha.includes('sağ') || saha.includes('sag')) {
+            initialLeft = isWinnerP1 ? 2 : 1;
+        }
+    }
+
+    let autoServer = initialServer;
+    let autoLeft = initialLeft;
     
+    // 2. Simülasyon döngüsü (Baştan o anki skora kadar evrim)
     for (let s = 1; s <= selectedSet; s++) {
         if (s === selectedSet) {
             if (!isTB) {
@@ -584,10 +599,10 @@ export const CourtCard: React.FC<CourtCardProps> = ({
       let tbStartSide = setupForm.leftTeam;
       if (tbPoints > 0) {
         if (setupForm.tbType === 'coman') {
-          const block = Math.floor((tbPoints - 1 + 3) / 4); 
+          const block = Math.floor((tbPoints + 3) / 4); 
           tbStartSide = block % 2 === 1 ? (setupForm.leftTeam === 1 ? 2 : 1) : setupForm.leftTeam;
         } else {
-          const block = Math.floor((tbPoints - 1) / 6); 
+          const block = Math.floor(tbPoints / 6); 
           tbStartSide = block % 2 === 1 ? (setupForm.leftTeam === 1 ? 2 : 1) : setupForm.leftTeam;
         }
       }
