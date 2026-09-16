@@ -215,7 +215,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
   }, [selectedSet, format]);
 
   // --------------------------------------------------------------------------------
-  // EVRENSEL TENİS MATEMATİĞİ - TIE BREAK İÇİ VE SONRASI KUSURSUZ YÖN BULUCU
+  // EVRENSEL TENİS MATEMATİĞİ - KURULUMLA BİRLİKTE YENİ SETE GEÇİŞ (TIE-BREAK KUSURSUZ YÖN)
   // --------------------------------------------------------------------------------
   useEffect(() => {
     if (selectedSet > 1 && !setupsBySet[selectedSet] && setupsBySet[selectedSet - 1]) {
@@ -224,13 +224,10 @@ export const CourtCard: React.FC<CourtCardProps> = ({
       
       const prevS1 = prevSet === 1 ? s1_p1 : prevSet === 2 ? s2_p1 : s3_p1;
       const prevS2 = prevSet === 1 ? s1_p2 : prevSet === 2 ? s2_p2 : s3_p2;
-      const N = prevS1 + prevS2;
+      const totalGamesPrevSet = prevS1 + prevS2;
       
-      if (N > 0) {
-        // 1. SERVİS KURALI: N Tek ise servis el değiştirir. (Tie-break bitişi 13 = tek sayı, servis karşıya geçer)
-        const nextServerTeam = N % 2 === 0 ? prevSetup.firstServingTeam : (prevSetup.firstServingTeam === 1 ? 2 : 1);
-        
-        // 2. YÖN KURALI (MÜKEMMEL HESAPLAMA)
+      if (totalGamesPrevSet > 0) {
+        const nextServerTeam = totalGamesPrevSet % 2 === 0 ? prevSetup.firstServingTeam : (prevSetup.firstServingTeam === 1 ? 2 : 1);
         let nextLeftTeam = prevSetup.leftTeam;
         
         const isTBSet = (prevS1 === 7 && prevS2 === 6) || (prevS1 === 6 && prevS2 === 7) || 
@@ -238,52 +235,49 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                         (prevS1 === 4 && prevS2 === 5 && format.includes('Kısa'));
         
         if (isTBSet) {
-          // Tie break içinde oynanan puanı tam bulmak için geçmişe bakıyoruz
-          let P = 12; // Geçmiş yoksa 7-5 bitti varsayımı
+          let P = 0; 
           if (match.pointHistory && match.pointHistory.length > 0) {
             let maxTbSum = 0;
             for (let i = match.pointHistory.length - 1; i >= 0; i--) {
                const snap = match.pointHistory[i].snapshot;
-               // Set henüz bitmeden önceki an
                if (snap.currentSet === prevSet && snap.isTiebreak) {
                   const sum = snap.tiebreak_p1 + snap.tiebreak_p2;
                   if (sum > maxTbSum) maxTbSum = sum;
                }
             }
-            // Snapshot, puan kazanılmadan önceki andır. +1 ekleyerek gerçek puanı buluruz.
             if (maxTbSum > 0) P = maxTbSum + 1; 
+          }
+
+          if (P === 0) {
+             if (prevS1 === 7 || prevS2 === 7) P = 13;
+             else if (prevS1 === 5 || prevS2 === 5) P = 9;
+             else P = 13;
           }
           
           let tbSwaps = 0;
-          if (prevSetup.tbType === 'coman') {
-              tbSwaps = Math.floor((P + 3) / 4);
-          } else {
-              tbSwaps = Math.floor(P / 6);
+          if (P > 0) {
+             // DÜZELTİLEN KISIM: Math.floor((P - 1) / 6)
+             tbSwaps = prevSetup.tbType === 'coman' ? Math.floor((P - 1 + 3) / 4) : Math.floor((P - 1) / 6);
           }
           
-          const normalSwapsBeforeTB = Math.floor((N - 1 + 1) / 2); 
-          const endOfSetSwap = N % 2 === 1 ? 1 : 0; // Set 13 oyunda bittiyse (Tek sayı), zıt sahaya geçilir!
+          const normalSwapsBeforeTB = Math.floor((totalGamesPrevSet - 1) / 2); 
+          const endOfSetSwap = totalGamesPrevSet % 2 === 1 ? 1 : 0; 
           
           const totalSwaps = normalSwapsBeforeTB + tbSwaps + endOfSetSwap;
           
-          if (totalSwaps % 2 === 1) {
-              nextLeftTeam = prevSetup.leftTeam === 1 ? 2 : 1;
-          }
+          nextLeftTeam = totalSwaps % 2 === 1 ? (prevSetup.leftTeam === 1 ? 2 : 1) : prevSetup.leftTeam;
+
         } else {
-          // Normal Set (Örn: 6-4 veya 6-3)
-          const totalSwaps = Math.floor((N + 1) / 2) + (N % 2 === 1 ? 1 : 0);
-          if (totalSwaps % 2 === 1) {
-              nextLeftTeam = prevSetup.leftTeam === 1 ? 2 : 1;
-          }
+          const totalSwaps = Math.floor(totalGamesPrevSet / 2) + (totalGamesPrevSet % 2 === 1 ? 1 : 0);
+          nextLeftTeam = totalSwaps % 2 === 1 ? (prevSetup.leftTeam === 1 ? 2 : 1) : prevSetup.leftTeam;
         }
 
-        // Çiftler için oyuncu dönüşümü
         let nextT1ServerIdx = prevSetup.t1ServerIdx;
         let nextT2ServerIdx = prevSetup.t2ServerIdx;
 
         if (isDoubles) {
-          const teamServicesT1 = Math.floor(N / 2) + (prevSetup.firstServingTeam === 1 && N % 2 !== 0 ? 1 : 0);
-          const teamServicesT2 = Math.floor(N / 2) + (prevSetup.firstServingTeam === 2 && N % 2 !== 0 ? 1 : 0);
+          const teamServicesT1 = Math.floor(totalGamesPrevSet / 2) + (prevSetup.firstServingTeam === 1 && totalGamesPrevSet % 2 !== 0 ? 1 : 0);
+          const teamServicesT2 = Math.floor(totalGamesPrevSet / 2) + (prevSetup.firstServingTeam === 2 && totalGamesPrevSet % 2 !== 0 ? 1 : 0);
           nextT1ServerIdx = (prevSetup.t1ServerIdx + teamServicesT1) % 2 as 0 | 1;
           nextT2ServerIdx = (prevSetup.t2ServerIdx + teamServicesT2) % 2 as 0 | 1;
         }
@@ -336,7 +330,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
       }
   }
 
-  // --- OYUN İÇİ OTOMATİK PİLOT (KURULUM VARSA) ---
+  // --- KUSURSUZ OTOMATİK PİLOT (KURULUM VARSA) ---
   if (isSetupValid) {
     const isComan = chairSetup.tbType === 'coman';
     const otherTeam = chairSetup.firstServingTeam === 1 ? 2 : 1;
@@ -377,10 +371,10 @@ export const CourtCard: React.FC<CourtCardProps> = ({
       const tbStartSide = (currentSetGames % 4 === 1 || currentSetGames % 4 === 2) ? (chairSetup.leftTeam === 1 ? 2 : 1) : chairSetup.leftTeam;
       if (tbPoints === 0) computedLeftTeam = tbStartSide;
       else if (isComan) {
-        const block = Math.floor((tbPoints + 3) / 4);
+        const block = Math.floor((tbPoints - 1 + 3) / 4); // DÜZELTİLDİ: P-1 kuralı
         computedLeftTeam = block % 2 === 1 ? (tbStartSide === 1 ? 2 : 1) : tbStartSide;
       } else {
-        const block = Math.floor(tbPoints / 6);
+        const block = Math.floor((tbPoints - 1) / 6); // DÜZELTİLDİ: P-1 kuralı
         computedLeftTeam = block % 2 === 1 ? (tbStartSide === 1 ? 2 : 1) : tbStartSide;
       }
 
@@ -429,29 +423,24 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                 
                 const tbStartSide = (currentSetGames % 4 === 1 || currentSetGames % 4 === 2) ? (autoLeft === 1 ? 2 : 1) : autoLeft;
                 if (tbPoints === 0) autoLeft = tbStartSide;
-                else if (globalTbType === 'coman') {
-                    const block = Math.floor((tbPoints + 3) / 4);
-                    autoLeft = block % 2 === 1 ? (tbStartSide === 1 ? 2 : 1) : tbStartSide;
-                } else {
-                    const block = Math.floor(tbPoints / 6);
+                else {
+                    const block = globalTbType === 'coman' ? Math.floor((tbPoints - 1 + 3) / 4) : Math.floor((tbPoints - 1) / 6);
                     autoLeft = block % 2 === 1 ? (tbStartSide === 1 ? 2 : 1) : tbStartSide;
                 }
             }
         } else {
-            // Önceki bitmiş setlerin hafızasını topluyoruz
             const ps1 = s === 1 ? s1_p1 : s === 2 ? s2_p1 : s3_p1;
             const ps2 = s === 1 ? s1_p2 : s === 2 ? s2_p2 : s3_p2;
             const N = ps1 + ps2;
             
             if (N === 0) continue;
             
-            // Set sonu servis daima döner mi? (Sadece N tek ise döner)
             if (N % 2 === 1) autoServer = autoServer === 1 ? 2 : 1;
             
             const isTBSet = (ps1 === 7 && ps2 === 6) || (ps1 === 6 && ps2 === 7) || (ps1 === 5 && ps2 === 4 && format.includes('Kısa')) || (ps1 === 4 && ps2 === 5 && format.includes('Kısa'));
             
             if (isTBSet) {
-                let P = 12; 
+                let P = 0; 
                 if (match.pointHistory) {
                     let maxTbSum = 0;
                     for (let i = match.pointHistory.length - 1; i >= 0; i--) {
@@ -463,14 +452,24 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                     }
                     if (maxTbSum > 0) P = maxTbSum + 1; 
                 }
-                let tbSwaps = globalTbType === 'coman' ? Math.floor((P + 3) / 4) : Math.floor(P / 6);
-                const normalSwapsBeforeTB = Math.floor((N - 1 + 1) / 2); 
+                
+                if (P === 0) {
+                    if (ps1 === 7 || ps2 === 7) P = 13; 
+                    else if (ps1 === 5 || ps2 === 5) P = 9;  
+                    else P = 13;
+                }
+
+                let tbSwaps = 0;
+                if (P > 0) {
+                    tbSwaps = globalTbType === 'coman' ? Math.floor((P - 1 + 3) / 4) : Math.floor((P - 1) / 6);
+                }
+                const normalSwapsBeforeTB = Math.floor((N - 1) / 2); 
                 const endOfSetSwap = N % 2 === 1 ? 1 : 0;
                 
                 const totalSwaps = normalSwapsBeforeTB + tbSwaps + endOfSetSwap;
                 if (totalSwaps % 2 === 1) autoLeft = autoLeft === 1 ? 2 : 1;
             } else {
-                const totalSwaps = Math.floor((N + 1) / 2) + (N % 2 === 1 ? 1 : 0);
+                const totalSwaps = Math.floor(N / 2) + (N % 2 === 1 ? 1 : 0);
                 if (totalSwaps % 2 === 1) autoLeft = autoLeft === 1 ? 2 : 1;
             }
         }
@@ -483,8 +482,10 @@ export const CourtCard: React.FC<CourtCardProps> = ({
   const leftTeamId = computedLeftTeam;
   const rightTeamId = computedLeftTeam === 1 ? 2 : 1;
 
+  // --------------------------------------------------------------------------------
+  // KULE HAKEMİ KURULUM EKRANINA "OTOMATİK" VERİ DOLDURMA
+  // --------------------------------------------------------------------------------
   useEffect(() => {
-    // Kurulum modalı açıldığında EVRENSEL MATEMATİK ile hesaplanan sonucu formun içine enjekte eder.
     if (showSetupOverlay && setupForm.firstServingTeam === null) {
       setSetupForm({
         firstServingTeam: computedServerTeam,
@@ -502,9 +503,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
   const isSetBreak = isGameStart && currentSetGames === 0 && selectedSet > 1 && !isFinished;
   const isFirstGameChange = !isTB && currentSetGames === 1 && isGameStart;
   
-  // Set arası ise (120s) yanıp söner 
   const shouldBlink120s = isSetBreak && !isPaused;
-  // Saha değişimi varsa, İlk oyun(1-0) DEĞİLSE, Set arası DEĞİLSE ve Tie-Break DEĞİLSE (90s) yanıp söner
   const shouldBlink90s = isSideChangePoint && !isFirstGameChange && !isSetBreak && !isTB && !isFinished && !isPaused;
 
   const handleCancelSetup = (e: React.MouseEvent) => {
@@ -542,10 +541,10 @@ export const CourtCard: React.FC<CourtCardProps> = ({
       let tbStartSide = setupForm.leftTeam;
       if (tbPoints > 0) {
         if (setupForm.tbType === 'coman') {
-          const block = Math.floor((tbPoints + 3) / 4);
+          const block = Math.floor((tbPoints - 1 + 3) / 4); // DÜZELTİLDİ: Formül P-1 üzerinden
           tbStartSide = block % 2 === 1 ? (setupForm.leftTeam === 1 ? 2 : 1) : setupForm.leftTeam;
         } else {
-          const block = Math.floor(tbPoints / 6);
+          const block = Math.floor((tbPoints - 1) / 6); // DÜZELTİLDİ: Formül P-1 üzerinden
           tbStartSide = block % 2 === 1 ? (setupForm.leftTeam === 1 ? 2 : 1) : setupForm.leftTeam;
         }
       }
