@@ -112,6 +112,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
     };
   }, [isChairMode]);
   
+  // GECE / GÜNDÜZ MODU
   const [isLightMode, setIsLightMode] = useState(() => {
     return localStorage.getItem('courtonline_light_mode') === 'true';
   });
@@ -249,7 +250,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
       
       const prevS1 = prevSet === 1 ? s1_p1 : prevSet === 2 ? s2_p1 : s3_p1;
       const prevS2 = prevSet === 1 ? s1_p2 : prevSet === 2 ? s2_p2 : s3_p2;
-      const totalGamesPrevSet = prevS1 + prevS2; // Örn: 7 + 6 = 13 (oyun)
+      const totalGamesPrevSet = prevS1 + prevS2;
       
       if (totalGamesPrevSet > 0) {
         // 1. SERVİS EL DEĞİŞİMİ KURALI
@@ -263,7 +264,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                         (prevS1 === 4 && prevS2 === 5 && format.includes('Kısa'));
         
         if (isTBSet) {
-          let tbPointsPlayed = 0; // Oynanan Tie-Break Puanı
+          let tbPointsPlayed = 0; 
           
           if (match.pointHistory && match.pointHistory.length > 0) {
             let maxTbSum = 0;
@@ -277,19 +278,16 @@ export const CourtCard: React.FC<CourtCardProps> = ({
             if (maxTbSum > 0) tbPointsPlayed = maxTbSum + 1; 
           }
 
-          // Veri okunamadıysa, minimum tie-break kazanma sayılarını varsay (Asla 13 Puan olamaz)
           if (tbPointsPlayed === 0) {
-             if (prevS1 === 5 || prevS2 === 5) tbPointsPlayed = 9; // Kısa set 5-4 -> TB 5-4 bitmiştir
-             else tbPointsPlayed = 12; // Standart set 7-6 -> TB 7-5 bitmiştir
+             if (prevS1 === 5 || prevS2 === 5) tbPointsPlayed = 9; 
+             else tbPointsPlayed = 12; 
           }
           
           const pointsBeforeLastPoint = tbPointsPlayed - 1; 
           const gamesBeforeTB = totalGamesPrevSet - 1; 
           
-          // Tie-break başladığı andaki saha yönü
           const tbStartSide = (gamesBeforeTB % 4 === 1 || gamesBeforeTB % 4 === 2) ? (prevSetup.leftTeam === 1 ? 2 : 1) : prevSetup.leftTeam;
           
-          // Tie-break'in son sayısı oynanırken oyuncular neredeydi?
           let sideDuringLastPoint = tbStartSide;
           let tbSwaps = 0;
           
@@ -300,12 +298,9 @@ export const CourtCard: React.FC<CourtCardProps> = ({
           }
           sideDuringLastPoint = tbSwaps % 2 === 1 ? (tbStartSide === 1 ? 2 : 1) : tbStartSide;
 
-          // Set 7-6 (13 oyun) bittiği için toplam oyun tek sayıdır.
-          // Kural: Toplam oyun tek ise oyuncular SON BULUNDUKLARI YERDEN zıt sahaya geçer.
           nextLeftTeam = sideDuringLastPoint === 1 ? 2 : 1;
 
         } else {
-          // Tie-break oynanmadıysa (Örn 6-4 veya 7-5 bittiyse)
           const sideDuringLastGame = ((totalGamesPrevSet - 1) % 4 === 1 || (totalGamesPrevSet - 1) % 4 === 2) ? (prevSetup.leftTeam === 1 ? 2 : 1) : prevSetup.leftTeam;
           const changeEnds = totalGamesPrevSet % 2 !== 0; 
           nextLeftTeam = changeEnds ? (sideDuringLastGame === 1 ? 2 : 1) : sideDuringLastGame;
@@ -347,7 +342,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
   let currentT1ServerIdx: 0 | 1 = 0;
   let currentT2ServerIdx: 0 | 1 = 0;
 
-  // MOTOR SAHA DEĞİŞİMİ TESPİTİ (İlk öncelik state.needsChangeover)
   let isSideChangePoint = !!state?.needsChangeover;
   const isGameStart = state?.gamePoint_p1 === '0' && state?.gamePoint_p2 === '0';
 
@@ -844,7 +838,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                 </div>
                 
                 <div className="grid grid-cols-2 gap-3">
-                  {/* DIŞ EKRAN - OYUNCU 1 BUTONLARI (YEŞİL KUTU) */}
                   <div className={`flex flex-col gap-1.5 p-2 sm:p-2.5 rounded-xl border ${isLightMode ? 'bg-green-50 border-green-300' : 'bg-emerald-950/20 border-emerald-500/20'}`}>
                     <div className={`text-center font-black text-[11px] sm:text-xs truncate ${isLightMode ? 'text-green-800' : 'text-emerald-400'}`}>
                       {match['Oyuncu 1']}
@@ -857,7 +850,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                     </button>
                   </div>
                   
-                  {/* DIŞ EKRAN - OYUNCU 2 BUTONLARI (MAVİ KUTU) */}
                   <div className={`flex flex-col gap-1.5 p-2 sm:p-2.5 rounded-xl border ${isLightMode ? 'bg-blue-50 border-blue-300' : 'bg-blue-950/20 border-blue-500/20'}`}>
                     <div className={`text-center font-black text-[11px] sm:text-xs truncate ${isLightMode ? 'text-blue-800' : 'text-blue-400'}`}>
                       {match['Oyuncu 2']}
@@ -1221,7 +1213,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                     <div className="flex gap-2 sm:gap-3">
                       <button type="button" onClick={(e) => startTimer(e, 'Saha Değişimi', 90)} className={`flex-1 py-3 sm:py-4 border text-[10px] sm:text-sm font-black rounded-xl transition ${shouldBlink90s ? 'animate-pulse bg-rose-500 text-white border-rose-600 shadow-md' : (isLightMode ? 'bg-white border-slate-400 text-slate-800 shadow-sm hover:bg-slate-100' : 'bg-slate-900 border-slate-700 text-slate-300 hover:text-white')}`}>90s Değişim</button>
                       <button type="button" onClick={(e) => startTimer(e, 'Set Arası', 120)} className={`flex-1 py-3 sm:py-4 border text-[10px] sm:text-sm font-black rounded-xl transition ${shouldBlink120s ? 'animate-pulse bg-rose-500 text-white border-rose-600 shadow-md' : (isLightMode ? 'bg-white border-slate-400 text-slate-800 shadow-sm hover:bg-slate-100' : 'bg-slate-900 border-slate-700 text-slate-300 hover:text-white')}`}>120s Set</button>
-                      <button type="button" onClick={(e) => startTimer(e, 'Sağlık Molası', 180)} className={`flex-1 py-3 sm:py-4 border text-[10px] sm:text-sm font-black rounded-xl transition ${isLightMode ? 'bg-white border-slate-400 text-slate-800 shadow-sm hover:bg-slate-100' : 'bg-slate-900 border-slate-700 text-slate-300 hover:text-white')}`}>3dk MTO</button>
+                      <button type="button" onClick={(e) => startTimer(e, 'Sağlık Molası', 180)} className={`flex-1 py-3 sm:py-4 border text-[10px] sm:text-sm font-black rounded-xl transition ${isLightMode ? 'bg-white border-slate-400 text-slate-800 shadow-sm hover:bg-slate-100' : 'bg-slate-900 border-slate-700 text-slate-300 hover:text-white'}`}>3dk MTO</button>
                     </div>
 
                     <div className="flex gap-2 sm:gap-3">
