@@ -240,7 +240,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
 
 
   // --------------------------------------------------------------------------------
-  // KUSURSUZ TENİS MATEMATİĞİ - KURULUMLA BİRLİKTE YENİ SETE GEÇİŞ
+  // KUSURSUZ TENİS MATEMATİĞİ - KURULUMLA BİRLİKTE YENİ SETE GEÇİŞ (TIE-BREAK DÜZELTİLDİ)
   // --------------------------------------------------------------------------------
   useEffect(() => {
     if (selectedSet > 1 && !setupsBySet[selectedSet] && setupsBySet[selectedSet - 1]) {
@@ -252,9 +252,12 @@ export const CourtCard: React.FC<CourtCardProps> = ({
       const totalGamesPrevSet = prevS1 + prevS2;
       
       if (totalGamesPrevSet > 0) {
+        // 1. SERVİS EL DEĞİŞİMİ KURALI
         const nextServerTeam = totalGamesPrevSet % 2 === 0 ? prevSetup.firstServingTeam : (prevSetup.firstServingTeam === 1 ? 2 : 1);
+        
         let nextLeftTeam = prevSetup.leftTeam;
         
+        // 2. SAHA DEĞİŞİMİ KURALI (TIE-BREAK ve NORMAL OYUN AYRIMI)
         const isTBSet = (prevS1 === 7 && prevS2 === 6) || (prevS1 === 6 && prevS2 === 7) || 
                         (prevS1 === 5 && prevS2 === 4 && format.includes('Kısa')) || 
                         (prevS1 === 4 && prevS2 === 5 && format.includes('Kısa'));
@@ -440,8 +443,19 @@ export const CourtCard: React.FC<CourtCardProps> = ({
     }
   } else {
     // --- DIŞ EKRAN İÇİN MÜTHİŞ OTOMATİK PİLOT (KURULUM OLMADIĞINDA) ---
-    let autoServer = 1;
-    let autoLeft = 1;
+    // Kurulum (MatchSetupModal) verilerini Kule Hakemi kurulumuna bağlıyoruz
+    let autoServer: 1 | 2 = (state?.currentServer === 2) ? 2 : 1;
+    let autoLeft: 1 | 2 = 1;
+    
+    if (match.Saha_Tarafi && match.Kura_Kazanan && match.Kura_Kazanan !== 'Secilmedi') {
+        if (match.Kura_Kazanan === match['Oyuncu 1']) {
+            if (match.Saha_Tarafi.toLowerCase().includes('sol')) autoLeft = 1;
+            else if (match.Saha_Tarafi.toLowerCase().includes('sağ') || match.Saha_Tarafi.toLowerCase().includes('sag')) autoLeft = 2;
+        } else if (match.Kura_Kazanan === match['Oyuncu 2']) {
+            if (match.Saha_Tarafi.toLowerCase().includes('sol')) autoLeft = 2;
+            else if (match.Saha_Tarafi.toLowerCase().includes('sağ') || match.Saha_Tarafi.toLowerCase().includes('sag')) autoLeft = 1;
+        }
+    }
     
     for (let s = 1; s <= selectedSet; s++) {
         if (s === selectedSet) {
@@ -885,7 +899,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
         <div className={`p-3 sm:p-4 border-t flex items-center gap-2 ${isLightMode ? 'bg-slate-50 border-slate-200' : 'bg-slate-950/70 border-slate-800'}`}>
           {isUpcoming ? (
             <div className="flex items-center gap-2 w-full">
-              {onOpenSetup && <button type="button" onClick={(e) => { e.stopPropagation(); onOpenSetup(match); }} className={`py-2.5 px-3 rounded-xl font-bold text-xs border transition shadow-sm ${isLightMode ? 'bg-white hover:bg-slate-200 text-slate-800 border-slate-300' : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'}`} title="Kura Çek">🪙 Kura</button>}
+              {onOpenSetup && <button type="button" onClick={(e) => { e.stopPropagation(); onOpenSetup(match); }} className={`py-2.5 px-3 rounded-xl font-black text-xs border transition shadow-sm ${isLightMode ? 'bg-white hover:bg-slate-200 text-slate-800 border-slate-300' : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'}`} title="Kura Çek">🪙 Kura</button>}
               
               {onEditScore && (
                 <button type="button" onClick={(e) => { e.stopPropagation(); onEditScore(match); }} className={`py-2.5 px-3 rounded-xl font-bold text-xs border transition flex items-center gap-1.5 shadow-sm ${isLightMode ? 'bg-white hover:bg-slate-200 text-slate-800 border-slate-300' : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'}`} title="Hızlı Skor Gir">
@@ -1228,7 +1242,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                     <div className="flex gap-2 sm:gap-3">
                       <button type="button" onClick={(e) => startTimer(e, 'Saha Değişimi', 90)} className={`flex-1 py-3 sm:py-4 border text-[10px] sm:text-sm font-black rounded-xl transition ${shouldBlink90s ? 'animate-pulse bg-rose-500 text-white border-rose-600 shadow-md' : (isLightMode ? 'bg-white border-slate-400 text-slate-800 shadow-sm hover:bg-slate-100' : 'bg-slate-900 border-slate-700 text-slate-300 hover:text-white')}`}>90s Değişim</button>
                       <button type="button" onClick={(e) => startTimer(e, 'Set Arası', 120)} className={`flex-1 py-3 sm:py-4 border text-[10px] sm:text-sm font-black rounded-xl transition ${shouldBlink120s ? 'animate-pulse bg-rose-500 text-white border-rose-600 shadow-md' : (isLightMode ? 'bg-white border-slate-400 text-slate-800 shadow-sm hover:bg-slate-100' : 'bg-slate-900 border-slate-700 text-slate-300 hover:text-white')}`}>120s Set</button>
-                      <button type="button" onClick={(e) => startTimer(e, 'Sağlık Molası', 180)} className={`flex-1 py-3 sm:py-4 border text-[10px] sm:text-sm font-black rounded-xl transition ${isLightMode ? 'bg-white border-slate-400 text-slate-800 shadow-sm hover:bg-slate-100' : 'bg-slate-900 border-slate-700 text-slate-300 hover:text-white'}`}>3dk MTO</button>
+                      <button type="button" onClick={(e) => startTimer(e, 'Sağlık Molası', 180)} className={`flex-1 py-3 sm:py-4 border text-[10px] sm:text-sm font-black rounded-xl transition ${isLightMode ? 'bg-white border-slate-400 text-slate-800 shadow-sm hover:bg-slate-100' : 'bg-slate-900 border-slate-700 text-slate-300 hover:text-white')}`}>3dk MTO</button>
                     </div>
 
                     <div className="flex gap-2 sm:gap-3">
