@@ -96,8 +96,9 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     return localStorage.getItem(getStorageKey(BASE_STORAGE_KEYS.DESK_PIN, initialTournamentId)) || '2026';
   });
 
+  // BURASI KRİTİK: sessionStorage yerine localStorage kullanıldı, ekran kapansa da oturum silinmez.
   const [authRole, setAuthRoleState] = useState<'none' | 'supervisor' | 'desk' | 'referee'>(() => {
-    const savedRole = sessionStorage.getItem(getStorageKey(BASE_STORAGE_KEYS.AUTH_ROLE, initialTournamentId));
+    const savedRole = localStorage.getItem(getStorageKey(BASE_STORAGE_KEYS.AUTH_ROLE, initialTournamentId));
     if (savedRole === 'supervisor' || savedRole === 'desk' || savedRole === 'referee') {
       return savedRole as 'supervisor' | 'desk' | 'referee';
     }
@@ -120,10 +121,11 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   }, [authRole]);
 
+  // BURASI KRİTİK: sessionStorage yerine localStorage
   const setAuthRole = (role: 'none' | 'supervisor' | 'desk' | 'referee') => {
     setAuthRoleState(role);
-    if (role === 'none') { sessionStorage.removeItem(getStorageKey(BASE_STORAGE_KEYS.AUTH_ROLE, tournamentId)); } 
-    else { sessionStorage.setItem(getStorageKey(BASE_STORAGE_KEYS.AUTH_ROLE, tournamentId), role); }
+    if (role === 'none') { localStorage.removeItem(getStorageKey(BASE_STORAGE_KEYS.AUTH_ROLE, tournamentId)); } 
+    else { localStorage.setItem(getStorageKey(BASE_STORAGE_KEYS.AUTH_ROLE, tournamentId), role); }
   };
 
   const updateDeskPin = (newPin: string) => {
@@ -145,8 +147,9 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     try { return saved ? JSON.parse(saved) : INITIAL_REFEREES; } catch { return INITIAL_REFEREES; }
   });
 
+  // BURASI KRİTİK: sessionStorage yerine localStorage
   const [currentReferee, setCurrentReferee] = useState<RefereeUser | null>(() => {
-    const saved = sessionStorage.getItem(getStorageKey(BASE_STORAGE_KEYS.CURRENT_REF, initialTournamentId));
+    const saved = localStorage.getItem(getStorageKey(BASE_STORAGE_KEYS.CURRENT_REF, initialTournamentId));
     if (saved) { try { return JSON.parse(saved); } catch (e) {} }
     return null;
   });
@@ -207,8 +210,9 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   }, [matches, referees, categoryFormats, categoryNoAdSettings, tournamentInfoState, tournamentId]);
 
   useEffect(() => {
-    if (currentReferee) { sessionStorage.setItem(getStorageKey(BASE_STORAGE_KEYS.CURRENT_REF, tournamentId), JSON.stringify(currentReferee)); } 
-    else { sessionStorage.removeItem(getStorageKey(BASE_STORAGE_KEYS.CURRENT_REF, tournamentId)); }
+    // BURASI KRİTİK: sessionStorage yerine localStorage
+    if (currentReferee) { localStorage.setItem(getStorageKey(BASE_STORAGE_KEYS.CURRENT_REF, tournamentId), JSON.stringify(currentReferee)); } 
+    else { localStorage.removeItem(getStorageKey(BASE_STORAGE_KEYS.CURRENT_REF, tournamentId)); }
   }, [currentReferee, tournamentId]);
 
   useEffect(() => {
