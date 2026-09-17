@@ -1245,7 +1245,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                   </div>
 
                   {activeTimer && (
-                    <div className="flex-1 min-h-0 flex flex-col items-center justify-center p-2 sm:p-4 animate-in fade-in zoom-in-95 duration-300">
+                    <div className="absolute inset-0 z-50 flex items-center justify-center p-4 sm:p-8 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300">
                        <div className={`w-full max-w-xl p-8 sm:p-12 border-4 rounded-[3rem] shadow-2xl flex flex-col items-center justify-center gap-6 relative overflow-hidden transition-all duration-300 ${activeTimer.seconds <= 30 ? 'bg-rose-600 border-rose-800 shadow-[0_0_50px_rgba(225,29,72,0.6)] text-white' : (isLightMode ? 'bg-white border-slate-300' : 'bg-slate-900 border-slate-700')}`}>
                          
                          <div className={activeTimer.seconds <= 30 ? 'animate-pulse' : ''}>
@@ -1266,7 +1266,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                     </div>
                   )}
 
-                  <div className={`grid grid-cols-2 gap-2 sm:gap-6 flex-1 min-h-0 ${activeTimer ? 'hidden' : ''}`}>
+                  <div className="grid grid-cols-2 gap-2 sm:gap-6 flex-1 min-h-0 relative">
                     <div className={`rounded-3xl p-2 sm:p-5 flex flex-col justify-between overflow-hidden transition-all duration-300 ${computedServerTeam === leftTeamId ? (isLightMode ? 'bg-white border-[5px] border-amber-400 shadow-[0_0_25px_rgba(251,191,36,0.3)]' : 'bg-slate-800/40 border-[4px] border-amber-400 shadow-[0_0_30px_rgba(251,191,36,0.15)]') : (isLightMode ? 'bg-slate-50 border-2 border-slate-300' : 'bg-slate-900 border-2 border-slate-800')}`}>
                       <div className={`flex flex-col items-center justify-center min-h-[4rem] sm:min-h-[5.5rem] border-b pb-2 mb-2 ${isLightMode ? 'border-slate-300' : 'border-slate-800/80'}`}>
                         <div className={`flex items-start justify-center gap-1 w-full ${leftTeamId === 1 ? (isLightMode ? 'text-green-700' : 'text-emerald-400') : (isLightMode ? 'text-blue-700' : 'text-blue-400')}`}>
