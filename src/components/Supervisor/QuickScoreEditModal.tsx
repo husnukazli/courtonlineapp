@@ -40,7 +40,12 @@ export const QuickScoreEditModal: React.FC<QuickScoreEditModalProps> = ({
         return '';
       };
 
-      let initScores = { s1_p1: 0, s1_p2: 0, s2_p1: 0, s2_p2: 0, s3_p1: 0, s3_p2: 0, s1_tb: '', s2_tb: '', s3_tb: '' };
+      let initScores = { 
+        s1_p1: 0, s1_p2: 0, 
+        s2_p1: 0, s2_p2: 0, 
+        s3_p1: 0, s3_p2: 0, 
+        s1_tb: '', s2_tb: '', s3_tb: '' 
+      };
       
       if (match.detailedState) {
         initScores = {
@@ -89,7 +94,7 @@ export const QuickScoreEditModal: React.FC<QuickScoreEditModalProps> = ({
        const num = value === '' ? 0 : parseInt(value, 10);
        if (!isNaN(num) && num >= 0 && num <= 99) {
          setScores(prev => ({ ...prev, [field]: num }));
-         setValidationError(''); // Yeni bir şey yazıldığında eski hatayı sil
+         setValidationError(''); 
        }
     }
   };
@@ -151,7 +156,7 @@ export const QuickScoreEditModal: React.FC<QuickScoreEditModalProps> = ({
       endTime: endTime,
     };
 
-    // Girilen Kaybeden TB Skorları sisteme işleniyor (Görünüm kartı kendi tarafına çekecek)
+    // Girilen Kaybeden TB Skorları sisteme işleniyor
     if (scores.s1_tb !== '') {
        payload.s1_tb_p1 = parseInt(scores.s1_tb);
        payload.s1_tb_p2 = parseInt(scores.s1_tb);
@@ -180,7 +185,9 @@ export const QuickScoreEditModal: React.FC<QuickScoreEditModalProps> = ({
             <h2 className="text-lg font-black text-white flex items-center gap-2">
               <span className="text-cyan-400">✏️</span> Skor Girişi
             </h2>
-            <p className="text-[11px] text-slate-400 mt-1 font-bold">Format: <span className="text-amber-400">{match.Skor_Formati}</span></p>
+            <p className="text-[11px] text-slate-400 mt-1 font-bold">
+              Format: <span className="text-amber-400">{match.Skor_Formati}</span>
+            </p>
           </div>
           <button onClick={onClose} className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition">
             <X className="w-5 h-5" />
@@ -203,13 +210,37 @@ export const QuickScoreEditModal: React.FC<QuickScoreEditModalProps> = ({
               {match['Oyuncu 1']}
             </div>
             <div className="col-span-2">
-              <input type="number" inputMode="numeric" pattern="[0-9]*" value={scores.s1_p1 === 0 && scores.s1_p2 === 0 && !scores.s1_p1 ? '' : scores.s1_p1} onChange={(e) => handleScoreChange('s1_p1', e.target.value)} placeholder="0" className="w-full bg-slate-900 border border-slate-700 rounded-lg py-2 text-center text-white font-mono font-bold focus:border-lime-400 focus:outline-none" />
+              <input 
+                type="number" 
+                inputMode="numeric" 
+                pattern="[0-9]*" 
+                value={scores.s1_p1 === 0 && scores.s1_p2 === 0 && !scores.s1_p1 ? '' : scores.s1_p1} 
+                onChange={(e) => handleScoreChange('s1_p1', e.target.value)} 
+                placeholder="0" 
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg py-2 text-center text-white font-mono font-bold focus:border-lime-400 focus:outline-none" 
+              />
             </div>
             <div className="col-span-2">
-              <input type="number" inputMode="numeric" pattern="[0-9]*" value={scores.s2_p1 === 0 && scores.s2_p2 === 0 && !scores.s2_p1 ? '' : scores.s2_p1} onChange={(e) => handleScoreChange('s2_p1', e.target.value)} placeholder="0" className="w-full bg-slate-900 border border-slate-700 rounded-lg py-2 text-center text-white font-mono font-bold focus:border-lime-400 focus:outline-none" />
+              <input 
+                type="number" 
+                inputMode="numeric" 
+                pattern="[0-9]*" 
+                value={scores.s2_p1 === 0 && scores.s2_p2 === 0 && !scores.s2_p1 ? '' : scores.s2_p1} 
+                onChange={(e) => handleScoreChange('s2_p1', e.target.value)} 
+                placeholder="0" 
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg py-2 text-center text-white font-mono font-bold focus:border-lime-400 focus:outline-none" 
+              />
             </div>
             <div className="col-span-2">
-              <input type="number" inputMode="numeric" pattern="[0-9]*" value={scores.s3_p1 === 0 && scores.s3_p2 === 0 && !scores.s3_p1 ? '' : scores.s3_p1} onChange={(e) => handleScoreChange('s3_p1', e.target.value)} placeholder="0" className="w-full bg-slate-900 border border-slate-700 rounded-lg py-2 text-center text-white font-mono font-bold focus:border-lime-400 focus:outline-none" />
+              <input 
+                type="number" 
+                inputMode="numeric" 
+                pattern="[0-9]*" 
+                value={scores.s3_p1 === 0 && scores.s3_p2 === 0 && !scores.s3_p1 ? '' : scores.s3_p1} 
+                onChange={(e) => handleScoreChange('s3_p1', e.target.value)} 
+                placeholder="0" 
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg py-2 text-center text-white font-mono font-bold focus:border-lime-400 focus:outline-none" 
+              />
             </div>
           </div>
 
@@ -219,13 +250,37 @@ export const QuickScoreEditModal: React.FC<QuickScoreEditModalProps> = ({
               {match['Oyuncu 2']}
             </div>
             <div className="col-span-2">
-              <input type="number" inputMode="numeric" pattern="[0-9]*" value={scores.s1_p2 === 0 && scores.s1_p1 === 0 && !scores.s1_p2 ? '' : scores.s1_p2} onChange={(e) => handleScoreChange('s1_p2', e.target.value)} placeholder="0" className="w-full bg-slate-900 border border-slate-700 rounded-lg py-2 text-center text-white font-mono font-bold focus:border-cyan-400 focus:outline-none" />
+              <input 
+                type="number" 
+                inputMode="numeric" 
+                pattern="[0-9]*" 
+                value={scores.s1_p2 === 0 && scores.s1_p1 === 0 && !scores.s1_p2 ? '' : scores.s1_p2} 
+                onChange={(e) => handleScoreChange('s1_p2', e.target.value)} 
+                placeholder="0" 
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg py-2 text-center text-white font-mono font-bold focus:border-cyan-400 focus:outline-none" 
+              />
             </div>
             <div className="col-span-2">
-              <input type="number" inputMode="numeric" pattern="[0-9]*" value={scores.s2_p2 === 0 && scores.s2_p1 === 0 && !scores.s2_p2 ? '' : scores.s2_p2} onChange={(e) => handleScoreChange('s2_p2', e.target.value)} placeholder="0" className="w-full bg-slate-900 border border-slate-700 rounded-lg py-2 text-center text-white font-mono font-bold focus:border-cyan-400 focus:outline-none" />
+              <input 
+                type="number" 
+                inputMode="numeric" 
+                pattern="[0-9]*" 
+                value={scores.s2_p2 === 0 && scores.s2_p1 === 0 && !scores.s2_p2 ? '' : scores.s2_p2} 
+                onChange={(e) => handleScoreChange('s2_p2', e.target.value)} 
+                placeholder="0" 
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg py-2 text-center text-white font-mono font-bold focus:border-cyan-400 focus:outline-none" 
+              />
             </div>
             <div className="col-span-2">
-              <input type="number" inputMode="numeric" pattern="[0-9]*" value={scores.s3_p2 === 0 && scores.s3_p1 === 0 && !scores.s3_p2 ? '' : scores.s3_p2} onChange={(e) => handleScoreChange('s3_p2', e.target.value)} placeholder="0" className="w-full bg-slate-900 border border-slate-700 rounded-lg py-2 text-center text-white font-mono font-bold focus:border-cyan-400 focus:outline-none" />
+              <input 
+                type="number" 
+                inputMode="numeric" 
+                pattern="[0-9]*" 
+                value={scores.s3_p2 === 0 && scores.s3_p1 === 0 && !scores.s3_p2 ? '' : scores.s3_p2} 
+                onChange={(e) => handleScoreChange('s3_p2', e.target.value)} 
+                placeholder="0" 
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg py-2 text-center text-white font-mono font-bold focus:border-cyan-400 focus:outline-none" 
+              />
             </div>
           </div>
 
@@ -235,13 +290,34 @@ export const QuickScoreEditModal: React.FC<QuickScoreEditModalProps> = ({
               TB Skoru<br/><span className="text-[8px] text-slate-500">(Kaybeden)</span>
             </div>
             <div className="col-span-2">
-              <input type="number" inputMode="numeric" value={scores.s1_tb} onChange={(e) => handleScoreChange('s1_tb', e.target.value)} placeholder="-" className="w-full bg-slate-900 border border-slate-700/50 rounded-lg py-1.5 text-center text-amber-400/80 text-xs font-mono font-bold focus:border-amber-400 focus:outline-none placeholder:text-slate-700" />
+              <input 
+                type="number" 
+                inputMode="numeric" 
+                value={scores.s1_tb} 
+                onChange={(e) => handleScoreChange('s1_tb', e.target.value)} 
+                placeholder="-" 
+                className="w-full bg-slate-900 border border-slate-700/50 rounded-lg py-1.5 text-center text-amber-400/80 text-xs font-mono font-bold focus:border-amber-400 focus:outline-none placeholder:text-slate-700" 
+              />
             </div>
             <div className="col-span-2">
-              <input type="number" inputMode="numeric" value={scores.s2_tb} onChange={(e) => handleScoreChange('s2_tb', e.target.value)} placeholder="-" className="w-full bg-slate-900 border border-slate-700/50 rounded-lg py-1.5 text-center text-amber-400/80 text-xs font-mono font-bold focus:border-amber-400 focus:outline-none placeholder:text-slate-700" />
+              <input 
+                type="number" 
+                inputMode="numeric" 
+                value={scores.s2_tb} 
+                onChange={(e) => handleScoreChange('s2_tb', e.target.value)} 
+                placeholder="-" 
+                className="w-full bg-slate-900 border border-slate-700/50 rounded-lg py-1.5 text-center text-amber-400/80 text-xs font-mono font-bold focus:border-amber-400 focus:outline-none placeholder:text-slate-700" 
+              />
             </div>
             <div className="col-span-2">
-              <input type="number" inputMode="numeric" value={scores.s3_tb} onChange={(e) => handleScoreChange('s3_tb', e.target.value)} placeholder="-" className="w-full bg-slate-900 border border-slate-700/50 rounded-lg py-1.5 text-center text-amber-400/80 text-xs font-mono font-bold focus:border-amber-400 focus:outline-none placeholder:text-slate-700" />
+              <input 
+                type="number" 
+                inputMode="numeric" 
+                value={scores.s3_tb} 
+                onChange={(e) => handleScoreChange('s3_tb', e.target.value)} 
+                placeholder="-" 
+                className="w-full bg-slate-900 border border-slate-700/50 rounded-lg py-1.5 text-center text-amber-400/80 text-xs font-mono font-bold focus:border-amber-400 focus:outline-none placeholder:text-slate-700" 
+              />
             </div>
           </div>
         </div>
