@@ -25,7 +25,7 @@ type ChairSetup = {
   t2DeuceReceiverIdx: 0 | 1;
 };
 
-const vibrateDevice = (pattern: number | number[] = 50) => {
+const vibrateDevice = (pattern: number | number[] = 20) => {
   if (typeof navigator !== 'undefined' && navigator.vibrate) {
     navigator.vibrate(pattern);
   }
@@ -1223,12 +1223,12 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                         )}
                       </div>
 
-                      <div className="flex items-center gap-2 w-full justify-center">
-                        <span className={`font-black text-sm sm:text-base truncate max-w-[100px] sm:max-w-[160px] ${isLightMode ? 'text-green-700' : 'text-emerald-400'}`}>{String(match['Oyuncu 1'] || '')}</span>
-                        <span className={`font-mono tabular-nums text-xl sm:text-4xl font-black px-4 py-2 rounded-xl border shadow-inner ${isLightMode ? 'bg-white border-slate-400 text-black' : 'bg-slate-950 border-slate-800 text-white'}`}>
+                      <div className="flex items-center gap-2 sm:gap-4 w-full justify-center">
+                        <span className={`flex-1 text-right font-black text-sm sm:text-base leading-tight ${isLightMode ? 'text-green-700' : 'text-emerald-400'}`}>{String(match['Oyuncu 1'] || '')}</span>
+                        <span className={`shrink-0 font-mono tabular-nums text-xl sm:text-4xl font-black px-4 py-2 rounded-xl border shadow-inner ${isLightMode ? 'bg-white border-slate-400 text-black' : 'bg-slate-950 border-slate-800 text-white'}`}>
                           {currentSetP1Games} - {currentSetP2Games}
                         </span>
-                        <span className={`font-black text-sm sm:text-base truncate max-w-[100px] sm:max-w-[160px] ${isLightMode ? 'text-blue-700' : 'text-blue-400'}`}>{String(match['Oyuncu 2'] || '')}</span>
+                        <span className={`flex-1 text-left font-black text-sm sm:text-base leading-tight ${isLightMode ? 'text-blue-700' : 'text-blue-400'}`}>{String(match['Oyuncu 2'] || '')}</span>
                       </div>
                     </div>
                     <div className="flex items-center gap-1 sm:gap-2 shrink-0">
