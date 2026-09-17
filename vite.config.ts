@@ -100,11 +100,12 @@ function tournamentSyncPlugin(): Plugin {
     }
   };
 
-  setInterval(() => {
+  const keepAlive = setInterval(() => {
     for (const client of sseClients) {
       try { client.write(': keepalive\n\n'); } catch { sseClients.delete(client); }
     }
   }, 15000);
+  keepAlive.unref();
 
   const readBody = (req: IncomingMessage): Promise<any> => {
     return new Promise((resolve, reject) => {

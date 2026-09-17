@@ -53,9 +53,9 @@ export function createInitialMatchState(
 
 export function parseScoreString(skorStr: string): any {
   const res = { 
-    s1_p1: 0, s1_p2: 0, s1_tb_p1: undefined, s1_tb_p2: undefined,
-    s2_p1: 0, s2_p2: 0, s2_tb_p1: undefined, s2_tb_p2: undefined,
-    s3_p1: 0, s3_p2: 0, s3_tb_p1: undefined, s3_tb_p2: undefined 
+    s1_p1: 0, s1_p2: 0, s1_tb_p1: undefined as number | undefined, s1_tb_p2: undefined as number | undefined,
+    s2_p1: 0, s2_p2: 0, s2_tb_p1: undefined as number | undefined, s2_tb_p2: undefined as number | undefined,
+    s3_p1: 0, s3_p2: 0, s3_tb_p1: undefined as number | undefined, s3_tb_p2: undefined as number | undefined 
   };
   
   if (!skorStr || skorStr === '-') return res;

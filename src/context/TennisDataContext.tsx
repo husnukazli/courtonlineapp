@@ -426,7 +426,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       return {
         ...m, Durum: 'Baslamadi' as MatchStatus, Skor: '-', Kura_Kazanan: 'Secilmedi', Kura_Tercih: 'Servis',
         Saha_Tarafi: 'Sandalyenin Sağı', Baslangic_Saati: 'Secilmedi', Bitis_Saati: 'Secilmedi', Kazanan: 'Secilmedi',
-        detailedState: cleanState, pointHistory: [], disputeHistory: [], pausedAccumulatedMs: 0,
+        detailedState: cleanState, pointHistory: [], challenges: [], pausedAccumulatedMs: 0,
         startTimeTimestamp: undefined, totalDurationSeconds: 0, Son_Guncelleme: new Date().toISOString(), Son_Hakem: currentReferee?.name || 'Turnuva Masası',
       };
     });
@@ -618,12 +618,12 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
         const matchSafetyCheck = checkMatchWinner(dState, format);
         dState.matchEnded = matchSafetyCheck.matchEnded;
-        dState.matchWinner = matchSafetyCheck.matchWinner;
+        dState.matchWinner = matchSafetyCheck.winner;
 
         dState.gamePoint_p1 = '0'; dState.gamePoint_p2 = '0';
         dState.tiebreak_p1 = 0; dState.tiebreak_p2 = 0;
 
-        let newDurum = m.Durum;
+        let newDurum: import("../types/tennis").MatchStatus = m.Durum;
         let newKazanan = m.Kazanan;
         
         if (dState.matchEnded) {
@@ -697,12 +697,12 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
         const matchSafetyCheck = checkMatchWinner(dState, format);
         dState.matchEnded = matchSafetyCheck.matchEnded;
-        dState.matchWinner = matchSafetyCheck.matchWinner;
+        dState.matchWinner = matchSafetyCheck.winner;
 
         dState.gamePoint_p1 = '0'; dState.gamePoint_p2 = '0';
         dState.tiebreak_p1 = 0; dState.tiebreak_p2 = 0;
 
-        let newDurum = m.Durum;
+        let newDurum: import("../types/tennis").MatchStatus = m.Durum;
         let newKazanan = m.Kazanan;
         
         if (dState.matchEnded) {
@@ -782,7 +782,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
         const matchSafetyCheck = checkMatchWinner(dState, format);
         dState.matchEnded = matchSafetyCheck.matchEnded;
-        dState.matchWinner = matchSafetyCheck.matchWinner;
+        dState.matchWinner = matchSafetyCheck.winner;
 
         dState.gamePoint_p1 = '0'; dState.gamePoint_p2 = '0';
         dState.tiebreak_p1 = 0; dState.tiebreak_p2 = 0;
@@ -839,7 +839,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         const newScoreStr = formatScoreString(nextState);
         const updatedHistory = [...(m.pointHistory || []), historyItem];
 
-        let newDurum = m.Durum;
+        let newDurum: import("../types/tennis").MatchStatus = m.Durum;
         let newKazanan = m.Kazanan;
         let bitis = m.Bitis_Saati;
         let startTs = m.startTimeTimestamp;
@@ -921,10 +921,10 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         }
         const record: ChallengeRecord = {
           id: 'ch-' + Date.now(), timestamp: new Date().toLocaleTimeString('tr-TR'),
-          player, outcome, reason, notes: notes || '',
+          player, playerName: player === 1 ? m['Oyuncu 1'] : m['Oyuncu 2'], outcome, reason, notes: notes || '',
         };
         return {
-          ...m, detailedState: stateCopy, disputeHistory: [...(m.disputeHistory || []), record],
+          ...m, detailedState: stateCopy, challenges: [...(m.challenges || []), record],
           Son_Hakem: currentReferee ? currentReferee.name : m.Son_Hakem,
         };
       });
@@ -950,7 +950,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         } else {
             const matchSafetyCheck = checkMatchWinner(dState, format);
             dState.matchEnded = matchSafetyCheck.matchEnded;
-            dState.matchWinner = matchSafetyCheck.matchWinner;
+            dState.matchWinner = matchSafetyCheck.winner;
         }
 
         const res: MatchItem = {
@@ -987,7 +987,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const resetMatchScore = (matchId: string) => {
     if (!matchId) return;
     setMatches((prev) => {
-      const next = prev.map((m) => (m.id === matchId ? { ...m, Skor: '-', Durum: 'Baslamadi' as MatchStatus, Kazanan: 'Secilmedi', detailedState: createInitialMatchState(1, m.Skor_Formati || '3 Normal Set', !!m.isNoAd), pointHistory: [], disputeHistory: [] } : m));
+      const next = prev.map((m) => (m.id === matchId ? { ...m, Skor: '-', Durum: 'Baslamadi' as MatchStatus, Kazanan: 'Secilmedi', detailedState: createInitialMatchState(1, m.Skor_Formati || '3 Normal Set', !!m.isNoAd), pointHistory: [], challenges: [] } : m));
       broadcastAndSyncMatches(next);
       return next;
     });

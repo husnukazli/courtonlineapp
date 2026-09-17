@@ -37,7 +37,7 @@ export interface TournamentListItem {
 }  
 
 export interface SuperAdminConfig {  
-  bashakem_listesi: { id: string; ad: string; sifre: string; tournamentId: string }[];  
+  bashakem_listesi: { id: string; ad: string; sifre?: string; pin?: string; tournamentId: string }[];  
   superAdminSifre: string;
 }  
 
@@ -90,10 +90,10 @@ export const subscribeTournamentList = (
 };  
 
 export const createTournament = async (info: {  
-  ad: string; yer: string; tarih: string; not: string;
+  ad: string; yer: string; tarih: string; not: string; id?: string;
 }): Promise<string | null> => {  
   try {    
-    const id = `t_${Date.now()}`;    
+    const id = info.id || `t_${Date.now()}`;    
     await setDoc(doc(db, 'tournaments', id), {      
       ...info, 
       tournamentInfo: info, // YENİ     
@@ -104,7 +104,7 @@ export const createTournament = async (info: {
       referees: [],      
       categoryFormats: {},  
       categoryNoAdSettings: {}, 
-    });    
+    }, { merge: true });    
     return id;  
   } catch (e) {    
     console.error('createTournament hata:', e);    

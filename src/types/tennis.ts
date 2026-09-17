@@ -33,10 +33,16 @@ export interface TennisMatchState {
   currentSet: 1 | 2 | 3;
   set1_p1: number;
   set1_p2: number;
+  set1_tb_p1?: number;
+  set1_tb_p2?: number;
   set2_p1: number;
   set2_p2: number;
+  set2_tb_p1?: number;
+  set2_tb_p2?: number;
   set3_p1: number;
   set3_p2: number;
+  set3_tb_p1?: number;
+  set3_tb_p2?: number;
   gamePoint_p1: string;
   gamePoint_p2: string;
   currentServer: 1 | 2;
@@ -63,6 +69,8 @@ export interface TennisMatchState {
   lastActionMessage?: string;
   needsChangeover?: boolean;
   isNoAd?: boolean; // YENİ EKLENDİ: Karar Puanı (Avantajsız) bayrağı
+  matchEnded?: boolean;
+  matchWinner?: 1 | 2;
 }
 
 export interface PointHistoryItem {

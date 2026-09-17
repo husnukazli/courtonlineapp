@@ -4,7 +4,7 @@ import { useTennisData } from '../../context/TennisDataContext';
 import { parseScoreString, validateSingleSet } from '../../utils/tennisScoringEngine';
 import {
   Trophy, Clock, CheckCircle2, PlayCircle, Plus, Minus, RotateCcw,
-  Swords, PauseCircle, Timer, X, ArrowRightLeft, Settings, LogOut, Info, PenLine, Sun, Moon
+  Swords, PauseCircle, Timer, X, ArrowRightLeft, Settings, LogOut, Info, PenLine, Sun, Moon, Lock, Unlock
 } from 'lucide-react';
 
 interface CourtCardProps {
@@ -115,6 +115,29 @@ export const CourtCard: React.FC<CourtCardProps> = ({
   const [isLightMode, setIsLightMode] = useState(() => {
     return localStorage.getItem('courtonline_light_mode') === 'true';
   });
+
+  const [isCardLocked, setIsCardLocked] = useState(false);
+
+  // When locked, optionally request fullscreen and disable scrolling on body
+  useEffect(() => {
+    if (isCardLocked) {
+      document.body.style.overflow = 'hidden';
+      document.body.style.overscrollBehaviorY = 'none';
+      if (document.documentElement.requestFullscreen) {
+        document.documentElement.requestFullscreen().catch(() => {});
+      }
+    } else {
+      document.body.style.overflow = '';
+      document.body.style.overscrollBehaviorY = '';
+      if (document.fullscreenElement && document.exitFullscreen) {
+        document.exitFullscreen().catch(() => {});
+      }
+    }
+    return () => {
+      document.body.style.overflow = '';
+      document.body.style.overscrollBehaviorY = '';
+    };
+  }, [isCardLocked]);
 
   const toggleTheme = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -393,7 +416,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
         if (computedServerTeam === 1) activeServerName = t1Players[currentT1ServerIdx] || t1Players[0];
         else activeServerName = t2Players[currentT2ServerIdx] || t2Players[0];
       } else {
-        activeServerName = match[`Oyuncu ${computedServerTeam}` as keyof MatchItem];
+        activeServerName = match[`Oyuncu ${computedServerTeam}` as keyof MatchItem] as string;
       }
     } else {
       const tbGameServerTeam = currentSetGames % 2 === 0 ? chairSetup.firstServingTeam : otherTeam;
@@ -426,7 +449,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
         if (computedServerTeam === 1) activeServerName = t1Players[currentT1ServerIdx] || t1Players[0];
         else activeServerName = t2Players[currentT2ServerIdx] || t2Players[0];
       } else {
-        activeServerName = match[`Oyuncu ${computedServerTeam}` as keyof MatchItem];
+        activeServerName = match[`Oyuncu ${computedServerTeam}` as keyof MatchItem] as string;
       }
     }
 
@@ -761,6 +784,8 @@ export const CourtCard: React.FC<CourtCardProps> = ({
   };
 
   const baseCardClass = `rounded-3xl transition-all duration-200 overflow-hidden flex flex-col justify-between shadow-md relative ${
+    isCardLocked ? 'fixed inset-0 z-[100000] w-full h-full rounded-none overflow-y-auto' : ''
+  } ${
     isLive || isPaused ? (isLightMode ? 'bg-white border-[3px] border-emerald-500' : 'bg-slate-900/95 border border-emerald-500/30')
     : isUpcoming ? (isLightMode ? 'bg-slate-50 border-2 border-slate-300 cursor-pointer hover:border-slate-400' : 'bg-slate-900 border border-slate-700 cursor-pointer')
     : (isLightMode ? 'bg-slate-100 border border-slate-300' : 'bg-slate-900/50 border border-slate-800')
@@ -806,9 +831,21 @@ export const CourtCard: React.FC<CourtCardProps> = ({
               <p className={`text-xs font-bold truncate max-w-[180px] ${isLightMode ? 'text-slate-600' : 'text-slate-400'}`}>{match.Kategori}</p>
             </div>
           </div>
-          <span className={`px-2.5 py-1 rounded-xl text-xs font-black tracking-wide uppercase shrink-0 border ${isLive ? (isLightMode ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30') : isPaused ? (isLightMode ? 'bg-amber-100 text-amber-800 border-amber-300' : 'bg-amber-500/20 text-amber-400 border-amber-500/30') : isUpcoming ? (isLightMode ? 'bg-slate-200 text-slate-700 border-slate-300' : 'bg-slate-800 text-slate-400 border-slate-700') : (isLightMode ? 'bg-slate-200 text-slate-500 border-slate-300' : 'bg-slate-800 text-slate-500 border-slate-700')}`}>
-            {match.Durum === 'Retired' ? '✕ RET' : match.Durum === 'Walkover' ? '✕ W/O' : match.Durum === 'Bitti' ? '✕ BİTTİ' : match.Durum === 'Duraklatildi' ? 'ASKIYA' : match.Durum}
-          </span>
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsCardLocked(prev => !prev);
+              }} 
+              className={`p-1.5 rounded-xl transition flex items-center justify-center active:scale-95 sm:hidden ${isCardLocked ? 'bg-rose-500 text-white shadow-md shadow-rose-500/30' : (isLightMode ? 'bg-slate-100 hover:bg-slate-200 text-slate-500' : 'bg-slate-800 hover:bg-slate-700 text-slate-400')}`}
+              title="Ekranı Kilitle / Tam Ekran"
+            >
+              {isCardLocked ? <Lock className="w-4 h-4" /> : <Unlock className="w-4 h-4" />}
+            </button>
+            <span className={`px-2.5 py-1 rounded-xl text-xs font-black tracking-wide uppercase shrink-0 border ${isLive ? (isLightMode ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30') : isPaused ? (isLightMode ? 'bg-amber-100 text-amber-800 border-amber-300' : 'bg-amber-500/20 text-amber-400 border-amber-500/30') : isUpcoming ? (isLightMode ? 'bg-slate-200 text-slate-700 border-slate-300' : 'bg-slate-800 text-slate-400 border-slate-700') : (isLightMode ? 'bg-slate-200 text-slate-500 border-slate-300' : 'bg-slate-800 text-slate-500 border-slate-700')}`}>
+              {match.Durum === 'Retired' ? '✕ RET' : match.Durum === 'Walkover' ? '✕ W/O' : match.Durum === 'Bitti' ? '✕ BİTTİ' : match.Durum === 'Duraklatildi' ? 'ASKIYA' : match.Durum}
+            </span>
+          </div>
         </div>
 
         <div className={`px-4 sm:px-5 py-2.5 sm:py-3 border-b flex items-center justify-between font-mono ${isLightMode ? 'bg-slate-100 border-slate-300' : 'bg-slate-950/50 border-slate-800/80'}`}>
