@@ -44,35 +44,64 @@ export function createInitialMatchState(
     lastActionMessage: 'Maç başladı. Servis: Oyuncu ' + server,
     needsChangeover: false,
     isNoAd,
+    // Yeni Tie-Break kalıcı hafıza alanları
+    ...( { set1_tb_p1: undefined, set1_tb_p2: undefined } as any ),
+    ...( { set2_tb_p1: undefined, set2_tb_p2: undefined } as any ),
+    ...( { set3_tb_p1: undefined, set3_tb_p2: undefined } as any ),
   };
 }
 
-export function parseScoreString(skorStr: string): {
-  s1_p1: number;
-  s1_p2: number;
-  s2_p1: number;
-  s2_p2: number;
-  s3_p1: number;
-  s3_p2: number;
-} {
-  const res = { s1_p1: 0, s1_p2: 0, s2_p1: 0, s2_p2: 0, s3_p1: 0, s3_p2: 0 };
+export function parseScoreString(skorStr: string): any {
+  const res = { 
+    s1_p1: 0, s1_p2: 0, s1_tb_p1: undefined, s1_tb_p2: undefined,
+    s2_p1: 0, s2_p2: 0, s2_tb_p1: undefined, s2_tb_p2: undefined,
+    s3_p1: 0, s3_p2: 0, s3_tb_p1: undefined, s3_tb_p2: undefined 
+  };
+  
   if (!skorStr || skorStr === '-') return res;
+  
   try {
     const parts = skorStr.trim().split(/\s+/);
+    
+    const parseSet = (part: string) => {
+      let tbValue: number | undefined = undefined;
+      let cleanPart = part;
+      // Parantez içindeki Tie-Break skorunu (örn: 7/6(4)) yakala
+      if (part.includes('(')) {
+        const match = part.match(/\((\d+)\)/);
+        if (match) tbValue = Number(match[1]);
+        cleanPart = part.replace(/\(\d+\)/, '');
+      }
+      const [p1, p2] = cleanPart.split('/').map(Number);
+      return { p1, p2, tbValue };
+    };
+
     if (parts[0]) {
-      const [p1, p2] = parts[0].split('/').map(Number);
-      if (!isNaN(p1)) res.s1_p1 = p1;
-      if (!isNaN(p2)) res.s1_p2 = p2;
+      const s = parseSet(parts[0]);
+      if (!isNaN(s.p1)) res.s1_p1 = s.p1;
+      if (!isNaN(s.p2)) res.s1_p2 = s.p2;
+      if (s.tbValue !== undefined) {
+         if (s.p1 > s.p2) res.s1_tb_p2 = s.tbValue;
+         else res.s1_tb_p1 = s.tbValue;
+      }
     }
     if (parts[1]) {
-      const [p1, p2] = parts[1].split('/').map(Number);
-      if (!isNaN(p1)) res.s2_p1 = p1;
-      if (!isNaN(p2)) res.s2_p2 = p2;
+      const s = parseSet(parts[1]);
+      if (!isNaN(s.p1)) res.s2_p1 = s.p1;
+      if (!isNaN(s.p2)) res.s2_p2 = s.p2;
+      if (s.tbValue !== undefined) {
+         if (s.p1 > s.p2) res.s2_tb_p2 = s.tbValue;
+         else res.s2_tb_p1 = s.tbValue;
+      }
     }
     if (parts[2]) {
-      const [p1, p2] = parts[2].split('/').map(Number);
-      if (!isNaN(p1)) res.s3_p1 = p1;
-      if (!isNaN(p2)) res.s3_p2 = p2;
+      const s = parseSet(parts[2]);
+      if (!isNaN(s.p1)) res.s3_p1 = s.p1;
+      if (!isNaN(s.p2)) res.s3_p2 = s.p2;
+      if (s.tbValue !== undefined) {
+         if (s.p1 > s.p2) res.s3_tb_p2 = s.tbValue;
+         else res.s3_tb_p1 = s.tbValue;
+      }
     }
   } catch {
     // ignore
@@ -80,8 +109,53 @@ export function parseScoreString(skorStr: string): {
   return res;
 }
 
-export function formatScoreString(state: TennisMatchState): string {
-  return `${state.set1_p1}/${state.set1_p2} ${state.set2_p1}/${state.set2_p2} ${state.set3_p1}/${state.set3_p2}`;
+export function formatScoreString(state: any): string {
+  return buildScoreString(
+    state.set1_p1, state.set1_p2,
+    state.set2_p1, state.set2_p2,
+    state.set3_p1, state.set3_p2,
+    state.set1_tb_p1, state.set1_tb_p2,
+    state.set2_tb_p1, state.set2_tb_p2,
+    state.set3_tb_p1, state.set3_tb_p2
+  );
+}
+
+export function buildScoreString(
+  s1_p1: number, s1_p2: number,
+  s2_p1: number, s2_p2: number,
+  s3_p1: number, s3_p2: number,
+  s1_tb_p1?: number, s1_tb_p2?: number,
+  s2_tb_p1?: number, s2_tb_p2?: number,
+  s3_tb_p1?: number, s3_tb_p2?: number
+): string {
+  const parts: string[] = [];
+
+  const formatSet = (p1: number, p2: number, tb1?: number, tb2?: number) => {
+    let str = `${p1}/${p2}`;
+    // Eğer bir tie-break skoru varsa kaybedenin skorunun yanına parantez içinde ekle
+    if (p1 > p2 && tb2 !== undefined && !isNaN(tb2)) {
+      str += `(${tb2})`;
+    } else if (p2 > p1 && tb1 !== undefined && !isNaN(tb1)) {
+      str += `(${tb1})`;
+    }
+    return str;
+  };
+
+  if (s1_p1 > 0 || s1_p2 > 0 || s2_p1 > 0 || s2_p2 > 0 || s3_p1 > 0 || s3_p2 > 0) {
+    parts.push(formatSet(s1_p1, s1_p2, s1_tb_p1, s1_tb_p2));
+  }
+  if (s2_p1 > 0 || s2_p2 > 0 || s3_p1 > 0 || s3_p2 > 0) {
+    parts.push(formatSet(s2_p1, s2_p2, s2_tb_p1, s2_tb_p2));
+  }
+  if (s3_p1 > 0 || s3_p2 > 0) {
+    parts.push(formatSet(s3_p1, s3_p2, s3_tb_p1, s3_tb_p2));
+  }
+
+  if (parts.length === 0) return '-';
+  while (parts.length < 3) {
+    parts.push('0/0');
+  }
+  return parts.join(' ');
 }
 
 export function getTargetGamesPerSet(format: string): { target: number; tiebreakAt: number } {
@@ -134,7 +208,7 @@ export function awardPoint(
     };
   }
 
-  const state: TennisMatchState = JSON.parse(JSON.stringify(currentState));
+  const state: any = JSON.parse(JSON.stringify(currentState));
   const winnerName = playerWon === 1 ? p1Name : p2Name;
   let matchEnded = false;
   let matchWinner: 1 | 2 | undefined;
@@ -155,7 +229,6 @@ export function awardPoint(
   }
 
   const { target: targetGames, tiebreakAt } = getTargetGamesPerSet(format);
-  const thirdSetMT = isMatchTiebreakThirdSet(format);
 
   if (state.isTiebreak) {
     if (playerWon === 1) {
@@ -195,18 +268,24 @@ export function awardPoint(
         state.lastActionMessage = `Maç Bitti! Kazanan: ${setWinner === 1 ? p1Name : p2Name}`;
         return { nextState: state, matchEnded, matchWinner, summary };
       } else {
+        // TIE-BREAK BİTTİĞİ AN: Sayıları uçmadan önce kalıcı set hafızasına yaz
         if (state.currentSet === 1) {
           if (setWinner === 1) state.set1_p1++;
           else state.set1_p2++;
+          state.set1_tb_p1 = p1Score;
+          state.set1_tb_p2 = p2Score;
         } else if (state.currentSet === 2) {
           if (setWinner === 1) state.set2_p1++;
           else state.set2_p2++;
+          state.set2_tb_p1 = p1Score;
+          state.set2_tb_p2 = p2Score;
         } else if (state.currentSet === 3) {
           if (setWinner === 1) state.set3_p1++;
           else state.set3_p2++;
+          state.set3_tb_p1 = p1Score;
+          state.set3_tb_p2 = p2Score;
         }
 
-        // TIE-BREAK BİTTİĞİNDE SAHA DEĞİŞİMİ ZORUNLUDUR (7-6 Toplam 13 oyun yapar ve tektir)
         state.needsChangeover = true;
 
         const matchResult = checkMatchWinner(state, format);
@@ -348,8 +427,7 @@ export function awardPoint(
   return { nextState: state, matchEnded, matchWinner, summary };
 }
 
-function advanceToNextSet(state: TennisMatchState, format: string, previousSetWinner: 1 | 2) {
-  // TIE-BREAK BİTTİĞİNDE SERVİS KİMDE OLACAK KURALI
+function advanceToNextSet(state: any, format: string, previousSetWinner: 1 | 2) {
   const wasTiebreak = state.isTiebreak;
   const tbFirstServer = state.tiebreakFirstServer;
 
@@ -360,7 +438,6 @@ function advanceToNextSet(state: TennisMatchState, format: string, previousSetWi
   state.tiebreak_p1 = 0;
   state.tiebreak_p2 = 0;
 
-  // KRİTİK KURAL: Tie-Break oynandıysa, Tie-Break'e servisle ilk başlayan, yeni setin ilk oyununda karşılayan (receiver) olur.
   if (wasTiebreak && tbFirstServer) {
     state.currentServer = tbFirstServer === 1 ? 2 : 1;
   }
@@ -373,31 +450,6 @@ function advanceToNextSet(state: TennisMatchState, format: string, previousSetWi
     state.tiebreakFirstServer = state.currentServer;
     state.totalPointsInTiebreak = 0;
   }
-}
-
-export function buildScoreString(
-  s1_p1: number,
-  s1_p2: number,
-  s2_p1: number,
-  s2_p2: number,
-  s3_p1: number,
-  s3_p2: number
-): string {
-  const parts: string[] = [];
-  if (s1_p1 > 0 || s1_p2 > 0 || s2_p1 > 0 || s2_p2 > 0 || s3_p1 > 0 || s3_p2 > 0) {
-    parts.push(`${s1_p1}/${s1_p2}`);
-  }
-  if (s2_p1 > 0 || s2_p2 > 0 || s3_p1 > 0 || s3_p2 > 0) {
-    parts.push(`${s2_p1}/${s2_p2}`);
-  }
-  if (s3_p1 > 0 || s3_p2 > 0) {
-    parts.push(`${s3_p1}/${s3_p2}`);
-  }
-  if (parts.length === 0) return '-';
-  while (parts.length < 3) {
-    parts.push('0/0');
-  }
-  return parts.join(' ');
 }
 
 export interface SetValidationResult {
