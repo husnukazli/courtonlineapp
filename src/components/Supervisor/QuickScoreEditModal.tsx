@@ -21,6 +21,7 @@ export const QuickScoreEditModal: React.FC<QuickScoreEditModalProps> = ({
     s1_p1: 0, s1_p2: 0,
     s2_p1: 0, s2_p2: 0,
     s3_p1: 0, s3_p2: 0,
+    s1_tb: '', s2_tb: '', s3_tb: '',
   });
   
   const [status, setStatus] = useState<MatchStatus>('Oynaniyor');
@@ -29,7 +30,17 @@ export const QuickScoreEditModal: React.FC<QuickScoreEditModalProps> = ({
 
   useEffect(() => {
     if (match && isOpen) {
-      let initScores = { s1_p1: 0, s1_p2: 0, s2_p1: 0, s2_p2: 0, s3_p1: 0, s3_p2: 0 };
+      // Ekrana mevcut bir tie-break skoru yansıyacaksa, kaybedenin skorunu bul (En küçüğü alır)
+      const getTb = (p1: any, p2: any) => {
+        const n1 = parseInt(p1);
+        const n2 = parseInt(p2);
+        if (!isNaN(n1) && !isNaN(n2)) return Math.min(n1, n2).toString();
+        if (!isNaN(n1)) return n1.toString();
+        if (!isNaN(n2)) return n2.toString();
+        return '';
+      };
+
+      let initScores = { s1_p1: 0, s1_p2: 0, s2_p1: 0, s2_p2: 0, s3_p1: 0, s3_p2: 0, s1_tb: '', s2_tb: '', s3_tb: '' };
       
       if (match.detailedState) {
         initScores = {
@@ -39,6 +50,9 @@ export const QuickScoreEditModal: React.FC<QuickScoreEditModalProps> = ({
           s2_p2: match.detailedState.set2_p2 || 0,
           s3_p1: match.detailedState.set3_p1 || 0,
           s3_p2: match.detailedState.set3_p2 || 0,
+          s1_tb: getTb(match.detailedState.set1_tb_p1, match.detailedState.set1_tb_p2),
+          s2_tb: getTb(match.detailedState.set2_tb_p1, match.detailedState.set2_tb_p2),
+          s3_tb: getTb(match.detailedState.set3_tb_p1, match.detailedState.set3_tb_p2),
         };
       } else {
         const parsed = parseScoreString(match.Skor);
@@ -46,6 +60,9 @@ export const QuickScoreEditModal: React.FC<QuickScoreEditModalProps> = ({
           s1_p1: parsed.s1_p1, s1_p2: parsed.s1_p2,
           s2_p1: parsed.s2_p1, s2_p2: parsed.s2_p2,
           s3_p1: parsed.s3_p1, s3_p2: parsed.s3_p2,
+          s1_tb: getTb((parsed as any).s1_tb_p1, (parsed as any).s1_tb_p2),
+          s2_tb: getTb((parsed as any).s2_tb_p1, (parsed as any).s2_tb_p2),
+          s3_tb: getTb((parsed as any).s3_tb_p1, (parsed as any).s3_tb_p2),
         };
       }
 
@@ -59,10 +76,21 @@ export const QuickScoreEditModal: React.FC<QuickScoreEditModalProps> = ({
   if (!isOpen || !match) return null;
 
   const handleScoreChange = (field: keyof typeof scores, value: string) => {
-    const num = value === '' ? 0 : parseInt(value, 10);
-    if (!isNaN(num) && num >= 0 && num <= 99) {
-      setScores(prev => ({ ...prev, [field]: num }));
-      setValidationError(''); // Yeni bir şey yazıldığında eski hatayı sil
+    if (field.includes('tb')) {
+       if (value === '') setScores(prev => ({ ...prev, [field]: '' }));
+       else {
+         const num = parseInt(value, 10);
+         if (!isNaN(num) && num >= 0 && num <= 99) {
+           setScores(prev => ({ ...prev, [field]: num.toString() }));
+           setValidationError('');
+         }
+       }
+    } else {
+       const num = value === '' ? 0 : parseInt(value, 10);
+       if (!isNaN(num) && num >= 0 && num <= 99) {
+         setScores(prev => ({ ...prev, [field]: num }));
+         setValidationError(''); // Yeni bir şey yazıldığında eski hatayı sil
+       }
     }
   };
 
@@ -113,12 +141,31 @@ export const QuickScoreEditModal: React.FC<QuickScoreEditModalProps> = ({
        endTime = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
     }
 
-    saveDirectScoreAndStatus(match.id, {
-      ...scores,
+    // Payload (kaydedilecek veri paketi) hazırlanıyor
+    const payload: any = {
+      s1_p1: scores.s1_p1, s1_p2: scores.s1_p2,
+      s2_p1: scores.s2_p1, s2_p2: scores.s2_p2,
+      s3_p1: scores.s3_p1, s3_p2: scores.s3_p2,
       status: status,
       winner: finalWinner,
       endTime: endTime,
-    });
+    };
+
+    // Girilen Kaybeden TB Skorları sisteme işleniyor (Görünüm kartı kendi tarafına çekecek)
+    if (scores.s1_tb !== '') {
+       payload.s1_tb_p1 = parseInt(scores.s1_tb);
+       payload.s1_tb_p2 = parseInt(scores.s1_tb);
+    }
+    if (scores.s2_tb !== '') {
+       payload.s2_tb_p1 = parseInt(scores.s2_tb);
+       payload.s2_tb_p2 = parseInt(scores.s2_tb);
+    }
+    if (scores.s3_tb !== '') {
+       payload.s3_tb_p1 = parseInt(scores.s3_tb);
+       payload.s3_tb_p2 = parseInt(scores.s3_tb);
+    }
+
+    saveDirectScoreAndStatus(match.id, payload);
 
     onClose();
   };
@@ -149,7 +196,7 @@ export const QuickScoreEditModal: React.FC<QuickScoreEditModalProps> = ({
         </div>
 
         {/* Skor Giriş Alanları */}
-        <div className="space-y-3">
+        <div className="space-y-2">
           {/* Oyuncu 1 */}
           <div className="grid grid-cols-12 gap-2 items-center bg-slate-950 p-2 rounded-2xl border border-slate-800">
             <div className="col-span-4 text-xs font-bold text-lime-400 truncate pr-2" title={match['Oyuncu 1']}>
@@ -179,6 +226,22 @@ export const QuickScoreEditModal: React.FC<QuickScoreEditModalProps> = ({
             </div>
             <div className="col-span-2">
               <input type="number" inputMode="numeric" pattern="[0-9]*" value={scores.s3_p2 === 0 && scores.s3_p1 === 0 && !scores.s3_p2 ? '' : scores.s3_p2} onChange={(e) => handleScoreChange('s3_p2', e.target.value)} placeholder="0" className="w-full bg-slate-900 border border-slate-700 rounded-lg py-2 text-center text-white font-mono font-bold focus:border-cyan-400 focus:outline-none" />
+            </div>
+          </div>
+
+          {/* YENİ EKLENEN KISIM: Tie-Break Kaybeden Puanları */}
+          <div className="grid grid-cols-12 gap-2 items-center bg-slate-900/50 p-2 rounded-2xl border border-slate-800 mt-1">
+            <div className="col-span-4 text-[10px] font-black uppercase text-amber-500/80 pr-2 leading-tight pl-1">
+              TB Skoru<br/><span className="text-[8px] text-slate-500">(Kaybeden)</span>
+            </div>
+            <div className="col-span-2">
+              <input type="number" inputMode="numeric" value={scores.s1_tb} onChange={(e) => handleScoreChange('s1_tb', e.target.value)} placeholder="-" className="w-full bg-slate-900 border border-slate-700/50 rounded-lg py-1.5 text-center text-amber-400/80 text-xs font-mono font-bold focus:border-amber-400 focus:outline-none placeholder:text-slate-700" />
+            </div>
+            <div className="col-span-2">
+              <input type="number" inputMode="numeric" value={scores.s2_tb} onChange={(e) => handleScoreChange('s2_tb', e.target.value)} placeholder="-" className="w-full bg-slate-900 border border-slate-700/50 rounded-lg py-1.5 text-center text-amber-400/80 text-xs font-mono font-bold focus:border-amber-400 focus:outline-none placeholder:text-slate-700" />
+            </div>
+            <div className="col-span-2">
+              <input type="number" inputMode="numeric" value={scores.s3_tb} onChange={(e) => handleScoreChange('s3_tb', e.target.value)} placeholder="-" className="w-full bg-slate-900 border border-slate-700/50 rounded-lg py-1.5 text-center text-amber-400/80 text-xs font-mono font-bold focus:border-amber-400 focus:outline-none placeholder:text-slate-700" />
             </div>
           </div>
         </div>
