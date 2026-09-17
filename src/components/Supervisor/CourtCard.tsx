@@ -240,7 +240,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
 
 
   // --------------------------------------------------------------------------------
-  // KUSURSUZ TENİS MATEMATİĞİ - KURULUMLA BİRLİKTE YENİ SETE GEÇİŞ
+  // KUSURSUZ TENİS MATEMATİĞİ - SET GEÇİŞİ HESAPLAMALARI
   // --------------------------------------------------------------------------------
   useEffect(() => {
     if (selectedSet > 1 && !setupsBySet[selectedSet] && setupsBySet[selectedSet - 1]) {
@@ -440,18 +440,32 @@ export const CourtCard: React.FC<CourtCardProps> = ({
     }
   } else {
     // --- DIŞ EKRAN İÇİN MÜTHİŞ OTOMATİK PİLOT (KURULUM OLMADIĞINDA) ---
-    let autoServer: 1 | 2 = (state?.currentServer === 2) ? 2 : 1;
-    let autoLeft: 1 | 2 = 1;
-    
-    if (match.Saha_Tarafi && match.Kura_Kazanan && match.Kura_Kazanan !== 'Secilmedi') {
-        if (match.Kura_Kazanan === match['Oyuncu 1']) {
-            if (match.Saha_Tarafi.toLowerCase().includes('sol')) autoLeft = 1;
-            else if (match.Saha_Tarafi.toLowerCase().includes('sağ') || match.Saha_Tarafi.toLowerCase().includes('sag')) autoLeft = 2;
-        } else if (match.Kura_Kazanan === match['Oyuncu 2']) {
-            if (match.Saha_Tarafi.toLowerCase().includes('sol')) autoLeft = 2;
-            else if (match.Saha_Tarafi.toLowerCase().includes('sağ') || match.Saha_Tarafi.toLowerCase().includes('sag')) autoLeft = 1;
+    // Kurulum (MatchSetupModal) verilerini Kule Hakemi kurulumuna bağlıyoruz
+    let initialServer: 1 | 2 = state?.currentServer === 2 ? 2 : 1;
+    let initialLeft: 1 | 2 = 1;
+
+    if (match.Kura_Kazanan && match.Kura_Kazanan !== 'Secilmedi' && match.Kura_Tercih) {
+        const isWinnerP1 = match.Kura_Kazanan === match['Oyuncu 1'];
+        if (match.Kura_Tercih === 'Servis') {
+            initialServer = isWinnerP1 ? 1 : 2;
+        } else if (match.Kura_Tercih === 'Karşılama') {
+            initialServer = isWinnerP1 ? 2 : 1;
         }
     }
+
+    if (match.Saha_Tarafi && match.Kura_Kazanan && match.Kura_Kazanan !== 'Secilmedi') {
+        const isWinnerP1 = match.Kura_Kazanan === match['Oyuncu 1'];
+        const saha = match.Saha_Tarafi.toLowerCase();
+        
+        if (saha.includes('sol')) {
+            initialLeft = isWinnerP1 ? 1 : 2;
+        } else if (saha.includes('sağ') || saha.includes('sag')) {
+            initialLeft = isWinnerP1 ? 2 : 1;
+        }
+    }
+
+    let autoServer = initialServer;
+    let autoLeft = initialLeft;
     
     for (let s = 1; s <= selectedSet; s++) {
         if (s === selectedSet) {
@@ -1121,7 +1135,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
 
                   <div className="pt-4 flex gap-3">
                     <button type="button" onClick={handleCancelSetup} className={`px-5 py-4 sm:py-5 font-black text-sm sm:text-lg rounded-xl transition active:scale-95 border shadow-md ${isLightMode ? 'bg-white hover:bg-slate-100 text-slate-800 border-slate-400' : 'bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border-slate-700'}`}>İptal</button>
-                    <button type="button" disabled={!setupForm.firstServingTeam || !setupForm.leftTeam || (isDoubles && (setupForm.t1ServerIdx === undefined || setupForm.t2ServerIdx === undefined))} onClick={handleSaveSetup} className={`flex-1 py-4 sm:py-5 font-black text-sm sm:text-lg rounded-xl disabled:opacity-50 transition active:scale-95 shadow-xl ${isLightMode ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-2 border-emerald-800' : 'bg-emerald-600 hover:bg-emerald-500 text-white'}`}>Kaydet ve Devam Et</button>
+                    <button type="button" disabled={!setupForm.firstServingTeam || !setupForm.leftTeam || (isDoubles && (setupForm.t1ServerIdx === undefined || setupForm.t2ServerIdx === undefined))} onClick={handleSaveSetup} className={`flex-1 py-4 sm:py-5 font-black text-sm sm:text-lg rounded-xl disabled:opacity-50 transition active:scale-95 shadow-xl ${isLightMode ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-2 border-emerald-800' : 'bg-emerald-600 hover:bg-emerald-50 text-white'}`}>Kaydet ve Devam Et</button>
                   </div>
                 </div>
               ) : (
@@ -1142,7 +1156,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
 
                       <div className="flex items-center gap-2 w-full justify-center">
                         <span className={`font-black truncate max-w-[90px] sm:max-w-[150px] ${isLightMode ? 'text-green-700' : 'text-emerald-400'}`}>{String(match['Oyuncu 1'] || '')}</span>
-                        <span className={`font-mono tabular-nums text-lg sm:text-3xl font-black px-3 py-1 rounded-xl border shadow-inner ${isLightMode ? 'bg-white border-slate-400 text-black' : 'bg-slate-950 border-slate-800 text-white'}`}>
+                        <span className={`font-mono text-lg sm:text-3xl font-black px-3 py-1 rounded-xl border shadow-inner ${isLightMode ? 'bg-white border-slate-400 text-black' : 'bg-slate-950 border-slate-800 text-white'}`}>
                           {currentSetP1Games} - {currentSetP2Games}
                         </span>
                         <span className={`font-black truncate max-w-[90px] sm:max-w-[150px] ${isLightMode ? 'text-blue-700' : 'text-blue-400'}`}>{String(match['Oyuncu 2'] || '')}</span>
@@ -1269,7 +1283,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                     <div className="flex gap-2 sm:gap-3">
                       <button type="button" onClick={(e) => startTimer(e, 'Saha Değişimi', 90)} className={`flex-1 py-3 sm:py-4 border text-[10px] sm:text-sm font-black rounded-xl transition ${shouldBlink90s ? 'animate-pulse bg-rose-500 text-white border-rose-600 shadow-md' : (isLightMode ? 'bg-white border-slate-400 text-slate-800 shadow-sm hover:bg-slate-100' : 'bg-slate-900 border-slate-700 text-slate-300 hover:text-white')}`}>90s Değişim</button>
                       <button type="button" onClick={(e) => startTimer(e, 'Set Arası', 120)} className={`flex-1 py-3 sm:py-4 border text-[10px] sm:text-sm font-black rounded-xl transition ${shouldBlink120s ? 'animate-pulse bg-rose-500 text-white border-rose-600 shadow-md' : (isLightMode ? 'bg-white border-slate-400 text-slate-800 shadow-sm hover:bg-slate-100' : 'bg-slate-900 border-slate-700 text-slate-300 hover:text-white')}`}>120s Set</button>
-                      <button type="button" onClick={(e) => startTimer(e, 'Sağlık Molası', 180)} className={`flex-1 py-3 sm:py-4 border text-[10px] sm:text-sm font-black rounded-xl transition ${isLightMode ? 'bg-white border-slate-400 text-slate-800 shadow-sm hover:bg-slate-100' : 'bg-slate-900 border-slate-700 text-slate-300 hover:text-white')}`}>3dk MTO</button>
+                      <button type="button" onClick={(e) => startTimer(e, 'Sağlık Molası', 180)} className={`flex-1 py-3 sm:py-4 border text-[10px] sm:text-sm font-black rounded-xl transition ${isLightMode ? 'bg-white border-slate-400 text-slate-800 shadow-sm hover:bg-slate-100' : 'bg-slate-900 border-slate-700 text-slate-300 hover:text-white'}`}>3dk MTO</button>
                     </div>
 
                     <div className="flex gap-2 sm:gap-3">
