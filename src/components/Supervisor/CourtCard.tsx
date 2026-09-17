@@ -1245,7 +1245,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                   </div>
 
                   {activeTimer && (
-                    <div className="absolute inset-0 z-50 flex items-center justify-center p-4 sm:p-8 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300">
+                    <div className="absolute inset-0 z-50 flex items-center justify-center p-4 sm:p-8 bg-black/10 animate-in fade-in duration-300">
                        <div className={`w-full max-w-xl p-8 sm:p-12 border-4 rounded-[3rem] shadow-2xl flex flex-col items-center justify-center gap-6 relative overflow-hidden transition-all duration-300 ${activeTimer.seconds <= 30 ? 'bg-rose-600 border-rose-800 shadow-[0_0_50px_rgba(225,29,72,0.6)] text-white' : (isLightMode ? 'bg-white border-slate-300' : 'bg-slate-900 border-slate-700')}`}>
                          
                          <div className={activeTimer.seconds <= 30 ? 'animate-pulse' : ''}>
