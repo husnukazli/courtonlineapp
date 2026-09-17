@@ -63,8 +63,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
     return localStorage.getItem('courtonline_active_chair_match') === match.id;
   });
 
-  const [isChairLocked, setIsChairLocked] = useState(false);
-
   useEffect(() => {
     if (isChairMode) {
       localStorage.setItem('courtonline_active_chair_match', match.id);
@@ -72,13 +70,11 @@ export const CourtCard: React.FC<CourtCardProps> = ({
       if (localStorage.getItem('courtonline_active_chair_match') === match.id) {
         localStorage.removeItem('courtonline_active_chair_match');
       }
-      setIsChairLocked(false);
     }
   }, [isChairMode, match.id]);
 
   const handleExitChairMode = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (isChairLocked) return;
     if (window.confirm('Kule hakemi modundan çıkıp genel maç ekranına dönmek istiyor musunuz?')) {
       setIsChairMode(false);
       localStorage.removeItem('courtonline_active_chair_match');
@@ -87,9 +83,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
 
   useEffect(() => {
     const handlePopState = () => {
-      if (isChairLocked) {
-        window.history.pushState(null, '', window.location.href);
-      } else if (isChairMode) {
+      if (isChairMode) {
         if (window.confirm('Kule hakemi modundan çıkmak istiyor musunuz?')) {
           setIsChairMode(false);
           localStorage.removeItem('courtonline_active_chair_match');
@@ -109,19 +103,11 @@ export const CourtCard: React.FC<CourtCardProps> = ({
       window.addEventListener('beforeunload', handleBeforeUnload);
       
       document.body.style.overflow = 'hidden';
+      document.body.style.overscrollBehavior = 'none';
+      document.body.style.touchAction = 'none';
       
-      if (isChairLocked) {
-         document.body.style.overscrollBehavior = 'none';
-         document.body.style.touchAction = 'none';
-         if (document.documentElement.requestFullscreen) {
-            document.documentElement.requestFullscreen().catch(() => {});
-         }
-      } else {
-         document.body.style.overscrollBehavior = '';
-         document.body.style.touchAction = '';
-         if (document.fullscreenElement && document.exitFullscreen) {
-            document.exitFullscreen().catch(() => {});
-         }
+      if (document.documentElement.requestFullscreen) {
+         document.documentElement.requestFullscreen().catch(() => {});
       }
     } else {
       if (!isCardLocked) {
@@ -129,13 +115,16 @@ export const CourtCard: React.FC<CourtCardProps> = ({
         document.body.style.overscrollBehavior = '';
         document.body.style.touchAction = '';
       }
+      if (document.fullscreenElement && document.exitFullscreen) {
+         document.exitFullscreen().catch(() => {});
+      }
     }
 
     return () => {
       window.removeEventListener('popstate', handlePopState);
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
-  }, [isChairMode, isChairLocked]);
+  }, [isChairMode]);
   
   const [isLightMode, setIsLightMode] = useState(() => {
     return localStorage.getItem('courtonline_light_mode') === 'true';
@@ -1106,22 +1095,9 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                   {isLightMode ? <Sun className="w-5 h-5 font-black" /> : <Moon className="w-5 h-5" />}
                 </button>
 
-                <button 
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setIsChairLocked(prev => !prev);
-                  }} 
-                  className={`p-2 sm:px-3 sm:py-2 rounded-xl transition flex items-center justify-center active:scale-95 sm:hidden ${isChairLocked ? 'bg-rose-500 text-white shadow-md shadow-rose-500/30' : (isLightMode ? 'bg-white hover:bg-slate-200 text-slate-500 border border-slate-400' : 'bg-slate-800 hover:bg-slate-700 text-slate-400 border border-slate-700')}`}
-                  title="Ekranı Kilitle / Tam Ekran"
-                >
-                  {isChairLocked ? <Lock className="w-5 h-5" /> : <Unlock className="w-5 h-5" />}
+                <button type="button" onClick={handleExitChairMode} className={`px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl font-black text-xs sm:text-sm flex items-center gap-2 transition active:scale-95 border shadow-md ${isLightMode ? 'bg-rose-600 hover:bg-rose-700 text-white border-rose-800' : 'bg-slate-800 hover:bg-slate-700 text-white border-slate-700'}`}>
+                  <LogOut className="w-4 h-4" /> Çıkış Yap
                 </button>
-
-                {!isChairLocked && (
-                  <button type="button" onClick={handleExitChairMode} className={`px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl font-black text-xs sm:text-sm flex items-center gap-2 transition active:scale-95 border shadow-md ${isLightMode ? 'bg-rose-600 hover:bg-rose-700 text-white border-rose-800' : 'bg-slate-800 hover:bg-slate-700 text-white border-slate-700'}`}>
-                    <LogOut className="w-4 h-4" /> Çıkış Yap
-                  </button>
-                )}
             </div>
           </div>
 
@@ -1238,9 +1214,9 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                     <div className="flex flex-col items-center sm:flex-row gap-2 sm:gap-3 text-[10px] sm:text-sm font-bold w-full sm:w-auto">
                       
                       <div className={`flex flex-col items-center justify-center px-3.5 py-1.5 rounded-xl border shadow-inner ${isLightMode ? 'bg-white border-slate-300' : 'bg-slate-950 border-slate-800'}`}>
-                        <span className={`font-black text-xs sm:text-sm tracking-wider uppercase ${isLightMode ? 'text-black' : 'text-slate-300'}`}>{selectedSet}. SET</span>
+                        <span className={`font-black text-sm sm:text-base tracking-wider uppercase ${isLightMode ? 'text-black' : 'text-slate-300'}`}>{selectedSet}. SET</span>
                         {selectedSet > 1 && (
-                          <div className="flex items-center gap-2.5 mt-1 text-xs sm:text-sm font-mono">
+                          <div className="flex items-center gap-2.5 mt-1 text-sm sm:text-base font-mono">
                             {selectedSet >= 2 && <span className={`font-bold ${isLightMode ? 'text-slate-500' : 'text-slate-500'}`}>S1: <strong className={isLightMode ? 'text-slate-900' : 'text-slate-300'}>{s1_p1}-{s1_p2}</strong></span>}
                             {selectedSet >= 3 && <span className={`font-bold ${isLightMode ? 'text-slate-500' : 'text-slate-500'}`}>S2: <strong className={isLightMode ? 'text-slate-900' : 'text-slate-300'}>{s2_p1}-{s2_p2}</strong></span>}
                           </div>
@@ -1248,11 +1224,11 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                       </div>
 
                       <div className="flex items-center gap-2 w-full justify-center">
-                        <span className={`font-black truncate max-w-[90px] sm:max-w-[150px] ${isLightMode ? 'text-green-700' : 'text-emerald-400'}`}>{String(match['Oyuncu 1'] || '')}</span>
-                        <span className={`font-mono tabular-nums text-lg sm:text-3xl font-black px-3 py-1 rounded-xl border shadow-inner ${isLightMode ? 'bg-white border-slate-400 text-black' : 'bg-slate-950 border-slate-800 text-white'}`}>
+                        <span className={`font-black text-sm sm:text-base truncate max-w-[100px] sm:max-w-[160px] ${isLightMode ? 'text-green-700' : 'text-emerald-400'}`}>{String(match['Oyuncu 1'] || '')}</span>
+                        <span className={`font-mono tabular-nums text-xl sm:text-4xl font-black px-4 py-2 rounded-xl border shadow-inner ${isLightMode ? 'bg-white border-slate-400 text-black' : 'bg-slate-950 border-slate-800 text-white'}`}>
                           {currentSetP1Games} - {currentSetP2Games}
                         </span>
-                        <span className={`font-black truncate max-w-[90px] sm:max-w-[150px] ${isLightMode ? 'text-blue-700' : 'text-blue-400'}`}>{String(match['Oyuncu 2'] || '')}</span>
+                        <span className={`font-black text-sm sm:text-base truncate max-w-[100px] sm:max-w-[160px] ${isLightMode ? 'text-blue-700' : 'text-blue-400'}`}>{String(match['Oyuncu 2'] || '')}</span>
                       </div>
                     </div>
                     <div className="flex items-center gap-1 sm:gap-2 shrink-0">
@@ -1372,7 +1348,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
 
                   </div>
 
-                  <div className={`pt-2 border-t flex flex-col gap-2 sm:gap-3 shrink-0 pb-4 ${isLightMode ? 'border-slate-300' : 'border-slate-800'}`}>
+                  <div className={`pt-2 border-t flex flex-col gap-2 sm:gap-3 shrink-0 pb-16 sm:pb-20 ${isLightMode ? 'border-slate-300' : 'border-slate-800'}`}>
                     <div className="flex gap-2 sm:gap-3">
                       <button type="button" onClick={(e) => startTimer(e, 'Saha Değişimi', 90)} className={`flex-1 py-3 sm:py-4 border text-[10px] sm:text-sm font-black rounded-xl transition ${shouldBlink90s ? 'animate-pulse bg-rose-500 text-white border-rose-600 shadow-md' : (isLightMode ? 'bg-white border-slate-400 text-slate-800 shadow-sm hover:bg-slate-100' : 'bg-slate-900 border-slate-700 text-slate-300 hover:text-white')}`}>90s Değişim</button>
                       <button type="button" onClick={(e) => startTimer(e, 'Set Arası', 120)} className={`flex-1 py-3 sm:py-4 border text-[10px] sm:text-sm font-black rounded-xl transition ${shouldBlink120s ? 'animate-pulse bg-rose-500 text-white border-rose-600 shadow-md' : (isLightMode ? 'bg-white border-slate-400 text-slate-800 shadow-sm hover:bg-slate-100' : 'bg-slate-900 border-slate-700 text-slate-300 hover:text-white')}`}>120s Set</button>
@@ -1380,11 +1356,11 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                     </div>
 
                     <div className="flex gap-2 sm:gap-3">
-                      <button type="button" onClick={handleUndo} disabled={isPaused} className={`flex-1 flex items-center justify-center gap-1.5 py-3 sm:py-4 border text-[11px] sm:text-base font-black rounded-xl transition active:scale-95 disabled:opacity-50 ${isLightMode ? 'bg-white border-slate-400 text-slate-800 shadow-sm hover:bg-slate-100' : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'}`}>
-                        <RotateCcw className="w-4 h-4 sm:w-5 sm:h-5" /> Geri Al
+                      <button type="button" onClick={handleUndo} disabled={isPaused} className={`flex-1 flex items-center justify-center gap-1.5 py-4 sm:py-5 border text-[13px] sm:text-lg font-black rounded-xl transition active:scale-95 disabled:opacity-50 ${isLightMode ? 'bg-slate-100 border-slate-400 text-slate-800 shadow-md hover:bg-slate-200' : 'bg-slate-800 hover:bg-slate-700 text-white border-slate-600 shadow-md'}`}>
+                        <RotateCcw className="w-5 h-5 sm:w-6 sm:h-6" /> Geri Al
                       </button>
-                      <button type="button" onClick={toggleSuspend} className={`flex-1 flex items-center justify-center gap-1.5 py-3 sm:py-4 text-[11px] sm:text-base font-black rounded-xl transition active:scale-95 border shadow-sm ${isPaused ? (isLightMode ? 'bg-emerald-600 text-white border-emerald-800' : 'bg-emerald-600 text-white border-emerald-700') : (isLightMode ? 'bg-white border-slate-400 text-slate-800 hover:bg-slate-100' : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700')}`}>
-                        {isPaused ? <><PlayCircle className="w-4 h-4 sm:w-5 sm:h-5" /> Devam Et</> : <><PauseCircle className="w-4 h-4 sm:w-5 sm:h-5" /> Askıya Al</>}
+                      <button type="button" onClick={toggleSuspend} className={`flex-1 flex items-center justify-center gap-1.5 py-4 sm:py-5 text-[13px] sm:text-lg font-black rounded-xl transition active:scale-95 border shadow-md ${isPaused ? (isLightMode ? 'bg-emerald-600 text-white border-emerald-800' : 'bg-emerald-600 text-white border-emerald-700') : (isLightMode ? 'bg-amber-100 border-amber-400 text-amber-900 hover:bg-amber-200' : 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 border-amber-500/50')}`}>
+                        {isPaused ? <><PlayCircle className="w-5 h-5 sm:w-6 sm:h-6" /> Devam Et</> : <><PauseCircle className="w-5 h-5 sm:w-6 sm:h-6" /> Maçı Askıya Al</>}
                       </button>
                     </div>
                   </div>
