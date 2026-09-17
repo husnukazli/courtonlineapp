@@ -63,6 +63,8 @@ export const CourtCard: React.FC<CourtCardProps> = ({
     return localStorage.getItem('courtonline_active_chair_match') === match.id;
   });
 
+  const [isChairLocked, setIsChairLocked] = useState(false);
+
   useEffect(() => {
     if (isChairMode) {
       localStorage.setItem('courtonline_active_chair_match', match.id);
@@ -70,11 +72,13 @@ export const CourtCard: React.FC<CourtCardProps> = ({
       if (localStorage.getItem('courtonline_active_chair_match') === match.id) {
         localStorage.removeItem('courtonline_active_chair_match');
       }
+      setIsChairLocked(false);
     }
   }, [isChairMode, match.id]);
 
   const handleExitChairMode = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (isChairLocked) return;
     if (window.confirm('Kule hakemi modundan çıkıp genel maç ekranına dönmek istiyor musunuz?')) {
       setIsChairMode(false);
       localStorage.removeItem('courtonline_active_chair_match');
@@ -83,7 +87,9 @@ export const CourtCard: React.FC<CourtCardProps> = ({
 
   useEffect(() => {
     const handlePopState = () => {
-      if (isChairMode) {
+      if (isChairLocked) {
+        window.history.pushState(null, '', window.location.href);
+      } else if (isChairMode) {
         if (window.confirm('Kule hakemi modundan çıkmak istiyor musunuz?')) {
           setIsChairMode(false);
           localStorage.removeItem('courtonline_active_chair_match');
@@ -92,25 +98,44 @@ export const CourtCard: React.FC<CourtCardProps> = ({
         }
       }
     };
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => { if (isChairMode) { e.preventDefault(); e.returnValue = ''; } };
+    
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => { 
+      if (isChairMode) { e.preventDefault(); e.returnValue = ''; } 
+    };
 
     if (isChairMode) {
       window.history.pushState(null, '', window.location.href);
       window.addEventListener('popstate', handlePopState);
       window.addEventListener('beforeunload', handleBeforeUnload);
-      document.body.style.overscrollBehaviorY = 'none';
+      
       document.body.style.overflow = 'hidden';
+      
+      if (isChairLocked) {
+         document.body.style.overscrollBehavior = 'none';
+         document.body.style.touchAction = 'none';
+         if (document.documentElement.requestFullscreen) {
+            document.documentElement.requestFullscreen().catch(() => {});
+         }
+      } else {
+         document.body.style.overscrollBehavior = '';
+         document.body.style.touchAction = '';
+         if (document.fullscreenElement && document.exitFullscreen) {
+            document.exitFullscreen().catch(() => {});
+         }
+      }
     } else {
-      document.body.style.overscrollBehaviorY = 'auto';
-      document.body.style.overflow = 'auto';
+      if (!isCardLocked) {
+        document.body.style.overflow = '';
+        document.body.style.overscrollBehavior = '';
+        document.body.style.touchAction = '';
+      }
     }
+
     return () => {
       window.removeEventListener('popstate', handlePopState);
       window.removeEventListener('beforeunload', handleBeforeUnload);
-      document.body.style.overscrollBehaviorY = 'auto';
-      document.body.style.overflow = 'auto';
     };
-  }, [isChairMode]);
+  }, [isChairMode, isChairLocked]);
   
   const [isLightMode, setIsLightMode] = useState(() => {
     return localStorage.getItem('courtonline_light_mode') === 'true';
@@ -1081,9 +1106,22 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                   {isLightMode ? <Sun className="w-5 h-5 font-black" /> : <Moon className="w-5 h-5" />}
                 </button>
 
-                <button type="button" onClick={handleExitChairMode} className={`px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl font-black text-xs sm:text-sm flex items-center gap-2 transition active:scale-95 border shadow-md ${isLightMode ? 'bg-rose-600 hover:bg-rose-700 text-white border-rose-800' : 'bg-slate-800 hover:bg-slate-700 text-white border-slate-700'}`}>
-                  <LogOut className="w-4 h-4" /> Çıkış Yap
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsChairLocked(prev => !prev);
+                  }} 
+                  className={`p-2 sm:px-3 sm:py-2 rounded-xl transition flex items-center justify-center active:scale-95 sm:hidden ${isChairLocked ? 'bg-rose-500 text-white shadow-md shadow-rose-500/30' : (isLightMode ? 'bg-white hover:bg-slate-200 text-slate-500 border border-slate-400' : 'bg-slate-800 hover:bg-slate-700 text-slate-400 border border-slate-700')}`}
+                  title="Ekranı Kilitle / Tam Ekran"
+                >
+                  {isChairLocked ? <Lock className="w-5 h-5" /> : <Unlock className="w-5 h-5" />}
                 </button>
+
+                {!isChairLocked && (
+                  <button type="button" onClick={handleExitChairMode} className={`px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl font-black text-xs sm:text-sm flex items-center gap-2 transition active:scale-95 border shadow-md ${isLightMode ? 'bg-rose-600 hover:bg-rose-700 text-white border-rose-800' : 'bg-slate-800 hover:bg-slate-700 text-white border-slate-700'}`}>
+                    <LogOut className="w-4 h-4" /> Çıkış Yap
+                  </button>
+                )}
             </div>
           </div>
 
