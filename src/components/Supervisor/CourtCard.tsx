@@ -122,20 +122,38 @@ export const CourtCard: React.FC<CourtCardProps> = ({
   useEffect(() => {
     if (isCardLocked) {
       document.body.style.overflow = 'hidden';
-      document.body.style.overscrollBehaviorY = 'none';
+      document.body.style.overscrollBehavior = 'none';
+      document.body.style.touchAction = 'none'; // Prevent background touch actions
+      
+      // Also prevent back gestures if possible by pushing state
+      window.history.pushState(null, '', window.location.href);
+      
       if (document.documentElement.requestFullscreen) {
         document.documentElement.requestFullscreen().catch(() => {});
       }
     } else {
       document.body.style.overflow = '';
-      document.body.style.overscrollBehaviorY = '';
+      document.body.style.overscrollBehavior = '';
+      document.body.style.touchAction = '';
       if (document.fullscreenElement && document.exitFullscreen) {
         document.exitFullscreen().catch(() => {});
       }
     }
+    
+    const handlePopState = () => {
+      if (isCardLocked) {
+        // Prevent going back by pushing state again, forcing them to unlock explicitly
+        window.history.pushState(null, '', window.location.href);
+      }
+    };
+    
+    window.addEventListener('popstate', handlePopState);
+    
     return () => {
       document.body.style.overflow = '';
-      document.body.style.overscrollBehaviorY = '';
+      document.body.style.overscrollBehavior = '';
+      document.body.style.touchAction = '';
+      window.removeEventListener('popstate', handlePopState);
     };
   }, [isCardLocked]);
 
@@ -783,8 +801,8 @@ export const CourtCard: React.FC<CourtCardProps> = ({
     );
   };
 
-  const baseCardClass = `rounded-3xl transition-all duration-200 overflow-hidden flex flex-col justify-between shadow-md relative ${
-    isCardLocked ? 'fixed inset-0 z-[100000] w-full h-full rounded-none overflow-y-auto' : ''
+  const baseCardClass = `transition-all duration-200 overflow-hidden flex flex-col justify-between shadow-md relative ${
+    isCardLocked ? '!fixed !inset-0 !z-[100000] !w-screen !h-[100dvh] !rounded-none !m-0 !max-w-none overflow-y-auto overflow-x-hidden overscroll-none touch-pan-y' : 'rounded-3xl'
   } ${
     isLive || isPaused ? (isLightMode ? 'bg-white border-[3px] border-emerald-500' : 'bg-slate-900/95 border border-emerald-500/30')
     : isUpcoming ? (isLightMode ? 'bg-slate-50 border-2 border-slate-300 cursor-pointer hover:border-slate-400' : 'bg-slate-900 border border-slate-700 cursor-pointer')
