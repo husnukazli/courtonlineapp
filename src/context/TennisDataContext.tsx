@@ -96,7 +96,6 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     return localStorage.getItem(getStorageKey(BASE_STORAGE_KEYS.DESK_PIN, initialTournamentId)) || '2026';
   });
 
-  // BURASI KRİTİK: sessionStorage yerine localStorage kullanıldı, ekran kapansa da oturum silinmez.
   const [authRole, setAuthRoleState] = useState<'none' | 'supervisor' | 'desk' | 'referee'>(() => {
     const savedRole = localStorage.getItem(getStorageKey(BASE_STORAGE_KEYS.AUTH_ROLE, initialTournamentId));
     if (savedRole === 'supervisor' || savedRole === 'desk' || savedRole === 'referee') {
@@ -121,7 +120,6 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   }, [authRole]);
 
-  // BURASI KRİTİK: sessionStorage yerine localStorage
   const setAuthRole = (role: 'none' | 'supervisor' | 'desk' | 'referee') => {
     setAuthRoleState(role);
     if (role === 'none') { localStorage.removeItem(getStorageKey(BASE_STORAGE_KEYS.AUTH_ROLE, tournamentId)); } 
@@ -147,7 +145,6 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     try { return saved ? JSON.parse(saved) : INITIAL_REFEREES; } catch { return INITIAL_REFEREES; }
   });
 
-  // BURASI KRİTİK: sessionStorage yerine localStorage
   const [currentReferee, setCurrentReferee] = useState<RefereeUser | null>(() => {
     const saved = localStorage.getItem(getStorageKey(BASE_STORAGE_KEYS.CURRENT_REF, initialTournamentId));
     if (saved) { try { return JSON.parse(saved); } catch (e) {} }
@@ -210,7 +207,6 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   }, [matches, referees, categoryFormats, categoryNoAdSettings, tournamentInfoState, tournamentId]);
 
   useEffect(() => {
-    // BURASI KRİTİK: sessionStorage yerine localStorage
     if (currentReferee) { localStorage.setItem(getStorageKey(BASE_STORAGE_KEYS.CURRENT_REF, tournamentId), JSON.stringify(currentReferee)); } 
     else { localStorage.removeItem(getStorageKey(BASE_STORAGE_KEYS.CURRENT_REF, tournamentId)); }
   }, [currentReferee, tournamentId]);
@@ -543,7 +539,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     });
   };
 
-  const checkSyncTiebreak = (dState: TennisMatchState, formatStr: string) => {
+  const checkSyncTiebreak = (dState: any, formatStr: string) => {
     if (!dState) return;
     
     const thirdSetMT = isMatchTiebreakThirdSet(formatStr);
@@ -643,7 +639,10 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
         const res: MatchItem = {
           ...m, Durum: newDurum, Kazanan: newKazanan, detailedState: dState,
-          Skor: buildScoreString(dState.set1_p1, dState.set1_p2, dState.set2_p1, dState.set2_p2, dState.set3_p1, dState.set3_p2),
+          Skor: buildScoreString(
+             dState.set1_p1, dState.set1_p2, dState.set2_p1, dState.set2_p2, dState.set3_p1, dState.set3_p2,
+             dState.set1_tb_p1, dState.set1_tb_p2, dState.set2_tb_p1, dState.set2_tb_p2, dState.set3_tb_p1, dState.set3_tb_p2
+          ),
         };
         updatedItem = res;
         return res;
@@ -719,7 +718,10 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
         const res: MatchItem = {
           ...m, Durum: newDurum, Kazanan: newKazanan, detailedState: dState,
-          Skor: buildScoreString(dState.set1_p1, dState.set1_p2, dState.set2_p1, dState.set2_p2, dState.set3_p1, dState.set3_p2),
+          Skor: buildScoreString(
+             dState.set1_p1, dState.set1_p2, dState.set2_p1, dState.set2_p2, dState.set3_p1, dState.set3_p2,
+             dState.set1_tb_p1, dState.set1_tb_p2, dState.set2_tb_p1, dState.set2_tb_p2, dState.set3_tb_p1, dState.set3_tb_p2
+          ),
         };
         updatedItem = res;
         return res;
@@ -742,11 +744,15 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         dState.isNoAd = !!m.isNoAd;
 
         dState.set1_p1 = data.s1_p1; dState.set1_p2 = data.s1_p2;
+        if (data.s1_tb_p1 !== undefined) { dState.set1_tb_p1 = data.s1_tb_p1; dState.set1_tb_p2 = data.s1_tb_p2; }
+
         const v1 = validateSingleSet(dState.set1_p1, dState.set1_p2, 1, format);
 
         if (v1.isComplete) {
           dState.set1_winner = v1.winner;
           dState.set2_p1 = data.s2_p1; dState.set2_p2 = data.s2_p2;
+          if (data.s2_tb_p1 !== undefined) { dState.set2_tb_p1 = data.s2_tb_p1; dState.set2_tb_p2 = data.s2_tb_p2; }
+
           const v2 = validateSingleSet(dState.set2_p1, dState.set2_p2, 2, format);
           
           if (v2.isComplete) {
@@ -755,6 +761,8 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                 dState.currentSet = 3;
                 dState.currentSetNum = 3;
                 dState.set3_p1 = data.s3_p1; dState.set3_p2 = data.s3_p2;
+                if (data.s3_tb_p1 !== undefined) { dState.set3_tb_p1 = data.s3_tb_p1; dState.set3_tb_p2 = data.s3_tb_p2; }
+                
                 const v3 = validateSingleSet(dState.set3_p1, dState.set3_p2, 3, format);
                 dState.set3_winner = v3.isComplete ? v3.winner : undefined;
             } else {
@@ -783,7 +791,10 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           ...m, Durum: data.status, Kazanan: data.winner || m.Kazanan,
           Baslangic_Saati: data.startTime || m.Baslangic_Saati, Bitis_Saati: data.endTime || m.Bitis_Saati,
           detailedState: dState,
-          Skor: buildScoreString(dState.set1_p1, dState.set1_p2, dState.set2_p1, dState.set2_p2, dState.set3_p1, dState.set3_p2),
+          Skor: buildScoreString(
+             dState.set1_p1, dState.set1_p2, dState.set2_p1, dState.set2_p2, dState.set3_p1, dState.set3_p2,
+             dState.set1_tb_p1, dState.set1_tb_p2, dState.set2_tb_p1, dState.set2_tb_p2, dState.set3_tb_p1, dState.set3_tb_p2
+          ),
         };
         updatedItem = res;
         return res;
