@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useTennisData } from '../../context/TennisDataContext';
 import { MatchItem, ScoreFormatType } from '../../types/tennis';
+import { parseScoreString } from '../../utils/tennisScoringEngine';
 import { MatchDetailModal } from '../Common/MatchDetailModal';
 import { MatchLiveTimer } from '../Common/MatchLiveTimer';
 
@@ -429,6 +430,40 @@ export const DeskSupervisorView: React.FC = () => {
                             : isFinished ? (isLightMode ? 'text-cyan-700' : 'text-lime-200')
                             : (isLightMode ? 'text-slate-900' : 'text-white');
 
+                          // --- YENİ EKLENEN TIE-BREAK VE HİZALAMA MANTIĞI ---
+                          const parsed = parseScoreString(m.Skor);
+                          const s1p1 = Number(state?.set1_p1 ?? parsed.s1_p1 ?? 0);
+                          const s1p2 = Number(state?.set1_p2 ?? parsed.s1_p2 ?? 0);
+                          const s1tb1 = Number(state?.set1_tb_p1 ?? (parsed as any).s1_tb_p1);
+                          const s1tb2 = Number(state?.set1_tb_p2 ?? (parsed as any).s1_tb_p2);
+                          
+                          const s2p1 = Number(state?.set2_p1 ?? parsed.s2_p1 ?? 0);
+                          const s2p2 = Number(state?.set2_p2 ?? parsed.s2_p2 ?? 0);
+                          const s2tb1 = Number(state?.set2_tb_p1 ?? (parsed as any).s2_tb_p1);
+                          const s2tb2 = Number(state?.set2_tb_p2 ?? (parsed as any).s2_tb_p2);
+
+                          const s3p1 = Number(state?.set3_p1 ?? parsed.s3_p1 ?? 0);
+                          const s3p2 = Number(state?.set3_p2 ?? parsed.s3_p2 ?? 0);
+                          const s3tb1 = Number(state?.set3_tb_p1 ?? (parsed as any).s3_tb_p1);
+                          const s3tb2 = Number(state?.set3_tb_p2 ?? (parsed as any).s3_tb_p2);
+
+                          let setsToDisplay = 1;
+                          if (s2p1 > 0 || s2p2 > 0 || s3p1 > 0 || s3p2 > 0 || (m.Skor && m.Skor.split(' ').length >= 2) || (state && state.currentSet >= 2)) setsToDisplay = 2;
+                          if (s3p1 > 0 || s3p2 > 0 || (m.Skor && m.Skor.split(' ').length === 3) || (state && state.currentSet === 3)) setsToDisplay = 3;
+
+                          const renderMiniSet = (pMe: number, pOpp: number, tbMe: number, isVisible: boolean) => {
+                             if (!isVisible) return <div className="w-4"></div>;
+                             const isLoserInTB = (pMe === 6 && pOpp === 7) || (pMe === 4 && pOpp === 5);
+                             const showTb = isLoserInTB && !isNaN(tbMe) && tbMe >= 0;
+                             return (
+                                <div className="relative flex items-start justify-end w-4">
+                                   <span>{pMe}</span>
+                                   {showTb && <sup className="absolute -right-[9px] top-0 text-[8px] font-extrabold opacity-90 leading-none">{tbMe}</sup>}
+                                </div>
+                             );
+                          };
+                          // --------------------------------------------------
+
                           return (
                             <div key={m.id} onClick={(e) => { if (hasDragged.current) { e.preventDefault(); e.stopPropagation(); return; } setSelectedMatchForModal(m); }} 
                               className={`p-3 rounded-2xl transition-all cursor-pointer relative overflow-hidden group ${cardClass}`}>
@@ -446,14 +481,30 @@ export const DeskSupervisorView: React.FC = () => {
                                     {state?.currentServer === 1 && isLive && <span className="text-lime-400 text-[10px] animate-bounce">🎾</span>}
                                     <span className={`truncate ${playerTextClass(m.Kazanan === p1Name)}`}>{isFinished && m.Kazanan === p1Name ? '🏆 ' : ''}{p1Name}</span>
                                   </div>
-                                  <span className={`font-mono text-xs font-black shrink-0 ${scoreNumberClass(m.Kazanan === p1Name)}`}>{state ? `${state.set1_p1} ${state.set2_p1} ${state.set3_p1}` : m.Skor !== '-' ? m.Skor.split(' ').map((s) => s.split('/')[0]).join(' ') : '-'}</span>
+                                  <div className={`font-mono text-xs font-black shrink-0 tabular-nums flex gap-3 ${scoreNumberClass(m.Kazanan === p1Name)}`}>
+                                    {isUpcoming ? <span>-</span> : (
+                                      <>
+                                        {renderMiniSet(s1p1, s1p2, s1tb1, true)}
+                                        {renderMiniSet(s2p1, s2p2, s2tb1, setsToDisplay >= 2)}
+                                        {renderMiniSet(s3p1, s3p2, s3tb1, setsToDisplay >= 3)}
+                                      </>
+                                    )}
+                                  </div>
                                 </div>
                                 <div className="flex items-center justify-between text-xs">
                                   <div className="flex items-center gap-1.5 truncate pr-2">
                                     {state?.currentServer === 2 && isLive && <span className="text-cyan-400 text-[10px] animate-bounce">🎾</span>}
                                     <span className={`truncate ${playerTextClass(m.Kazanan === p2Name)}`}>{isFinished && m.Kazanan === p2Name ? '🏆 ' : ''}{p2Name}</span>
                                   </div>
-                                  <span className={`font-mono text-xs font-black shrink-0 ${scoreNumberClass(m.Kazanan === p2Name)}`}>{state ? `${state.set1_p2} ${state.set2_p2} ${state.set3_p2}` : m.Skor !== '-' ? m.Skor.split(' ').map((s) => s.split('/')[1]).join(' ') : '-'}</span>
+                                  <div className={`font-mono text-xs font-black shrink-0 tabular-nums flex gap-3 ${scoreNumberClass(m.Kazanan === p2Name)}`}>
+                                    {isUpcoming ? <span>-</span> : (
+                                      <>
+                                        {renderMiniSet(s1p2, s1p1, s1tb2, true)}
+                                        {renderMiniSet(s2p2, s2p1, s2tb2, setsToDisplay >= 2)}
+                                        {renderMiniSet(s3p2, s3p1, s3tb2, setsToDisplay >= 3)}
+                                      </>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
                               <div className={`pt-2 mt-2 border-t flex items-center justify-between text-[10px] ${isLightMode ? 'border-slate-200' : 'border-slate-800/50'}`}>
