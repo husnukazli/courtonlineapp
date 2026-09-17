@@ -1041,7 +1041,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
 
       {/* 2. KULE HAKEMİ MODU (TAM EKRANLI İÇ DETAY) */}
       {isChairMode && (
-        <div className={`fixed inset-0 z-[50000] flex flex-col animate-in fade-in zoom-in-95 duration-200 select-none ${isLightMode ? 'bg-white' : 'bg-slate-950'}`}>
+        <div className={`!fixed !inset-0 !z-[50000] !w-screen !h-[100dvh] !m-0 !p-0 !max-w-none flex flex-col animate-in fade-in zoom-in-95 duration-200 select-none overflow-hidden ${isLightMode ? 'bg-white' : 'bg-slate-950'}`}>
           
           {toastMessage && (
             <div className={`absolute top-16 left-1/2 -translate-x-1/2 z-[50000] px-5 py-3 rounded-2xl border shadow-2xl animate-in fade-in slide-in-from-top-4 flex items-center gap-3 ${isLightMode ? 'bg-slate-900 text-white border-slate-700' : 'bg-slate-800 text-white border-slate-700'}`}>
