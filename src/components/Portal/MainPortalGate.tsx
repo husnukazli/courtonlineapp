@@ -10,6 +10,7 @@ import {
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../utils/firebase';
 import { MatchItem } from '../../types/tennis';
+import { parseScoreString } from '../../utils/tennisScoringEngine';
 
 interface MainPortalGateProps {
   onBackToList?: () => void;
@@ -489,6 +490,41 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
                 ? 'bg-rose-500 text-white shadow-sm font-black border border-rose-600'
                 : (isLightMode ? 'bg-amber-100 text-amber-800 border border-amber-300' : 'bg-amber-500/15 text-amber-400/70');
 
+            // --- YENİ EKLENEN TIE-BREAK VE HİZALAMA MANTIĞI ---
+            const state = m.detailedState;
+            const parsed = parseScoreString(m.Skor);
+            const s1p1 = Number(state?.set1_p1 ?? parsed.s1_p1 ?? 0);
+            const s1p2 = Number(state?.set1_p2 ?? parsed.s1_p2 ?? 0);
+            const s1tb1 = Number(state?.set1_tb_p1 ?? (parsed as any).s1_tb_p1);
+            const s1tb2 = Number(state?.set1_tb_p2 ?? (parsed as any).s1_tb_p2);
+            
+            const s2p1 = Number(state?.set2_p1 ?? parsed.s2_p1 ?? 0);
+            const s2p2 = Number(state?.set2_p2 ?? parsed.s2_p2 ?? 0);
+            const s2tb1 = Number(state?.set2_tb_p1 ?? (parsed as any).s2_tb_p1);
+            const s2tb2 = Number(state?.set2_tb_p2 ?? (parsed as any).s2_tb_p2);
+
+            const s3p1 = Number(state?.set3_p1 ?? parsed.s3_p1 ?? 0);
+            const s3p2 = Number(state?.set3_p2 ?? parsed.s3_p2 ?? 0);
+            const s3tb1 = Number(state?.set3_tb_p1 ?? (parsed as any).s3_tb_p1);
+            const s3tb2 = Number(state?.set3_tb_p2 ?? (parsed as any).s3_tb_p2);
+
+            let setsToDisplay = 1;
+            if (s2p1 > 0 || s2p2 > 0 || s3p1 > 0 || s3p2 > 0 || (m.Skor && m.Skor.split(' ').length >= 2) || (state && state.currentSet >= 2)) setsToDisplay = 2;
+            if (s3p1 > 0 || s3p2 > 0 || (m.Skor && m.Skor.split(' ').length === 3) || (state && state.currentSet === 3)) setsToDisplay = 3;
+
+            const renderMiniSet = (pMe: number, pOpp: number, tbMe: number, isVisible: boolean) => {
+               if (!isVisible) return <div className="w-3 sm:w-4"></div>;
+               const isLoserInTB = (pMe === 6 && pOpp === 7) || (pMe === 4 && pOpp === 5);
+               const showTb = isLoserInTB && !isNaN(tbMe) && tbMe >= 0;
+               return (
+                  <div className="relative flex items-start justify-end w-3 sm:w-4">
+                     <span>{pMe}</span>
+                     {showTb && <sup className="absolute -right-[7px] sm:-right-[9px] top-0 text-[8px] font-extrabold opacity-90 leading-none">{tbMe}</sup>}
+                  </div>
+               );
+            };
+            // --------------------------------------------------
+
             return (
               // KART İÇİ DİKEYDE ASLA SÜNMESİN DİYE shrink-0 ekledik
               <div className={`rounded-2xl border p-3 space-y-2 flex flex-col shrink-0 transition-all duration-200 ${cardBg}`}>
@@ -522,11 +558,15 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
                           <span className={`text-xs font-bold truncate flex-1 leading-tight ${nameColor}`}>
                             {p.kazandi && <span className={`${isLightMode ? 'text-cyan-600' : 'text-cyan-300'} mr-0.5`}>✓</span>}{p.name}
                           </span>
-                          {m.Skor && (
-                            <span className={`font-mono text-xs shrink-0 ml-1 ${p.kazandi ? 'font-black' : 'font-medium'} ${scoreColor}`}>
-                              {m.Skor.split(' ').map((s: string) => s.split('/')[i] ?? '0').join(' ')}
-                            </span>
-                          )}
+                          <div className={`font-mono text-xs shrink-0 ml-1 tabular-nums flex gap-3 ${p.kazandi ? 'font-black' : 'font-medium'} ${scoreColor}`}>
+                            {isUpcoming ? <span>-</span> : (
+                              <>
+                                {renderMiniSet(i === 0 ? s1p1 : s1p2, i === 0 ? s1p2 : s1p1, i === 0 ? s1tb1 : s1tb2, true)}
+                                {renderMiniSet(i === 0 ? s2p1 : s2p2, i === 0 ? s2p2 : s2p1, i === 0 ? s2tb1 : s2tb2, setsToDisplay >= 2)}
+                                {renderMiniSet(i === 0 ? s3p1 : s3p2, i === 0 ? s3p2 : s3p1, i === 0 ? s3tb1 : s3tb2, setsToDisplay >= 3)}
+                              </>
+                            )}
+                          </div>
                         </div>
                      )
                   })}
