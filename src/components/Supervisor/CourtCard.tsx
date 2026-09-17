@@ -440,34 +440,19 @@ export const CourtCard: React.FC<CourtCardProps> = ({
     }
   } else {
     // --- DIŞ EKRAN İÇİN MÜTHİŞ OTOMATİK PİLOT (KURULUM OLMADIĞINDA) ---
-    // 1. Kurulum (MatchSetupModal) verilerinden Başlangıç Durumunu (0-0) Tespit Et
-    let initialServer: 1 | 2 = state?.currentServer === 2 ? 2 : 1;
-    let initialLeft: 1 | 2 = 1;
-
-    if (match.Kura_Kazanan && match.Kura_Kazanan !== 'Secilmedi' && match.Kura_Tercih) {
-        const isWinnerP1 = match.Kura_Kazanan === match['Oyuncu 1'];
-        if (match.Kura_Tercih === 'Servis') {
-            initialServer = isWinnerP1 ? 1 : 2;
-        } else if (match.Kura_Tercih === 'Karşılama') {
-            initialServer = isWinnerP1 ? 2 : 1;
-        }
-    }
-
-    if (match.Saha_Tarafi && match.Kura_Kazanan && match.Kura_Kazanan !== 'Secilmedi') {
-        const isWinnerP1 = match.Kura_Kazanan === match['Oyuncu 1'];
-        const saha = match.Saha_Tarafi.toLowerCase();
-        
-        if (saha.includes('sol')) {
-            initialLeft = isWinnerP1 ? 1 : 2;
-        } else if (saha.includes('sağ') || saha.includes('sag')) {
-            initialLeft = isWinnerP1 ? 2 : 1;
-        }
-    }
-
-    let autoServer = initialServer;
-    let autoLeft = initialLeft;
+    let autoServer: 1 | 2 = (state?.currentServer === 2) ? 2 : 1;
+    let autoLeft: 1 | 2 = 1;
     
-    // 2. Simülasyon döngüsü (Baştan o anki skora kadar evrim)
+    if (match.Saha_Tarafi && match.Kura_Kazanan && match.Kura_Kazanan !== 'Secilmedi') {
+        if (match.Kura_Kazanan === match['Oyuncu 1']) {
+            if (match.Saha_Tarafi.toLowerCase().includes('sol')) autoLeft = 1;
+            else if (match.Saha_Tarafi.toLowerCase().includes('sağ') || match.Saha_Tarafi.toLowerCase().includes('sag')) autoLeft = 2;
+        } else if (match.Kura_Kazanan === match['Oyuncu 2']) {
+            if (match.Saha_Tarafi.toLowerCase().includes('sol')) autoLeft = 2;
+            else if (match.Saha_Tarafi.toLowerCase().includes('sağ') || match.Saha_Tarafi.toLowerCase().includes('sag')) autoLeft = 1;
+        }
+    }
+    
     for (let s = 1; s <= selectedSet; s++) {
         if (s === selectedSet) {
             if (!isTB) {
@@ -734,6 +719,33 @@ export const CourtCard: React.FC<CourtCardProps> = ({
       }
   }
 
+  // --- TIE-BREAK TABLO HİZALAMA VE GÖSTERİM FONKSİYONU ---
+  const renderSetScoreCell = (myScore: number, oppScore: number, isUpcomingMatch: boolean, colorClass: string, tbPtsRaw?: any) => {
+    if (isUpcomingMatch) {
+      return (
+        <div className={`col-span-2 flex justify-center font-mono tabular-nums font-black ${colorClass}`}>
+          <div className="w-5 text-center">-</div>
+        </div>
+      );
+    }
+    
+    // Yalnızca kaybedenin oyun skoruna tie-break puanı eklenir (örn: 7-6 bitmişse, 6'nın yanına eklenir)
+    const isLoserInTB = (myScore === 6 && oppScore === 7) || (myScore === 4 && oppScore === 5);
+    const tbPts = Number(tbPtsRaw);
+    const showTb = isLoserInTB && !isNaN(tbPts) && tbPts >= 0;
+    
+    return (
+      <div className={`col-span-2 flex justify-center font-mono tabular-nums font-black ${colorClass}`}>
+        <div className="relative flex items-start justify-end w-5 pr-0.5">
+          <span>{myScore}</span>
+          {showTb && (
+            <sup className="absolute -right-3 top-0.5 text-[9px] font-extrabold opacity-80 leading-none">{tbPts}</sup>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   const baseCardClass = `rounded-3xl transition-all duration-200 overflow-hidden flex flex-col justify-between shadow-md relative ${
     isLive || isPaused ? (isLightMode ? 'bg-white border-[3px] border-emerald-500' : 'bg-slate-900/95 border border-emerald-500/30')
     : isUpcoming ? (isLightMode ? 'bg-slate-50 border-2 border-slate-300 cursor-pointer hover:border-slate-400' : 'bg-slate-900 border border-slate-700 cursor-pointer')
@@ -827,7 +839,9 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                     )}
                 </span>
               </div>
-              <div className={`col-span-2 text-center font-mono font-black ${isLightMode ? 'text-green-800' : 'text-emerald-400'}`}>{isUpcoming ? '-' : s1_p1}</div><div className={`col-span-2 text-center font-mono font-black ${isLightMode ? 'text-green-800' : 'text-emerald-400'}`}>{isUpcoming ? '-' : s2_p1}</div><div className={`col-span-2 text-center font-mono font-black ${isLightMode ? 'text-green-800' : 'text-emerald-400'}`}>{isUpcoming ? '-' : s3_p1}</div>
+              {renderSetScoreCell(s1_p1, s1_p2, isUpcoming, isLightMode ? 'text-green-800' : 'text-emerald-400', (parsed as any)?.s1_tb_p1)}
+              {renderSetScoreCell(s2_p1, s2_p2, isUpcoming, isLightMode ? 'text-green-800' : 'text-emerald-400', (parsed as any)?.s2_tb_p1)}
+              {renderSetScoreCell(s3_p1, s3_p2, isUpcoming, isLightMode ? 'text-green-800' : 'text-emerald-400', (parsed as any)?.s3_tb_p1)}
             </div>
             
             <div className={`grid grid-cols-12 items-center py-2 px-3 ${match.Kazanan === match['Oyuncu 2'] && isFinished ? (isLightMode ? 'bg-blue-100' : 'bg-blue-500/10') : ''}`}>
@@ -843,7 +857,9 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                     )}
                 </span>
               </div>
-              <div className={`col-span-2 text-center font-mono font-black ${isLightMode ? 'text-blue-800' : 'text-blue-400'}`}>{isUpcoming ? '-' : s1_p2}</div><div className={`col-span-2 text-center font-mono font-black ${isLightMode ? 'text-blue-800' : 'text-blue-400'}`}>{isUpcoming ? '-' : s2_p2}</div><div className={`col-span-2 text-center font-mono font-black ${isLightMode ? 'text-blue-800' : 'text-blue-400'}`}>{isUpcoming ? '-' : s3_p2}</div>
+              {renderSetScoreCell(s1_p2, s1_p1, isUpcoming, isLightMode ? 'text-blue-800' : 'text-blue-400', (parsed as any)?.s1_tb_p2)}
+              {renderSetScoreCell(s2_p2, s2_p1, isUpcoming, isLightMode ? 'text-blue-800' : 'text-blue-400', (parsed as any)?.s2_tb_p2)}
+              {renderSetScoreCell(s3_p2, s3_p1, isUpcoming, isLightMode ? 'text-blue-800' : 'text-blue-400', (parsed as any)?.s3_tb_p2)}
             </div>
           </div>
 
@@ -1126,7 +1142,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
 
                       <div className="flex items-center gap-2 w-full justify-center">
                         <span className={`font-black truncate max-w-[90px] sm:max-w-[150px] ${isLightMode ? 'text-green-700' : 'text-emerald-400'}`}>{String(match['Oyuncu 1'] || '')}</span>
-                        <span className={`font-mono text-lg sm:text-3xl font-black px-3 py-1 rounded-xl border shadow-inner ${isLightMode ? 'bg-white border-slate-400 text-black' : 'bg-slate-950 border-slate-800 text-white'}`}>
+                        <span className={`font-mono tabular-nums text-lg sm:text-3xl font-black px-3 py-1 rounded-xl border shadow-inner ${isLightMode ? 'bg-white border-slate-400 text-black' : 'bg-slate-950 border-slate-800 text-white'}`}>
                           {currentSetP1Games} - {currentSetP2Games}
                         </span>
                         <span className={`font-black truncate max-w-[90px] sm:max-w-[150px] ${isLightMode ? 'text-blue-700' : 'text-blue-400'}`}>{String(match['Oyuncu 2'] || '')}</span>
@@ -1178,7 +1194,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                       </div>
                       
                       <div className="flex-1 flex justify-center items-center py-2 sm:py-4 min-h-0">
-                         <span className={`text-[4.5rem] sm:text-[9rem] font-mono font-black tracking-tighter leading-none ${isLightMode ? 'text-black' : 'text-white'}`}>
+                         <span className={`text-[4.5rem] sm:text-[9rem] font-mono tabular-nums font-black tracking-tighter leading-none ${isLightMode ? 'text-black' : 'text-white'}`}>
                            {isTB ? (leftTeamId === 1 ? state?.tiebreak_p1 : state?.tiebreak_p2) || '0' : (leftTeamId === 1 ? state?.gamePoint_p1 : state?.gamePoint_p2) || '0'}
                          </span>
                       </div>
@@ -1226,7 +1242,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                       </div>
                       
                       <div className="flex-1 flex justify-center items-center py-2 sm:py-4 min-h-0">
-                         <span className={`text-[4.5rem] sm:text-[9rem] font-mono font-black tracking-tighter leading-none ${isLightMode ? 'text-black' : 'text-white'}`}>
+                         <span className={`text-[4.5rem] sm:text-[9rem] font-mono tabular-nums font-black tracking-tighter leading-none ${isLightMode ? 'text-black' : 'text-white'}`}>
                            {isTB ? (rightTeamId === 1 ? state?.tiebreak_p1 : state?.tiebreak_p2) || '0' : (rightTeamId === 1 ? state?.gamePoint_p1 : state?.gamePoint_p2) || '0'}
                          </span>
                       </div>
@@ -1253,7 +1269,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                     <div className="flex gap-2 sm:gap-3">
                       <button type="button" onClick={(e) => startTimer(e, 'Saha Değişimi', 90)} className={`flex-1 py-3 sm:py-4 border text-[10px] sm:text-sm font-black rounded-xl transition ${shouldBlink90s ? 'animate-pulse bg-rose-500 text-white border-rose-600 shadow-md' : (isLightMode ? 'bg-white border-slate-400 text-slate-800 shadow-sm hover:bg-slate-100' : 'bg-slate-900 border-slate-700 text-slate-300 hover:text-white')}`}>90s Değişim</button>
                       <button type="button" onClick={(e) => startTimer(e, 'Set Arası', 120)} className={`flex-1 py-3 sm:py-4 border text-[10px] sm:text-sm font-black rounded-xl transition ${shouldBlink120s ? 'animate-pulse bg-rose-500 text-white border-rose-600 shadow-md' : (isLightMode ? 'bg-white border-slate-400 text-slate-800 shadow-sm hover:bg-slate-100' : 'bg-slate-900 border-slate-700 text-slate-300 hover:text-white')}`}>120s Set</button>
-                      <button type="button" onClick={(e) => startTimer(e, 'Sağlık Molası', 180)} className={`flex-1 py-3 sm:py-4 border text-[10px] sm:text-sm font-black rounded-xl transition ${isLightMode ? 'bg-white border-slate-400 text-slate-800 shadow-sm hover:bg-slate-100' : 'bg-slate-900 border-slate-700 text-slate-300 hover:text-white'}`}>3dk MTO</button>
+                      <button type="button" onClick={(e) => startTimer(e, 'Sağlık Molası', 180)} className={`flex-1 py-3 sm:py-4 border text-[10px] sm:text-sm font-black rounded-xl transition ${isLightMode ? 'bg-white border-slate-400 text-slate-800 shadow-sm hover:bg-slate-100' : 'bg-slate-900 border-slate-700 text-slate-300 hover:text-white')}`}>3dk MTO</button>
                     </div>
 
                     <div className="flex gap-2 sm:gap-3">
