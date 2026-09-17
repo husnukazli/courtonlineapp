@@ -701,7 +701,14 @@ export const CourtCard: React.FC<CourtCardProps> = ({
     if (activeTimer) {
       if (activeTimer.seconds > 0) {
         interval = setInterval(() => {
-          setActiveTimer((prev) => prev ? { ...prev, seconds: prev.seconds - 1 } : null);
+          setActiveTimer((prev) => {
+            if (!prev) return null;
+            const nextSeconds = prev.seconds - 1;
+            if (nextSeconds === 30) {
+              vibrateDevice([200, 100, 200, 100, 400]);
+            }
+            return { ...prev, seconds: nextSeconds };
+          });
         }, 1000);
       } else {
         timeout = setTimeout(() => setActiveTimer(null), 2000);
@@ -1238,18 +1245,28 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                   </div>
 
                   {activeTimer && (
-                    <div className={`border p-2 sm:p-4 rounded-2xl flex items-center justify-between shrink-0 shadow-md ${isLightMode ? 'bg-white border-slate-400' : 'bg-slate-800 border-slate-700'}`}>
-                      <span className={`font-black text-sm sm:text-base flex items-center gap-2 ${isLightMode ? 'text-black' : 'text-slate-300'}`}><Timer className="w-4 h-4 sm:w-5 sm:h-5" />{activeTimer.label}</span>
-                      <div className="flex items-center gap-3 sm:gap-4">
-                        <span className={`font-mono font-black text-2xl sm:text-4xl ${activeTimer.seconds <= 15 ? 'text-rose-600 animate-pulse' : (isLightMode ? 'text-slate-900' : 'text-slate-200')}`}>
-                          {Math.floor(activeTimer.seconds / 60)}:{(activeTimer.seconds % 60).toString().padStart(2, '0')}
-                        </span>
-                        <button type="button" onClick={(e) => { e.stopPropagation(); setActiveTimer(null); }} className={`p-2 rounded-xl transition ${isLightMode ? 'bg-slate-100 text-slate-600 hover:text-black hover:bg-slate-200 border border-slate-300' : 'text-slate-400 hover:text-slate-200 bg-slate-900'}`}><X className="w-5 h-5 sm:w-6 sm:h-6" /></button>
-                      </div>
+                    <div className="flex-1 min-h-0 flex flex-col items-center justify-center p-2 sm:p-4 animate-in fade-in zoom-in-95 duration-300">
+                       <div className={`w-full max-w-xl p-8 sm:p-12 border-4 rounded-[3rem] shadow-2xl flex flex-col items-center justify-center gap-6 relative overflow-hidden transition-all duration-300 ${activeTimer.seconds <= 30 ? 'bg-rose-600 border-rose-800 shadow-[0_0_50px_rgba(225,29,72,0.6)] text-white' : (isLightMode ? 'bg-white border-slate-300' : 'bg-slate-900 border-slate-700')}`}>
+                         
+                         <div className={activeTimer.seconds <= 30 ? 'animate-pulse' : ''}>
+                           <div className={`flex items-center justify-center gap-3 font-black text-2xl sm:text-4xl mb-4 ${activeTimer.seconds <= 30 ? 'text-rose-100' : (isLightMode ? 'text-slate-500' : 'text-slate-400')}`}>
+                             <Timer className="w-8 h-8 sm:w-10 sm:h-10" />
+                             {activeTimer.label}
+                           </div>
+
+                           <div className={`font-mono tabular-nums font-black text-[6rem] sm:text-[10rem] leading-none tracking-tighter text-center ${activeTimer.seconds <= 30 ? 'text-white' : (isLightMode ? 'text-slate-900' : 'text-white')}`}>
+                             {Math.floor(activeTimer.seconds / 60)}:{(activeTimer.seconds % 60).toString().padStart(2, '0')}
+                           </div>
+                         </div>
+                         
+                         <button type="button" onClick={(e) => { e.stopPropagation(); setActiveTimer(null); }} className={`absolute top-4 sm:top-6 right-4 sm:right-6 p-3 rounded-2xl transition-transform active:scale-95 ${activeTimer.seconds <= 30 ? 'bg-rose-800 text-white hover:bg-rose-900' : (isLightMode ? 'bg-slate-100 text-slate-500 hover:text-black hover:bg-slate-200' : 'bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700')}`}>
+                           <X className="w-6 h-6 sm:w-10 sm:h-10" />
+                         </button>
+                       </div>
                     </div>
                   )}
 
-                  <div className="grid grid-cols-2 gap-2 sm:gap-6 flex-1 min-h-0">
+                  <div className={`grid grid-cols-2 gap-2 sm:gap-6 flex-1 min-h-0 ${activeTimer ? 'hidden' : ''}`}>
                     <div className={`rounded-3xl p-2 sm:p-5 flex flex-col justify-between overflow-hidden transition-all duration-300 ${computedServerTeam === leftTeamId ? (isLightMode ? 'bg-white border-[5px] border-amber-400 shadow-[0_0_25px_rgba(251,191,36,0.3)]' : 'bg-slate-800/40 border-[4px] border-amber-400 shadow-[0_0_30px_rgba(251,191,36,0.15)]') : (isLightMode ? 'bg-slate-50 border-2 border-slate-300' : 'bg-slate-900 border-2 border-slate-800')}`}>
                       <div className={`flex flex-col items-center justify-center min-h-[4rem] sm:min-h-[5.5rem] border-b pb-2 mb-2 ${isLightMode ? 'border-slate-300' : 'border-slate-800/80'}`}>
                         <div className={`flex items-start justify-center gap-1 w-full ${leftTeamId === 1 ? (isLightMode ? 'text-green-700' : 'text-emerald-400') : (isLightMode ? 'text-blue-700' : 'text-blue-400')}`}>
@@ -1276,13 +1293,13 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                         <div className={`text-[9px] sm:text-xs uppercase font-black mt-1 ${isLightMode ? 'text-slate-600' : 'text-slate-500'}`}>Sol Saha</div>
                       </div>
                       
-                      <div className="flex-1 flex justify-center items-center py-2 sm:py-4 min-h-0">
+                      <div className={`flex-1 flex justify-center items-center py-2 sm:py-4 min-h-0 transition-opacity duration-300 ${activeTimer ? 'opacity-10 pointer-events-none' : ''}`}>
                          <span className={`text-[4.5rem] sm:text-[9rem] font-mono tabular-nums font-black tracking-tighter leading-none ${isLightMode ? 'text-black' : 'text-white'}`}>
                            {isTB ? (leftTeamId === 1 ? state?.tiebreak_p1 : state?.tiebreak_p2) || '0' : (leftTeamId === 1 ? state?.gamePoint_p1 : state?.gamePoint_p2) || '0'}
                          </span>
                       </div>
 
-                      <div className="flex flex-col gap-1.5 sm:gap-2 shrink-0">
+                      <div className={`flex flex-col gap-1.5 sm:gap-2 shrink-0 transition-opacity duration-300 ${activeTimer ? 'opacity-10 pointer-events-none' : ''}`}>
                         <button type="button" disabled={isPaused || isFinished || isCurrentSetComplete} onClick={(e) => handlePointScore(e, leftTeamId)} className={`w-full py-8 sm:py-12 font-black text-xl sm:text-3xl rounded-2xl active:scale-95 transition disabled:opacity-50 disabled:cursor-not-allowed ${leftTeamId === 1 ? (isLightMode ? 'bg-green-600 hover:bg-green-700 text-white shadow-xl border-b-4 border-green-800' : 'bg-emerald-600 hover:bg-emerald-50 text-white shadow-lg') : (isLightMode ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-xl border-b-4 border-blue-800' : 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg')}`}>
                           +1 PUAN
                         </button>
@@ -1324,13 +1341,13 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                         <div className={`text-[9px] sm:text-xs uppercase font-black mt-1 ${isLightMode ? 'text-slate-600' : 'text-slate-500'}`}>Sağ Saha</div>
                       </div>
                       
-                      <div className="flex-1 flex justify-center items-center py-2 sm:py-4 min-h-0">
+                      <div className={`flex-1 flex justify-center items-center py-2 sm:py-4 min-h-0 transition-opacity duration-300 ${activeTimer ? 'opacity-10 pointer-events-none' : ''}`}>
                          <span className={`text-[4.5rem] sm:text-[9rem] font-mono tabular-nums font-black tracking-tighter leading-none ${isLightMode ? 'text-black' : 'text-white'}`}>
                            {isTB ? (rightTeamId === 1 ? state?.tiebreak_p1 : state?.tiebreak_p2) || '0' : (rightTeamId === 1 ? state?.gamePoint_p1 : state?.gamePoint_p2) || '0'}
                          </span>
                       </div>
 
-                      <div className="flex flex-col gap-1.5 sm:gap-2 shrink-0">
+                      <div className={`flex flex-col gap-1.5 sm:gap-2 shrink-0 transition-opacity duration-300 ${activeTimer ? 'opacity-10 pointer-events-none' : ''}`}>
                         <button type="button" disabled={isPaused || isFinished || isCurrentSetComplete} onClick={(e) => handlePointScore(e, rightTeamId)} className={`w-full py-8 sm:py-12 font-black text-xl sm:text-3xl rounded-2xl active:scale-95 transition disabled:opacity-50 disabled:cursor-not-allowed ${rightTeamId === 1 ? (isLightMode ? 'bg-green-600 hover:bg-green-700 text-white shadow-xl border-b-4 border-green-800' : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg') : (isLightMode ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-xl border-b-4 border-blue-800' : 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg')}`}>
                           +1 PUAN
                         </button>
