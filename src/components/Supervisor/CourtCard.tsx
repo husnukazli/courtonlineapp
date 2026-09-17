@@ -239,9 +239,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
   }, [selectedSet, format, isFinished]);
 
 
-  // --------------------------------------------------------------------------------
-  // KUSURSUZ TENİS MATEMATİĞİ - SET GEÇİŞİ HESAPLAMALARI
-  // --------------------------------------------------------------------------------
   useEffect(() => {
     if (selectedSet > 1 && !setupsBySet[selectedSet] && setupsBySet[selectedSet - 1]) {
       const prevSet = selectedSet - 1;
@@ -338,7 +335,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
   let currentT1ServerIdx: 0 | 1 = 0;
   let currentT2ServerIdx: 0 | 1 = 0;
 
-  // MOTOR SAHA DEĞİŞİMİ TESPİTİ (Puan Girilince Otomatik Kapanır)
   let isSideChangePoint = !!state?.needsChangeover;
   const isGameStart = state?.gamePoint_p1 === '0' && state?.gamePoint_p2 === '0';
 
@@ -367,7 +363,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
     }
   }
 
-  // --- KUSURSUZ OTOMATİK PİLOT ---
   if (isSetupValid) {
     const isComan = chairSetup.tbType === 'coman';
     const otherTeam = chairSetup.firstServingTeam === 1 ? 2 : 1;
@@ -439,8 +434,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
       activeReceiverName = recPlayers[activeRecIdx] || recPlayers[0];
     }
   } else {
-    // --- DIŞ EKRAN İÇİN MÜTHİŞ OTOMATİK PİLOT (KURULUM OLMADIĞINDA) ---
-    // Kurulum (MatchSetupModal) verilerini Kule Hakemi kurulumuna bağlıyoruz
     let initialServer: 1 | 2 = state?.currentServer === 2 ? 2 : 1;
     let initialLeft: 1 | 2 = 1;
 
@@ -456,7 +449,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
     if (match.Saha_Tarafi && match.Kura_Kazanan && match.Kura_Kazanan !== 'Secilmedi') {
         const isWinnerP1 = match.Kura_Kazanan === match['Oyuncu 1'];
         const saha = match.Saha_Tarafi.toLowerCase();
-        
         if (saha.includes('sol')) {
             initialLeft = isWinnerP1 ? 1 : 2;
         } else if (saha.includes('sağ') || saha.includes('sag')) {
@@ -494,11 +486,9 @@ export const CourtCard: React.FC<CourtCardProps> = ({
             const N = ps1 + ps2;
             
             if (N === 0) continue;
-            
             if (N % 2 === 1) autoServer = autoServer === 1 ? 2 : 1;
             
             const isTBSet = (ps1 === 7 && ps2 === 6) || (ps1 === 6 && ps2 === 7) || (ps1 === 5 && ps2 === 4 && format.includes('Kısa')) || (ps1 === 4 && ps2 === 5 && format.includes('Kısa'));
-            
             if (isTBSet) {
                 let tbPointsPlayed = 0; 
                 if (match.pointHistory) {
@@ -512,20 +502,16 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                     }
                     if (maxTbSum > 0) tbPointsPlayed = maxTbSum + 1; 
                 }
-                
                 if (tbPointsPlayed === 0) {
                     if (ps1 === 5 || ps2 === 5) tbPointsPlayed = 9;  
                     else tbPointsPlayed = 12;
                 }
-
                 let tbSwaps = 0;
                 if (tbPointsPlayed > 0) {
                     tbSwaps = globalTbType === 'coman' ? Math.floor((tbPointsPlayed - 1 + 3) / 4) : Math.floor((tbPointsPlayed - 1) / 6);
                 }
-
                 const normalSwapsBeforeTB = Math.floor((N - 1) / 2); 
                 const endOfSetSwap = N % 2 === 1 ? 1 : 0;
-                
                 const totalSwaps = normalSwapsBeforeTB + tbSwaps + endOfSetSwap;
                 if (totalSwaps % 2 === 1) autoLeft = autoLeft === 1 ? 2 : 1;
             } else {
@@ -534,7 +520,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
             }
         }
     }
-    
     computedServerTeam = autoServer;
     computedLeftTeam = autoLeft;
   }
@@ -556,7 +541,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
     }
   }, [showSetupOverlay, setupForm.firstServingTeam, computedServerTeam, computedLeftTeam, chairSetup, globalTbType, currentT1ServerIdx, currentT2ServerIdx]);
 
-  // AKILLI MOLA UYARI MOTORU
   const isSetBreak = isGameStart && currentSetGames === 0 && selectedSet > 1 && !isFinished;
   const isFirstGameChange = !isTB && currentSetGames === 1 && isGameStart;
   
@@ -733,29 +717,42 @@ export const CourtCard: React.FC<CourtCardProps> = ({
       }
   }
 
-  // --- TIE-BREAK TABLO HİZALAMA VE GÖSTERİM FONKSİYONU ---
-  const renderSetScoreCell = (myScore: number, oppScore: number, isUpcomingMatch: boolean, colorClass: string, tbPtsRaw?: any) => {
-    if (isUpcomingMatch) {
-      return (
-        <div className={`col-span-2 flex justify-center font-mono tabular-nums font-black ${colorClass}`}>
-          <div className="w-5 text-center">-</div>
-        </div>
-      );
+  // --- TIE-BREAK DEDEKTİFİ (Her Şeyi Bulan Fonksiyon) ---
+  const getTbScoreForSet = (mData: any, setNum: number): number | null => {
+    // 1. Önce veritabanındaki manual (kalem ikonundan girilen) değeri kontrol et
+    const st = mData?.detailedState;
+    if (st && st[`set${setNum}_tb_p1`] !== undefined && st[`set${setNum}_tb_p1`] !== null) {
+       return Number(st[`set${setNum}_tb_p1`]);
     }
+    // 2. Eğer kule hakemi ile bittiyse puan geçmişinden tespit et
+    if (mData?.pointHistory && mData.pointHistory.length > 0) {
+       for (let i = mData.pointHistory.length - 1; i >= 0; i--) {
+          const snap = mData.pointHistory[i].snapshot;
+          if (snap.currentSet === setNum && snap.isTiebreak) {
+             return Math.min(Number(snap.tiebreak_p1) || 0, Number(snap.tiebreak_p2) || 0);
+          }
+       }
+    }
+    return null;
+  };
+
+  // --- MÜKEMMEL HİZALAMA VE ÜST SİMGE FONKSİYONU ---
+  const renderMiniSet = (pMe: number, pOpp: number, setNum: number, isVisible: boolean, mData: any) => {
+    if (!isVisible) return <div className="w-5 sm:w-6"></div>;
     
-    // Yalnızca kaybedenin oyun skoruna tie-break puanı eklenir (örn: 7-6 bitmişse, 6'nın yanına eklenir)
-    const isLoserInTB = (myScore === 6 && oppScore === 7) || (myScore === 4 && oppScore === 5);
-    const tbPts = Number(tbPtsRaw);
-    const showTb = isLoserInTB && !isNaN(tbPts) && tbPts >= 0;
+    // Eğer seti ben kaybettiysem ve fark 1 ise (7-6 veya kısa set 5-4)
+    const isLoserInTB = pMe < pOpp && (pOpp - pMe === 1) && (pOpp === 7 || pOpp === 5);
+    const tbScore = getTbScoreForSet(mData, setNum);
+    const showTb = isLoserInTB && tbScore !== null;
     
     return (
-      <div className={`col-span-2 flex justify-center font-mono tabular-nums font-black ${colorClass}`}>
-        <div className="relative flex items-start justify-end w-5 pr-0.5">
-          <span>{myScore}</span>
-          {showTb && (
-            <sup className="absolute -right-3 top-0.5 text-[9px] font-extrabold opacity-80 leading-none">{tbPts}</sup>
-          )}
-        </div>
+      <div className="relative flex items-start justify-end w-5 sm:w-6">
+        <span>{pMe}</span>
+        {showTb && (
+          <sup className="absolute -right-[8px] sm:-right-[10px] top-0 text-[9px] font-extrabold opacity-90 leading-none">
+            {tbScore}
+          </sup>
+        )}
       </div>
     );
   };
@@ -853,9 +850,23 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                     )}
                 </span>
               </div>
-              {renderSetScoreCell(s1_p1, s1_p2, isUpcoming, isLightMode ? 'text-green-800' : 'text-emerald-400', (parsed as any)?.s1_tb_p1)}
-              {renderSetScoreCell(s2_p1, s2_p2, isUpcoming, isLightMode ? 'text-green-800' : 'text-emerald-400', (parsed as any)?.s2_tb_p1)}
-              {renderSetScoreCell(s3_p1, s3_p2, isUpcoming, isLightMode ? 'text-green-800' : 'text-emerald-400', (parsed as any)?.s3_tb_p1)}
+              <div className={`col-span-6 flex items-center font-mono tabular-nums font-black ${isLightMode ? 'text-green-800' : 'text-emerald-400'}`}>
+                {isUpcoming ? (
+                  <>
+                    <div className="col-span-2 w-full text-center">-</div>
+                    <div className="col-span-2 w-full text-center">-</div>
+                    <div className="col-span-2 w-full text-center">-</div>
+                  </>
+                ) : (
+                  <>
+                    {renderMiniSet(s1_p1, s1_p2, 1, true, match)}
+                    <div className="flex-1"></div>
+                    {renderMiniSet(s2_p1, s2_p2, 2, true, match)}
+                    <div className="flex-1"></div>
+                    {renderMiniSet(s3_p1, s3_p2, 3, true, match)}
+                  </>
+                )}
+              </div>
             </div>
             
             <div className={`grid grid-cols-12 items-center py-2 px-3 ${match.Kazanan === match['Oyuncu 2'] && isFinished ? (isLightMode ? 'bg-blue-100' : 'bg-blue-500/10') : ''}`}>
@@ -871,9 +882,23 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                     )}
                 </span>
               </div>
-              {renderSetScoreCell(s1_p2, s1_p1, isUpcoming, isLightMode ? 'text-blue-800' : 'text-blue-400', (parsed as any)?.s1_tb_p2)}
-              {renderSetScoreCell(s2_p2, s2_p1, isUpcoming, isLightMode ? 'text-blue-800' : 'text-blue-400', (parsed as any)?.s2_tb_p2)}
-              {renderSetScoreCell(s3_p2, s3_p1, isUpcoming, isLightMode ? 'text-blue-800' : 'text-blue-400', (parsed as any)?.s3_tb_p2)}
+              <div className={`col-span-6 flex items-center font-mono tabular-nums font-black ${isLightMode ? 'text-blue-800' : 'text-blue-400'}`}>
+                {isUpcoming ? (
+                  <>
+                    <div className="col-span-2 w-full text-center">-</div>
+                    <div className="col-span-2 w-full text-center">-</div>
+                    <div className="col-span-2 w-full text-center">-</div>
+                  </>
+                ) : (
+                  <>
+                    {renderMiniSet(s1_p2, s1_p1, 1, true, match)}
+                    <div className="flex-1"></div>
+                    {renderMiniSet(s2_p2, s2_p1, 2, true, match)}
+                    <div className="flex-1"></div>
+                    {renderMiniSet(s3_p2, s3_p1, 3, true, match)}
+                  </>
+                )}
+              </div>
             </div>
           </div>
 
@@ -906,7 +931,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                 </div>
                 
                 <div className="grid grid-cols-2 gap-3">
-                  {/* DIŞ EKRAN - OYUNCU 1 BUTONLARI */}
                   <div className={`flex flex-col gap-1.5 p-2 sm:p-2.5 rounded-xl border ${isLightMode ? 'bg-green-50 border-green-300' : 'bg-emerald-950/20 border-emerald-500/20'}`}>
                     <div className={`text-center font-black text-[11px] sm:text-xs truncate ${isLightMode ? 'text-green-800' : 'text-emerald-400'}`}>
                       {match['Oyuncu 1']}
@@ -919,7 +943,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                     </button>
                   </div>
                   
-                  {/* DIŞ EKRAN - OYUNCU 2 BUTONLARI */}
                   <div className={`flex flex-col gap-1.5 p-2 sm:p-2.5 rounded-xl border ${isLightMode ? 'bg-blue-50 border-blue-300' : 'bg-blue-950/20 border-blue-500/20'}`}>
                     <div className={`text-center font-black text-[11px] sm:text-xs truncate ${isLightMode ? 'text-blue-800' : 'text-blue-400'}`}>
                       {match['Oyuncu 2']}
@@ -970,7 +993,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
         </div>
       </div>
 
-      {/* 2. KULE HAKEMİ MODU (TAM EKRANLI İÇ DETAY) */}
       {isChairMode && (
         <div className={`fixed inset-0 z-[50000] flex flex-col animate-in fade-in zoom-in-95 duration-200 select-none ${isLightMode ? 'bg-white' : 'bg-slate-950'}`}>
           
@@ -1033,24 +1055,13 @@ export const CourtCard: React.FC<CourtCardProps> = ({
           </div>
 
           <div className="flex-1 p-2 sm:p-6 w-full max-w-5xl mx-auto flex flex-col justify-center gap-3 overflow-y-auto">
-              
               {showSetupOverlay ? (
                 <div className={`p-4 sm:p-6 rounded-3xl border text-center space-y-4 sm:space-y-6 shadow-2xl relative animate-in fade-in zoom-in-95 duration-150 ${isLightMode ? 'bg-white border-slate-400' : 'bg-slate-900 border-slate-800'}`}>
-                  
-                  <button 
-                    type="button" 
-                    onClick={handleCancelSetup} 
-                    className={`absolute top-4 right-4 p-2.5 rounded-xl border transition active:scale-95 flex items-center justify-center ${isLightMode ? 'bg-slate-100 hover:bg-rose-100 text-slate-600 hover:text-rose-700 border-slate-300' : 'bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white border-slate-700'}`}
-                    title="İptal Et / Kapat"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-
+                  <button type="button" onClick={handleCancelSetup} className={`absolute top-4 right-4 p-2.5 rounded-xl border transition active:scale-95 flex items-center justify-center ${isLightMode ? 'bg-slate-100 hover:bg-rose-100 text-slate-600 hover:text-rose-700 border-slate-300' : 'bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white border-slate-700'}`} title="İptal Et / Kapat"><X className="w-5 h-5" /></button>
                   <div>
                     <h4 className={`font-black text-base sm:text-xl mb-1 sm:mb-2 flex items-center justify-center gap-2 ${isLightMode ? 'text-black' : 'text-white'}`}>⚙️ {selectedSet}. Set Anlık Kurulumu</h4>
                     <p className={`text-[11px] sm:text-sm font-bold ${isLightMode ? 'text-slate-600' : 'text-slate-400'}`}>Lütfen sahadaki <strong>ŞU ANKİ</strong> durumu seçin. Sistem geri kalanını hesaplar.</p>
                   </div>
-                  
                   {isDoubles ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className={`p-4 rounded-2xl border flex flex-col gap-3 shadow-sm ${isLightMode ? 'bg-green-50 border-green-400' : 'bg-slate-950 border-slate-800'}`}>
@@ -1072,7 +1083,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                            </div>
                          </div>
                       </div>
-
                       <div className={`p-4 rounded-2xl border flex flex-col gap-3 shadow-sm ${isLightMode ? 'bg-blue-50 border-blue-400' : 'bg-slate-950 border-slate-800'}`}>
                          <h5 className={`font-black text-sm uppercase mb-1 ${isLightMode ? 'text-blue-800' : 'text-blue-400'}`}>2. Takım</h5>
                          <div className="text-left">
@@ -1125,25 +1135,15 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                     </div>
                   </div>
 
-                  <div className={`space-y-2 pt-3 border-t ${isLightMode ? 'border-slate-300' : 'border-slate-800/80'}`}>
-                    <div className={`text-[10px] sm:text-xs font-black uppercase tracking-wider ${isLightMode ? 'text-slate-800' : 'text-slate-500'}`}>Tie-Break Kuralı</div>
-                    <div className="flex gap-2">
-                      <button type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, tbType: 'standard'}); }} className={`flex-1 py-3 rounded-xl text-xs font-black transition active:scale-95 border-2 shadow-md ${setupForm.tbType === 'standard' ? (isLightMode ? 'bg-slate-900 border-black text-white' : 'bg-slate-700 border-slate-600 text-white') : (isLightMode ? 'bg-white border-slate-300 text-slate-800' : 'bg-slate-950 border-slate-800 text-slate-400')}`}>Standart (6'da Bir)</button>
-                      <button type="button" onClick={(e) => { e.stopPropagation(); setSetupForm({...setupForm, tbType: 'coman'}); }} className={`flex-1 py-3 rounded-xl text-xs font-black transition active:scale-95 border-2 shadow-md ${setupForm.tbType === 'coman' ? (isLightMode ? 'bg-slate-900 border-black text-white' : 'bg-slate-700 border-slate-600 text-white') : (isLightMode ? 'bg-white border-slate-300 text-slate-800' : 'bg-slate-950 border-slate-800 text-slate-400')}`}>Coman (1-5-9)</button>
-                    </div>
-                  </div>
-
                   <div className="pt-4 flex gap-3">
                     <button type="button" onClick={handleCancelSetup} className={`px-5 py-4 sm:py-5 font-black text-sm sm:text-lg rounded-xl transition active:scale-95 border shadow-md ${isLightMode ? 'bg-white hover:bg-slate-100 text-slate-800 border-slate-400' : 'bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border-slate-700'}`}>İptal</button>
-                    <button type="button" disabled={!setupForm.firstServingTeam || !setupForm.leftTeam || (isDoubles && (setupForm.t1ServerIdx === undefined || setupForm.t2ServerIdx === undefined))} onClick={handleSaveSetup} className={`flex-1 py-4 sm:py-5 font-black text-sm sm:text-lg rounded-xl disabled:opacity-50 transition active:scale-95 shadow-xl ${isLightMode ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-2 border-emerald-800' : 'bg-emerald-600 hover:bg-emerald-50 text-white'}`}>Kaydet ve Devam Et</button>
+                    <button type="button" disabled={!setupForm.firstServingTeam || !setupForm.leftTeam || (isDoubles && (setupForm.t1ServerIdx === undefined || setupForm.t2ServerIdx === undefined))} onClick={handleSaveSetup} className={`flex-1 py-4 sm:py-5 font-black text-sm sm:text-lg rounded-xl disabled:opacity-50 transition active:scale-95 shadow-xl ${isLightMode ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-2 border-emerald-800' : 'bg-emerald-600 hover:bg-emerald-500 text-white'}`}>Kaydet ve Devam Et</button>
                   </div>
                 </div>
               ) : (
-                
                 <div className="flex flex-col h-full gap-2 sm:gap-4">
                   <div className={`flex flex-col sm:flex-row justify-between items-center rounded-2xl px-3 sm:px-4 py-2 sm:py-3 border gap-2 shrink-0 shadow-sm ${isLightMode ? 'bg-slate-50 border-slate-300' : 'bg-slate-900 border-slate-800'}`}>
                     <div className="flex flex-col items-center sm:flex-row gap-2 sm:gap-3 text-[10px] sm:text-sm font-bold w-full sm:w-auto">
-                      
                       <div className={`flex flex-col items-center justify-center px-3.5 py-1.5 rounded-xl border shadow-inner ${isLightMode ? 'bg-white border-slate-300' : 'bg-slate-950 border-slate-800'}`}>
                         <span className={`font-black text-xs sm:text-sm tracking-wider uppercase ${isLightMode ? 'text-black' : 'text-slate-300'}`}>{selectedSet}. SET</span>
                         {selectedSet > 1 && (
@@ -1153,10 +1153,9 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                           </div>
                         )}
                       </div>
-
                       <div className="flex items-center gap-2 w-full justify-center">
                         <span className={`font-black truncate max-w-[90px] sm:max-w-[150px] ${isLightMode ? 'text-green-700' : 'text-emerald-400'}`}>{String(match['Oyuncu 1'] || '')}</span>
-                        <span className={`font-mono text-lg sm:text-3xl font-black px-3 py-1 rounded-xl border shadow-inner ${isLightMode ? 'bg-white border-slate-400 text-black' : 'bg-slate-950 border-slate-800 text-white'}`}>
+                        <span className={`font-mono tabular-nums text-lg sm:text-3xl font-black px-3 py-1 rounded-xl border shadow-inner ${isLightMode ? 'bg-white border-slate-400 text-black' : 'bg-slate-950 border-slate-800 text-white'}`}>
                           {currentSetP1Games} - {currentSetP2Games}
                         </span>
                         <span className={`font-black truncate max-w-[90px] sm:max-w-[150px] ${isLightMode ? 'text-blue-700' : 'text-blue-400'}`}>{String(match['Oyuncu 2'] || '')}</span>
@@ -1283,7 +1282,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                     <div className="flex gap-2 sm:gap-3">
                       <button type="button" onClick={(e) => startTimer(e, 'Saha Değişimi', 90)} className={`flex-1 py-3 sm:py-4 border text-[10px] sm:text-sm font-black rounded-xl transition ${shouldBlink90s ? 'animate-pulse bg-rose-500 text-white border-rose-600 shadow-md' : (isLightMode ? 'bg-white border-slate-400 text-slate-800 shadow-sm hover:bg-slate-100' : 'bg-slate-900 border-slate-700 text-slate-300 hover:text-white')}`}>90s Değişim</button>
                       <button type="button" onClick={(e) => startTimer(e, 'Set Arası', 120)} className={`flex-1 py-3 sm:py-4 border text-[10px] sm:text-sm font-black rounded-xl transition ${shouldBlink120s ? 'animate-pulse bg-rose-500 text-white border-rose-600 shadow-md' : (isLightMode ? 'bg-white border-slate-400 text-slate-800 shadow-sm hover:bg-slate-100' : 'bg-slate-900 border-slate-700 text-slate-300 hover:text-white')}`}>120s Set</button>
-                      <button type="button" onClick={(e) => startTimer(e, 'Sağlık Molası', 180)} className={`flex-1 py-3 sm:py-4 border text-[10px] sm:text-sm font-black rounded-xl transition ${isLightMode ? 'bg-white border-slate-400 text-slate-800 shadow-sm hover:bg-slate-100' : 'bg-slate-900 border-slate-700 text-slate-300 hover:text-white'}`}>3dk MTO</button>
+                      <button type="button" onClick={(e) => startTimer(e, 'Sağlık Molası', 180)} className={`flex-1 py-3 sm:py-4 border text-[10px] sm:text-sm font-black rounded-xl transition ${isLightMode ? 'bg-white border-slate-400 text-slate-800 shadow-sm hover:bg-slate-100' : 'bg-slate-900 border-slate-700 text-slate-300 hover:text-white')}`}>3dk MTO</button>
                     </div>
 
                     <div className="flex gap-2 sm:gap-3">
