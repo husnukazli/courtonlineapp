@@ -98,12 +98,12 @@ export const Navigation: React.FC<NavigationProps> = ({
                     )}
                     <span
                       className={`text-[9px] sm:text-[10px] uppercase font-black tracking-wider px-2 py-0.5 rounded-full border ${
-                        currentTab === 'supervisor'
+                        authRole === 'referee' || currentTab === 'supervisor'
                           ? 'bg-lime-400/20 text-lime-400 border-lime-400/30'
                           : 'bg-cyan-400/20 text-cyan-400 border-cyan-400/30'
                       }`}
                     >
-                      {currentTab === 'supervisor' ? 'Kort Hakemi' : 'Başhakem'}
+                      {authRole === 'referee' ? 'Kort Hakemi' : currentTab === 'supervisor' ? 'Kort Hakemi' : 'Başhakem'}
                     </span>
                   </div>
                 </div>
@@ -138,39 +138,41 @@ export const Navigation: React.FC<NavigationProps> = ({
             {/* Alt Satır (Mobilde) / Orta Kısım (Masaüstünde): Sekmeler ve Araç Çubuğu */}
             <div className="flex items-center justify-between md:justify-end gap-2 overflow-x-auto pb-1 md:pb-0 scrollbar-none">
               
-              {/* Sekmeler: Kort Hakemi vs Başhakem Masası */}
-              <div className="flex items-center bg-slate-950 p-1 rounded-2xl border border-slate-800 shadow-inner shrink-0">
-                <button
-                  type="button"
-                  onClick={() => handleTabClick('supervisor')}
-                  className={`flex items-center gap-1.5 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all ${
-                    currentTab === 'supervisor'
-                      ? 'bg-lime-400 text-slate-950 shadow-md font-extrabold'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
-                  }`}
-                >
-                  <Smartphone className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                  <span>Kort Hakemi</span>
-                  {activeMatchesCount > 0 && (
-                    <span className="hidden sm:inline-flex items-center justify-center px-1.5 py-0.2 text-[10px] font-black rounded-full bg-slate-950/20 text-slate-950">
-                      {activeMatchesCount} Canlı
-                    </span>
-                  )}
-                </button>
+              {/* Sekmeler: Sadece Başhakem girişinde gösterilir (Kort Hakemi vs Başhakem Masası). Kort hakemi girişinde Başhakem geçiş menüsü gösterilmez. */}
+              {authRole === 'desk' && (
+                <div className="flex items-center bg-slate-950 p-1 rounded-2xl border border-slate-800 shadow-inner shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => handleTabClick('supervisor')}
+                    className={`flex items-center gap-1.5 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all ${
+                      currentTab === 'supervisor'
+                        ? 'bg-lime-400 text-slate-950 shadow-md font-extrabold'
+                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
+                    }`}
+                  >
+                    <Smartphone className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                    <span>Kort Hakemi</span>
+                    {activeMatchesCount > 0 && (
+                      <span className="hidden sm:inline-flex items-center justify-center px-1.5 py-0.2 text-[10px] font-black rounded-full bg-slate-950/20 text-slate-950">
+                        {activeMatchesCount} Canlı
+                      </span>
+                    )}
+                  </button>
 
-                <button
-                  type="button"
-                  onClick={() => handleTabClick('desk')}
-                  className={`flex items-center gap-1.5 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all ${
-                    currentTab === 'desk'
-                      ? 'bg-cyan-400 text-slate-950 shadow-md font-extrabold'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
-                  }`}
-                >
-                  <Tv className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                  <span>Başhakem Masası</span>
-                </button>
-              </div>
+                  <button
+                    type="button"
+                    onClick={() => handleTabClick('desk')}
+                    className={`flex items-center gap-1.5 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all ${
+                      currentTab === 'desk'
+                        ? 'bg-cyan-400 text-slate-950 shadow-md font-extrabold'
+                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
+                    }`}
+                  >
+                    <Tv className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                    <span>Başhakem Masası</span>
+                  </button>
+                </div>
+              )}
 
               {/* Ek Araçlar (Senkronizasyon, Hakem Linki ve Hakem Profili) */}
               <div className="flex items-center gap-1.5 shrink-0">
