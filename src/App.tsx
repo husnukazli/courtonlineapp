@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { TennisDataProvider, useTennisData } from './context/TennisDataContext';
 import { TournamentListScreen } from './components/Portal/TournamentListScreen';
 import { SuperAdminScreen } from './components/Portal/SuperAdminScreen';
@@ -14,26 +14,98 @@ type AppScreen =
   | { type: 'tournament'; id: string };
 
 const AppContent: React.FC = () => {
-  const { authRole, setAuthRole, setTournamentId } = useTennisData();
-  const [screen, setScreen] = useState<AppScreen>({ type: 'list' });
-  // Başhakem için varsayılan açılış sekmesini desk (Grid ve Yönetim) yapıyoruz.
-  const [currentTab, setCurrentTab] = useState<'supervisor' | 'desk'>('desk');
+  const { authRole, setAuthRole, setTournamentId, tournamentId } = useTennisData();
+
+  // Tarayıcı açılıp kapandığında veya yenilendiğinde kalınan ekranı hatırla
+  const [screen, setScreen] = useState<AppScreen>(() => {
+    if (typeof window !== 'undefined') {
+      const savedScreen = localStorage.getItem('courtonline_saved_screen');
+      if (savedScreen) {
+        try {
+          const parsed = JSON.parse(savedScreen);
+          if (parsed && (parsed.type === 'list' || parsed.type === 'superAdmin' || (parsed.type === 'tournament' && parsed.id))) {
+            return parsed;
+          }
+        } catch {}
+      }
+      const savedTId = localStorage.getItem('courtonline_active_tournament_id');
+      if (savedTId) {
+        return { type: 'tournament', id: savedTId };
+      }
+    }
+    return { type: 'list' };
+  });
+
+  // Başhakem için kalınan sekmeyi (supervisor veya desk) hatırla
+  const [currentTab, setCurrentTab] = useState<'supervisor' | 'desk'>(() => {
+    if (typeof window !== 'undefined') {
+      const savedTab = localStorage.getItem('courtonline_current_tab');
+      if (savedTab === 'supervisor' || savedTab === 'desk') {
+        return savedTab;
+      }
+    }
+    return 'desk';
+  });
+
   const [isHelpOpen, setIsHelpOpen] = useState(false);
+
+  // Ekran değiştikçe kaydet
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('courtonline_saved_screen', JSON.stringify(screen));
+    }
+  }, [screen]);
+
+  // Sekme değiştikçe kaydet
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('courtonline_current_tab', currentTab);
+    }
+  }, [currentTab]);
+
+  // Turnuva ekranı geri yüklendiğinde Context'teki tournamentId ile senkronize et
+  useEffect(() => {
+    if (screen.type === 'tournament' && screen.id && screen.id !== tournamentId) {
+      setTournamentId(screen.id);
+    }
+  }, [screen, tournamentId, setTournamentId]);
 
   const handleSelectTournament = (id: string) => {
     setTournamentId(id);
-    setScreen({ type: 'tournament', id });
+    const nextScreen: AppScreen = { type: 'tournament', id };
+    setScreen(nextScreen);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('courtonline_saved_screen', JSON.stringify(nextScreen));
+    }
   };
 
-  const handleSuperAdminLogin = () => setScreen({ type: 'superAdmin' });
+  const handleSuperAdminLogin = () => {
+    const nextScreen: AppScreen = { type: 'superAdmin' };
+    setScreen(nextScreen);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('courtonline_saved_screen', JSON.stringify(nextScreen));
+    }
+  };
 
   const handleBackToList = () => {
     setAuthRole('none');
     setTournamentId('');
-    setScreen({ type: 'list' });
+    const nextScreen: AppScreen = { type: 'list' };
+    setScreen(nextScreen);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('courtonline_saved_screen', JSON.stringify(nextScreen));
+      localStorage.removeItem('courtonline_active_tournament_id');
+      localStorage.removeItem('courtonline_active_chair_match');
+    }
   };
 
-  const handleSuperAdminLogout = () => setScreen({ type: 'list' });
+  const handleSuperAdminLogout = () => {
+    const nextScreen: AppScreen = { type: 'list' };
+    setScreen(nextScreen);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('courtonline_saved_screen', JSON.stringify(nextScreen));
+    }
+  };
 
   // ── Turnuva Listesi ─────────────────────────────────────────────────────
   if (screen.type === 'list') {

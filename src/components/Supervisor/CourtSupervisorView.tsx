@@ -63,8 +63,30 @@ export const CourtSupervisorView: React.FC = () => {
   }, []);
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCourt, setSelectedCourt] = useState<string>('KORT 1');
-  const [statusFilter, setStatusFilter] = useState<'ALL' | 'LIVE' | 'UPCOMING' | 'FINISHED'>('ALL');
+  const [selectedCourt, setSelectedCourt] = useState<string>(() => {
+    return (typeof window !== 'undefined' ? localStorage.getItem('courtonline_selected_court') : null) || 'KORT 1';
+  });
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'LIVE' | 'UPCOMING' | 'FINISHED'>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('courtonline_supervisor_status_filter');
+      if (saved && ['ALL', 'LIVE', 'UPCOMING', 'FINISHED'].includes(saved)) {
+        return saved as 'ALL' | 'LIVE' | 'UPCOMING' | 'FINISHED';
+      }
+    }
+    return 'ALL';
+  });
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && selectedCourt) {
+      localStorage.setItem('courtonline_selected_court', selectedCourt);
+    }
+  }, [selectedCourt]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && statusFilter) {
+      localStorage.setItem('courtonline_supervisor_status_filter', statusFilter);
+    }
+  }, [statusFilter]);
 
   const [finishModalMatch, setFinishModalMatch] = useState<MatchItem | null>(null);
   const [editScoreModalMatch, setEditScoreModalMatch] = useState<MatchItem | null>(null);

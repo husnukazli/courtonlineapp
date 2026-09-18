@@ -77,7 +77,9 @@ export const CourtCard: React.FC<CourtCardProps> = ({
     e.stopPropagation();
     if (window.confirm('Kule hakemi modundan çıkıp genel maç ekranına dönmek istiyor musunuz?')) {
       setIsChairMode(false);
+      setIsCardLocked(false);
       localStorage.removeItem('courtonline_active_chair_match');
+      localStorage.removeItem(`courtonline_card_locked_${match.id}`);
     }
   };
 
@@ -86,7 +88,9 @@ export const CourtCard: React.FC<CourtCardProps> = ({
       if (isChairMode) {
         if (window.confirm('Kule hakemi modundan çıkmak istiyor musunuz?')) {
           setIsChairMode(false);
+          setIsCardLocked(false);
           localStorage.removeItem('courtonline_active_chair_match');
+          localStorage.removeItem(`courtonline_card_locked_${match.id}`);
         } else {
           window.history.pushState(null, '', window.location.href);
         }
@@ -130,7 +134,19 @@ export const CourtCard: React.FC<CourtCardProps> = ({
     return localStorage.getItem('courtonline_light_mode') === 'true';
   });
 
-  const [isCardLocked, setIsCardLocked] = useState(false);
+  const [isCardLocked, setIsCardLocked] = useState<boolean>(() => {
+    return typeof window !== 'undefined' ? localStorage.getItem(`courtonline_card_locked_${match.id}`) === 'true' : false;
+  });
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      if (isCardLocked) {
+        localStorage.setItem(`courtonline_card_locked_${match.id}`, 'true');
+      } else {
+        localStorage.removeItem(`courtonline_card_locked_${match.id}`);
+      }
+    }
+  }, [isCardLocked, match.id]);
 
   // When locked, optionally request fullscreen and disable scrolling on body
   useEffect(() => {
@@ -765,10 +781,27 @@ export const CourtCard: React.FC<CourtCardProps> = ({
     else if (isPaused) setMatchStatus(match.id, 'Oynaniyor');
   };
 
-  const handleCardClick = () => { if (isUpcoming && onOpenSetup) onOpenSetup(match); };
+  const handleCardClick = () => { if (isUpcoming && onOpenSetup && !isCardLocked) onOpenSetup(match); };
+
+  const handleProtectedAction = (e: React.MouseEvent, action: () => void) => {
+    e.stopPropagation();
+    if (isCardLocked) {
+      setToastMessage('İşlem yapabilmek için lütfen ekran kilidini açınız.');
+      vibrateDevice([100, 50, 100]);
+      setTimeout(() => setToastMessage(null), 3000);
+      return;
+    }
+    action();
+  };
 
   const handleStartMatchDirect = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (isCardLocked) {
+      setToastMessage('İşlem yapabilmek için lütfen ekran kilidini açınız.');
+      vibrateDevice([100, 50, 100]);
+      setTimeout(() => setToastMessage(null), 3000);
+      return;
+    }
     if (onOpenSetup) onOpenSetup(match);
     else setMatchStatus(match.id, 'Oynaniyor', undefined, undefined);
   };
@@ -855,6 +888,12 @@ export const CourtCard: React.FC<CourtCardProps> = ({
 
       {/* 1. DIŞ EKRAN / HIZLI KART GÖRÜNÜMÜ */}
       <div onClick={handleCardClick} className={baseCardClass}>
+        {!isChairMode && toastMessage && (
+          <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[100010] px-5 py-3 rounded-2xl border shadow-2xl animate-in fade-in zoom-in duration-200 flex items-center gap-3 w-max max-w-[90%] text-center justify-center ${isLightMode ? 'bg-slate-900 text-white border-slate-700' : 'bg-slate-800 text-white border-slate-700'}`}>
+            <Info className="w-5 h-5 shrink-0 text-amber-400" />
+            <span className="font-bold text-[11px] sm:text-sm">{toastMessage}</span>
+          </div>
+        )}
         <div className={`h-1.5 w-full ${isLive ? 'bg-emerald-500' : isPaused ? 'bg-amber-500' : isUpcoming ? 'bg-slate-400' : 'bg-slate-300'}`} />
 
         <div className={`px-4 sm:px-5 pt-4 pb-2 flex items-center justify-between border-b ${isLightMode ? 'border-slate-300' : 'border-slate-800/80'}`}>
@@ -1016,10 +1055,10 @@ export const CourtCard: React.FC<CourtCardProps> = ({
         <div className={`p-3 sm:p-4 border-t flex items-center gap-2 ${isLightMode ? 'bg-slate-50 border-slate-200' : 'bg-slate-950/70 border-slate-800'}`}>
           {isUpcoming ? (
             <div className="flex items-center gap-2 w-full">
-              {onOpenSetup && <button type="button" onClick={(e) => { e.stopPropagation(); onOpenSetup(match); }} className={`py-2.5 px-3 rounded-xl font-bold text-xs border transition shadow-sm ${isLightMode ? 'bg-white hover:bg-slate-200 text-slate-800 border-slate-300' : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'}`} title="Kura Çek">🪙 Kura</button>}
+              {onOpenSetup && <button type="button" onClick={(e) => handleProtectedAction(e, () => onOpenSetup(match))} className={`py-2.5 px-3 rounded-xl font-bold text-xs border transition shadow-sm ${isLightMode ? 'bg-white hover:bg-slate-200 text-slate-800 border-slate-300' : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'}`} title="Kura Çek">🪙 Kura</button>}
               
               {onEditScore && (
-                <button type="button" onClick={(e) => { e.stopPropagation(); onEditScore(match); }} className={`py-2.5 px-3 rounded-xl font-bold text-xs border transition flex items-center gap-1.5 shadow-sm ${isLightMode ? 'bg-white hover:bg-slate-200 text-slate-800 border-slate-300' : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'}`} title="Hızlı Skor Gir">
+                <button type="button" onClick={(e) => handleProtectedAction(e, () => onEditScore(match))} className={`py-2.5 px-3 rounded-xl font-bold text-xs border transition flex items-center gap-1.5 shadow-sm ${isLightMode ? 'bg-white hover:bg-slate-200 text-slate-800 border-slate-300' : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'}`} title="Hızlı Skor Gir">
                   <PenLine className="w-3.5 h-3.5" /> Skor
                 </button>
               )}
@@ -1029,18 +1068,18 @@ export const CourtCard: React.FC<CourtCardProps> = ({
           ) : isLive || isPaused ? (
             <div className="flex items-center gap-2 w-full">
               {onOpenSetup && (
-                <button type="button" onClick={(e) => { e.stopPropagation(); onOpenSetup(match); }} className={`h-12 w-12 flex items-center justify-center shrink-0 border rounded-xl transition active:scale-95 shadow-sm ${isLightMode ? 'bg-white hover:bg-slate-200 text-slate-800 border-slate-300' : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'}`} title="Maç Formatı ve Kura Ayarları">
+                <button type="button" onClick={(e) => handleProtectedAction(e, () => onOpenSetup(match))} className={`h-12 w-12 flex items-center justify-center shrink-0 border rounded-xl transition active:scale-95 shadow-sm ${isLightMode ? 'bg-white hover:bg-slate-200 text-slate-800 border-slate-300' : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'}`} title="Maç Formatı ve Kura Ayarları">
                   <Settings className="w-5 h-5" />
                 </button>
               )}
               
               {onEditScore && (
-                <button type="button" onClick={(e) => { e.stopPropagation(); onEditScore(match); }} className={`h-12 w-12 flex items-center justify-center shrink-0 border rounded-xl transition active:scale-95 shadow-sm ${isLightMode ? 'bg-white hover:bg-slate-200 text-slate-800 border-slate-300' : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'}`} title="Doğrudan Skor Düzenle">
+                <button type="button" onClick={(e) => handleProtectedAction(e, () => onEditScore(match))} className={`h-12 w-12 flex items-center justify-center shrink-0 border rounded-xl transition active:scale-95 shadow-sm ${isLightMode ? 'bg-white hover:bg-slate-200 text-slate-800 border-slate-300' : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'}`} title="Doğrudan Skor Düzenle">
                   <PenLine className="w-5 h-5" />
                 </button>
               )}
 
-              <button type="button" onClick={(e) => { e.stopPropagation(); onFinishMatch(match); }} className={`flex-1 h-12 font-black text-sm rounded-xl flex justify-center items-center gap-2 transition active:scale-95 shadow-md ${isLightMode ? 'bg-slate-800 hover:bg-slate-900 text-white' : 'bg-slate-800 hover:bg-slate-700 text-white'}`}><Trophy className={`w-4 h-4 ${isLightMode ? 'text-amber-400' : 'text-slate-400'}`} /> Maçı Sonlandır</button>
+              <button type="button" onClick={(e) => handleProtectedAction(e, () => onFinishMatch(match))} className={`flex-1 h-12 font-black text-sm rounded-xl flex justify-center items-center gap-2 transition active:scale-95 shadow-md ${isLightMode ? 'bg-slate-800 hover:bg-slate-900 text-white' : 'bg-slate-800 hover:bg-slate-700 text-white'}`}><Trophy className={`w-4 h-4 ${isLightMode ? 'text-amber-400' : 'text-slate-400'}`} /> Maçı Sonlandır</button>
             </div>
           ) : null}
         </div>

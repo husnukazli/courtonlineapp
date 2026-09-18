@@ -52,7 +52,21 @@ export const DeskSupervisorView: React.FC = () => {
     });
   };
 
-  const [activeSubTab, setActiveSubTab] = useState<'grid' | 'stats' | 'formats' | 'referees' | 'manage' | 'info' | 'tv'>('grid');
+  const [activeSubTab, setActiveSubTab] = useState<'grid' | 'stats' | 'formats' | 'referees' | 'manage' | 'info' | 'tv'>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('courtonline_desk_subtab');
+      if (saved && ['grid', 'stats', 'formats', 'referees', 'manage', 'info', 'tv'].includes(saved)) {
+        return saved as 'grid' | 'stats' | 'formats' | 'referees' | 'manage' | 'info' | 'tv';
+      }
+    }
+    return 'grid';
+  });
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && activeSubTab) {
+      localStorage.setItem('courtonline_desk_subtab', activeSubTab);
+    }
+  }, [activeSubTab]);
   const [localInfo, setLocalInfo] = React.useState(() => tournamentInfo);
   const [infoSavedMsg, setInfoSavedMsg] = React.useState('');
   const [selectedCourtFilter, setSelectedCourtFilter] = useState<string>('ALL');
