@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   Tv, Filter, Search, ZoomIn, ZoomOut, RefreshCw, Plus, Trash2, CheckCircle2,
   Clock, Award, Layers, Users, FileSpreadsheet, Download, Upload, AlertCircle,
-  Eye, Lock, KeyRound, ShieldCheck, FileText, RotateCcw, Sun, Moon, MonitorPlay
+  Eye, Lock, KeyRound, ShieldCheck, FileText, RotateCcw, Sun, Moon, MonitorPlay,
+  Maximize2
 } from 'lucide-react';
 import { useTennisData } from '../../context/TennisDataContext';
 import { MatchItem, ScoreFormatType } from '../../types/tennis';
@@ -75,6 +76,7 @@ export const DeskSupervisorView: React.FC = () => {
   
   const [zoomLevel, setZoomLevel] = useState<number>(100);
   const [selectedMatchForModal, setSelectedMatchForModal] = useState<MatchItem | null>(null);
+  const [hoveredMatchInfo, setHoveredMatchInfo] = useState<{ match: MatchItem; rect: DOMRect } | null>(null);
 
   const [newRefName, setNewRefName] = useState<string>('');
   const [newRefPin, setNewRefPin] = useState<string>('');
@@ -123,7 +125,28 @@ export const DeskSupervisorView: React.FC = () => {
   const scrollStartY = useRef(0);
   const hasDragged = useRef(false);
 
+  const handleFitAllCourts = () => {
+    if (!scrollContainerRef.current) return;
+    const container = scrollContainerRef.current;
+    const availableWidth = container.clientWidth - 28;
+    const displayedCourts = (selectedCourtFilter === 'ALL' ? distinctCourts : [selectedCourtFilter]);
+    const count = displayedCourts.length;
+    if (count <= 0) return;
+
+    // Her bir kort sütunu 300px genişlikte ve aralarında gap-4 (16px) var
+    const totalContentWidth = count * 300 + (count - 1) * 16;
+    
+    // Sığması için gereken ölçek (yüzde):
+    const calculatedZoom = Math.round((availableWidth / totalContentWidth) * 100);
+    
+    // 15 ile 120 arasında sınırla
+    const finalZoom = Math.max(15, Math.min(120, calculatedZoom));
+    setZoomLevel(finalZoom);
+    setHoveredMatchInfo(null);
+  };
+
   const handleMouseDown = (e: React.MouseEvent) => {
+    setHoveredMatchInfo(null);
     if (window.innerWidth < 768) return; 
     isDragging.current = true;
     hasDragged.current = false;
@@ -142,6 +165,7 @@ export const DeskSupervisorView: React.FC = () => {
     const dy = e.pageY - dragStartY.current;
     if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
       hasDragged.current = true;
+      setHoveredMatchInfo(null);
     }
     scrollContainerRef.current.scrollLeft = scrollStartX.current - dx;
     scrollContainerRef.current.scrollTop = scrollStartY.current - dy;
@@ -357,11 +381,81 @@ export const DeskSupervisorView: React.FC = () => {
               </select>
             </div>
 
-            <div className={`flex items-center gap-2 text-xs p-2 rounded-xl border ${isLightMode ? 'bg-slate-100 border-slate-200 text-slate-500' : 'bg-slate-950 border-slate-800 text-slate-400'}`}>
-              <ZoomOut className={`w-4 h-4 ${isLightMode ? 'text-cyan-600' : 'text-cyan-400'}`} />
-              <input type="range" min="40" max="150" step="1" value={zoomLevel} onChange={(e) => setZoomLevel(Number(e.target.value))} className={`w-24 sm:w-32 cursor-pointer ${isLightMode ? 'accent-cyan-600' : 'accent-cyan-400'}`} />
-              <ZoomIn className={`w-4 h-4 ${isLightMode ? 'text-cyan-600' : 'text-cyan-400'}`} />
-              <span className={`font-mono text-[12px] w-10 text-right font-black ${isLightMode ? 'text-cyan-700' : 'text-cyan-400'}`}>%{zoomLevel}</span>
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Büyüteç Göstergesi */}
+              {zoomLevel <= 85 && (
+                <span className={`hidden xl:inline-flex items-center gap-1 text-[11px] font-bold px-2 py-1 rounded-xl border ${
+                  isLightMode 
+                    ? 'bg-cyan-50 text-cyan-700 border-cyan-200' 
+                    : 'bg-cyan-500/10 text-cyan-300 border-cyan-500/20'
+                }`}>
+                  🔍 Büyüteç Aktif
+                </span>
+              )}
+
+              {/* Slider Çubuğu */}
+              <div className={`flex items-center gap-2 text-xs p-1.5 px-2.5 rounded-xl border ${isLightMode ? 'bg-slate-100 border-slate-200 text-slate-500' : 'bg-slate-950 border-slate-800 text-slate-400'}`}>
+                <ZoomOut className={`w-3.5 h-3.5 ${isLightMode ? 'text-cyan-600' : 'text-cyan-400'}`} />
+                <input 
+                  type="range" 
+                  min="15" 
+                  max="150" 
+                  step="1" 
+                  value={zoomLevel} 
+                  onChange={(e) => {
+                    setZoomLevel(Number(e.target.value));
+                    setHoveredMatchInfo(null);
+                  }} 
+                  className={`w-20 sm:w-28 cursor-pointer ${isLightMode ? 'accent-cyan-600' : 'accent-cyan-400'}`} 
+                  title="Ölçek Kaydırıcı (%15 - %150)"
+                />
+                <ZoomIn className={`w-3.5 h-3.5 ${isLightMode ? 'text-cyan-600' : 'text-cyan-400'}`} />
+                <span className={`font-mono text-[12px] w-9 text-right font-black ${isLightMode ? 'text-cyan-700' : 'text-cyan-400'}`}>%{zoomLevel}</span>
+              </div>
+
+              {/* Tüm Kortları Sığdır Butonu */}
+              <button
+                type="button"
+                onClick={handleFitAllCourts}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition shadow-sm active:scale-95 border ${
+                  isLightMode 
+                    ? 'bg-cyan-600 hover:bg-cyan-500 text-white border-cyan-600' 
+                    : 'bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border-cyan-500/40'
+                }`}
+                title="Mevcut ekrana tüm kort sütunlarını sığacak şekilde otomatik oranlar"
+              >
+                <Maximize2 className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Tüm Kortları Sığdır</span>
+                <span className="sm:hidden">Sığdır</span>
+              </button>
+
+              {/* Hızlı Ölçek Seçici Açılır Menü */}
+              <select
+                value={['100', '80', '60', '45', '30'].includes(zoomLevel.toString()) ? zoomLevel.toString() : 'custom'}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === 'fit') {
+                    handleFitAllCourts();
+                  } else if (val !== 'custom') {
+                    setZoomLevel(Number(val));
+                    setHoveredMatchInfo(null);
+                  }
+                }}
+                className={`px-2.5 py-1.5 rounded-xl text-xs border font-bold focus:outline-none focus:border-cyan-400 ${
+                  isLightMode ? 'bg-white border-slate-300 text-slate-800' : 'bg-slate-950 border-slate-800 text-slate-200'
+                }`}
+                title="Ölçek Seçici"
+              >
+                <option value="fit">📐 Tümünü Sığdır</option>
+                <option value="100">%100 Standart</option>
+                <option value="80">%80 Geniş</option>
+                <option value="60">%60 Kompakt</option>
+                <option value="45">%45 Çoklu Kort</option>
+                <option value="30">%30 Kuş Bakışı</option>
+                {!['100', '80', '60', '45', '30'].includes(zoomLevel.toString()) && (
+                  <option value="custom">%{zoomLevel} (Özel)</option>
+                )}
+              </select>
             </div>
           </div>
         )}
@@ -374,6 +468,7 @@ export const DeskSupervisorView: React.FC = () => {
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUpOrLeave}
           onMouseLeave={handleMouseUpOrLeave}
+          onScroll={() => setHoveredMatchInfo(null)}
           className="w-full overflow-auto max-h-[75vh] pb-6 md:cursor-grab md:active:cursor-grabbing md:[&::-webkit-scrollbar]:hidden md:[-ms-overflow-style:none] md:[scrollbar-width:none]"
         >
           <div style={{ transform: `scale(${zoomLevel / 100})`, transformOrigin: 'top left', minWidth: 'min-content' }} className="transition-transform duration-150 p-2">
@@ -479,7 +574,24 @@ export const DeskSupervisorView: React.FC = () => {
                           // --------------------------------------------------
 
                           return (
-                            <div key={m.id} onClick={(e) => { if (hasDragged.current) { e.preventDefault(); e.stopPropagation(); return; } setSelectedMatchForModal(m); }} 
+                            <div 
+                              key={m.id} 
+                              onClick={(e) => { 
+                                setHoveredMatchInfo(null);
+                                if (hasDragged.current) { e.preventDefault(); e.stopPropagation(); return; } 
+                                setSelectedMatchForModal(m); 
+                              }} 
+                              onMouseEnter={(e) => {
+                                if (zoomLevel <= 85 && !isDragging.current) {
+                                  setHoveredMatchInfo({
+                                    match: m,
+                                    rect: e.currentTarget.getBoundingClientRect()
+                                  });
+                                }
+                              }}
+                              onMouseLeave={() => {
+                                setHoveredMatchInfo(null);
+                              }}
                               className={`p-3 rounded-2xl transition-all cursor-pointer relative overflow-hidden group ${cardClass}`}>
                               <div className={`flex items-center justify-between text-[10px] font-bold mb-2 gap-1 pb-2 border-b ${isLightMode ? 'border-slate-200' : 'border-slate-800/50'}`}>
                                 <span className={`${timeClass} font-mono flex items-center gap-1.5`}><Clock className={`${isUpcoming ? 'w-4 h-4' : 'w-3.5 h-3.5'}`} />{m.Saat}</span>
@@ -941,6 +1053,205 @@ export const DeskSupervisorView: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* KORTLAR KÜÇÜKKEN ÜZERİNE GELİNDİĞİNDE AÇILAN BÜYÜTÜLMÜŞ ÖNİZLEME KARTI */}
+      {hoveredMatchInfo && zoomLevel <= 85 && (() => {
+        const { match: initialMatch, rect } = hoveredMatchInfo;
+        const m = matches.find((x) => x.id === initialMatch.id) || initialMatch;
+        const cardWidth = 340;
+        const cardHeight = 240;
+
+        let left = rect.right + 14;
+        if (left + cardWidth > window.innerWidth - 12) {
+          if (rect.left - cardWidth - 14 > 12) {
+            left = rect.left - cardWidth - 14;
+          } else {
+            left = Math.max(12, Math.min(window.innerWidth - cardWidth - 12, rect.left + (rect.width / 2) - (cardWidth / 2)));
+          }
+        }
+
+        let top = rect.top - 8;
+        if (top + cardHeight > window.innerHeight - 16) {
+          top = Math.max(12, window.innerHeight - cardHeight - 16);
+        } else if (top < 12) {
+          top = 12;
+        }
+
+        const stat = (m.Durum || '').toLowerCase();
+        const isFinished = ['bitti', 'retired', 'walkover'].includes(stat);
+        const isLive = stat === 'oynaniyor';
+        const isPaused = stat === 'duraklatildi';
+        const isUpcoming = stat === 'baslamadi';
+        const state = m.detailedState;
+        const p1Name = m['Oyuncu 1'];
+        const p2Name = m['Oyuncu 2'];
+
+        const cardClass = isLive 
+          ? (isLightMode ? 'bg-white border-2 border-emerald-400 shadow-[0_0_30px_rgba(16,185,129,0.3)] ring-2 ring-emerald-400/50' : 'bg-gradient-to-br from-emerald-950/95 to-slate-900 border-2 border-emerald-500 shadow-[0_0_35px_rgba(16,185,129,0.3)] ring-2 ring-emerald-500/50')
+          : isPaused 
+          ? (isLightMode ? 'bg-white border-2 border-amber-400 shadow-[0_0_30px_rgba(245,158,11,0.3)] ring-2 ring-amber-400/50' : 'bg-gradient-to-br from-amber-950/95 to-slate-900 border-2 border-amber-500 shadow-[0_0_35px_rgba(245,158,11,0.3)] ring-2 ring-amber-500/50')
+          : isUpcoming 
+          ? (isLightMode ? 'bg-slate-50 border-2 border-slate-400 shadow-2xl' : 'bg-slate-900 border-2 border-slate-600 shadow-2xl')
+          : (isLightMode ? 'bg-rose-50 border-2 border-rose-300 shadow-2xl' : 'bg-gradient-to-br from-rose-950/80 to-slate-950 border-2 border-rose-900 shadow-2xl');
+
+        const statusBadgeClass = isLive 
+          ? (isLightMode ? 'bg-emerald-100 text-emerald-700 border-emerald-300 animate-pulse' : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 animate-pulse')
+          : isPaused 
+          ? (isLightMode ? 'bg-amber-100 text-amber-700 border-amber-300' : 'bg-amber-500/20 text-amber-400 border-amber-500/40')
+          : isUpcoming 
+          ? (isLightMode ? 'bg-slate-200 text-slate-700 border-slate-300' : 'bg-slate-800 text-slate-300 border-slate-700')
+          : (isLightMode ? 'bg-rose-100 text-rose-700 border-rose-300' : 'bg-rose-500/20 text-rose-400 border-rose-500/40');
+
+        const statusText = isLive ? 'CANLI' : isPaused ? 'ASKIDA' : isUpcoming ? 'BEKLİYOR' : m.Durum.toUpperCase();
+        const timeClass = isLive ? (isLightMode ? 'text-emerald-700' : 'text-emerald-400')
+          : isPaused ? (isLightMode ? 'text-amber-700' : 'text-amber-400')
+          : isUpcoming ? (isLightMode ? 'text-slate-800 font-black' : 'text-white font-black')
+          : (isLightMode ? 'text-rose-700' : 'text-rose-300');
+
+        const playerTextClass = (isWinner: boolean) => 
+          isFinished && !isWinner ? 'text-slate-400 line-through'
+          : isFinished && isWinner ? (isLightMode ? 'text-cyan-700 font-black' : 'text-lime-300 font-black drop-shadow-sm')
+          : (isLightMode ? 'text-slate-900 font-bold' : 'text-white font-bold');
+
+        const scoreNumberClass = (isWinner: boolean) =>
+          isFinished && !isWinner ? 'text-slate-400'
+          : isFinished ? (isLightMode ? 'text-cyan-700' : 'text-lime-200')
+          : (isLightMode ? 'text-slate-900' : 'text-white');
+
+        const parsed = parseScoreString(m.Skor);
+        const s1p1 = Number(state?.set1_p1 ?? parsed.s1_p1 ?? 0);
+        const s1p2 = Number(state?.set1_p2 ?? parsed.s1_p2 ?? 0);
+        const s1tb1 = Number(state?.set1_tb_p1 ?? (parsed as any).s1_tb_p1);
+        const s1tb2 = Number(state?.set1_tb_p2 ?? (parsed as any).s1_tb_p2);
+        
+        const s2p1 = Number(state?.set2_p1 ?? parsed.s2_p1 ?? 0);
+        const s2p2 = Number(state?.set2_p2 ?? parsed.s2_p2 ?? 0);
+        const s2tb1 = Number(state?.set2_tb_p1 ?? (parsed as any).s2_tb_p1);
+        const s2tb2 = Number(state?.set2_tb_p2 ?? (parsed as any).s2_tb_p2);
+
+        const s3p1 = Number(state?.set3_p1 ?? parsed.s3_p1 ?? 0);
+        const s3p2 = Number(state?.set3_p2 ?? parsed.s3_p2 ?? 0);
+        const s3tb1 = Number(state?.set3_tb_p1 ?? (parsed as any).s3_tb_p1);
+        const s3tb2 = Number(state?.set3_tb_p2 ?? (parsed as any).s3_tb_p2);
+
+        let setsToDisplay = 1;
+        if (s2p1 > 0 || s2p2 > 0 || s3p1 > 0 || s3p2 > 0 || (m.Skor && m.Skor.split(' ').length >= 2) || (state && state.currentSet >= 2)) setsToDisplay = 2;
+        if (s3p1 > 0 || s3p2 > 0 || (m.Skor && m.Skor.split(' ').length === 3) || (state && state.currentSet === 3)) setsToDisplay = 3;
+
+        const renderMiniSet = (pMe: number, pOpp: number, tbMe: number, isVisible: boolean) => {
+          if (!isVisible) return <div className="w-5"></div>;
+          const isLoserInTB = (pMe === 6 && pOpp === 7) || (pMe === 4 && pOpp === 5);
+          const showTb = isLoserInTB && !isNaN(tbMe) && tbMe >= 0;
+          return (
+            <div className="relative flex items-start justify-end w-5 text-sm font-black">
+              <span>{pMe}</span>
+              {showTb && <sup className="absolute -right-[9px] top-0 text-[9px] font-extrabold opacity-90 leading-none">{tbMe}</sup>}
+            </div>
+          );
+        };
+
+        return (
+          <div 
+            style={{
+              position: 'fixed',
+              left: `${left}px`,
+              top: `${top}px`,
+              width: `${cardWidth}px`,
+              zIndex: 99999,
+              pointerEvents: 'none',
+            }}
+            className={`p-4 rounded-2xl shadow-2xl ${cardClass} animate-in fade-in zoom-in-95 duration-100 backdrop-blur-md`}
+          >
+            {/* Önizleme Başlığı */}
+            <div className={`flex items-center justify-between text-xs font-bold mb-2 pb-2 border-b ${isLightMode ? 'border-slate-200' : 'border-slate-800'}`}>
+              <div className="flex items-center gap-1.5">
+                <span className="text-cyan-500 font-extrabold text-sm">🔍</span>
+                <span className={`font-mono font-black ${timeClass} flex items-center gap-1.5 text-xs`}>
+                  <Clock className="w-3.5 h-3.5 text-cyan-500" />
+                  {m.Saat}
+                </span>
+                <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">
+                  {m.Kort}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                {isLive && <MatchLiveTimer match={m} size="sm" />}
+                <span className={`px-2 py-0.5 rounded-md border uppercase text-[10px] font-black tracking-widest ${statusBadgeClass}`}>
+                  {statusText}
+                </span>
+              </div>
+            </div>
+
+            {/* Kategori Bilgisi */}
+            <div className={`text-[11px] font-black uppercase tracking-wider truncate mb-2.5 ${isLightMode ? 'text-slate-500' : 'text-slate-400'}`}>
+              {m.Kategori}
+            </div>
+
+            {/* Oyuncular ve Skorlar */}
+            <div className="space-y-2 my-2">
+              <div className="flex items-center justify-between text-sm">
+                <div className="flex items-center gap-1.5 truncate pr-2">
+                  {state?.currentServer === 1 && isLive && <span className="text-lime-400 text-xs animate-bounce">🎾</span>}
+                  <span className={`truncate text-sm font-bold ${playerTextClass(m.Kazanan === p1Name)}`}>
+                    {isFinished && m.Kazanan === p1Name ? '🏆 ' : ''}{p1Name}
+                  </span>
+                </div>
+                <div className={`font-mono text-sm font-black shrink-0 tabular-nums flex gap-3 ${scoreNumberClass(m.Kazanan === p1Name)}`}>
+                  {isUpcoming ? <span>-</span> : (
+                    <>
+                      {renderMiniSet(s1p1, s1p2, s1tb1, true)}
+                      {renderMiniSet(s2p1, s2p2, s2tb1, setsToDisplay >= 2)}
+                      {renderMiniSet(s3p1, s3p2, s3tb1, setsToDisplay >= 3)}
+                    </>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between text-sm">
+                <div className="flex items-center gap-1.5 truncate pr-2">
+                  {state?.currentServer === 2 && isLive && <span className="text-cyan-400 text-xs animate-bounce">🎾</span>}
+                  <span className={`truncate text-sm font-bold ${playerTextClass(m.Kazanan === p2Name)}`}>
+                    {isFinished && m.Kazanan === p2Name ? '🏆 ' : ''}{p2Name}
+                  </span>
+                </div>
+                <div className={`font-mono text-sm font-black shrink-0 tabular-nums flex gap-3 ${scoreNumberClass(m.Kazanan === p2Name)}`}>
+                  {isUpcoming ? <span>-</span> : (
+                    <>
+                      {renderMiniSet(s1p2, s1p1, s1tb2, true)}
+                      {renderMiniSet(s2p2, s2p1, s2tb2, setsToDisplay >= 2)}
+                      {renderMiniSet(s3p2, s3p1, s3tb2, setsToDisplay >= 3)}
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Alt Bilgi: Canlı Puan / Skor ve Hakem */}
+            <div className={`pt-2 mt-2 border-t flex items-center justify-between text-[11px] ${isLightMode ? 'border-slate-200' : 'border-slate-800'}`}>
+              {isLive && state ? (
+                <div className={`font-mono font-bold px-2 py-0.5 rounded border ${isLightMode ? 'text-emerald-700 bg-emerald-50 border-emerald-300' : 'text-emerald-400 bg-emerald-950/40 border-emerald-500/30'}`}>
+                  {state.isTiebreak ? `TB: ${state.tiebreak_p1}-${state.tiebreak_p2}` : `${state.gamePoint_p1} - ${state.gamePoint_p2}`}
+                </div>
+              ) : (
+                <div className={`font-mono font-bold ${isLightMode ? 'text-slate-500' : 'text-slate-400'}`}>
+                  Skor: <span className={isFinished ? (isLightMode ? 'text-slate-900 font-black text-xs' : 'text-white font-black text-xs') : (isLightMode ? 'text-slate-700' : 'text-slate-200')}>{m.Skor || '-'}</span>
+                </div>
+              )}
+              <div className={`truncate max-w-[140px] text-right ${isLightMode ? 'text-slate-500' : 'text-slate-400'}`}>
+                {m.Son_Hakem && m.Son_Hakem !== '-' ? (
+                  <span className={`font-medium ${isLightMode ? 'text-amber-600' : 'text-amber-300/90'}`}>👤 {m.Son_Hakem}</span>
+                ) : (
+                  <span className={isLightMode ? 'text-slate-400' : 'text-slate-600'}>Hakem Yok</span>
+                )}
+              </div>
+            </div>
+
+            <div className="mt-2 text-[10px] text-center text-slate-400 border-t border-slate-200/60 dark:border-slate-800/60 pt-1.5">
+              👆 Tıklayarak maç detayını ve skor düzenleme ekranını açabilirsiniz
+            </div>
+          </div>
+        );
+      })()}
 
       <MatchDetailModal match={selectedMatchForModal} onClose={() => setSelectedMatchForModal(null)} />
     </div>
