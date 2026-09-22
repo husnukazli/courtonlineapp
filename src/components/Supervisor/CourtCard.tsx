@@ -400,6 +400,67 @@ export const CourtCard: React.FC<CourtCardProps> = ({
   }, [selectedSet, isDoubles, setupsBySet, s1_p1, s1_p2, s2_p1, s2_p2, s3_p1, s3_p2, match.pointHistory, format]);
 
   const currentSetGames = selectedSet === 1 ? s1_p1 + s1_p2 : selectedSet === 2 ? s2_p1 + s2_p2 : s3_p1 + s3_p2;
+
+  // Kura ve Maç Kurulumundan ilk servis ve sol takım hesabı
+  const initialTossServer: 1 | 2 = (() => {
+    if (match.ilkServisOyuncusu === 1 || match.ilkServisOyuncusu === 2) {
+      return match.ilkServisOyuncusu;
+    }
+    if (match.Kura_Kazanan && match.Kura_Kazanan !== 'Secilmedi' && match.Kura_Tercih) {
+      const isWinnerP1 = match.Kura_Kazanan === match['Oyuncu 1'];
+      if (match.Kura_Tercih === 'Servis') return isWinnerP1 ? 1 : 2;
+      if (match.Kura_Tercih === 'Karşılama') return isWinnerP1 ? 2 : 1;
+      if (match.Kura_Tercih === 'Saha Seçimi') return isWinnerP1 ? 2 : 1;
+    }
+    if (state?.firstServerOfMatch) return state.firstServerOfMatch;
+    if (state?.currentServer) return state.currentServer;
+    return 1;
+  })();
+
+  const initialTossLeft: 1 | 2 = (() => {
+    if (match.ilkSolTakim === 1 || match.ilkSolTakim === 2) {
+      return match.ilkSolTakim;
+    }
+    if (match.Saha_Tarafi && match.Saha_Tarafi !== 'Secilmedi') {
+      const isWinnerP2 = match.Kura_Kazanan === match['Oyuncu 2'];
+      const isSol = match.Saha_Tarafi.toLowerCase().includes('sol');
+      if (isWinnerP2) return isSol ? 2 : 1;
+      return isSol ? 1 : 2;
+    }
+    return 1;
+  })();
+
+  // Set 1 kurulumunu maç kurulumu ile otomatik bağlama (Kura & Kurulum yansıması)
+  useEffect(() => {
+    const isStartOfMatch = selectedSet === 1 && currentSetGames === 0 && (!match.pointHistory || match.pointHistory.length === 0);
+    if (!setupsBySet[1] || isStartOfMatch) {
+      setSetupsBySet(prev => {
+        const existing = prev[1];
+        if (
+          existing &&
+          existing.firstServingTeam === initialTossServer &&
+          existing.leftTeam === initialTossLeft &&
+          existing.tbType === globalTbType
+        ) {
+          return prev;
+        }
+        return {
+          ...prev,
+          1: {
+            setupSetNum: 1,
+            firstServingTeam: initialTossServer,
+            leftTeam: initialTossLeft,
+            tbType: globalTbType,
+            t1ServerIdx: existing?.t1ServerIdx ?? 0,
+            t2ServerIdx: existing?.t2ServerIdx ?? 0,
+            t1DeuceReceiverIdx: existing?.t1DeuceReceiverIdx ?? 0,
+            t2DeuceReceiverIdx: existing?.t2DeuceReceiverIdx ?? 0
+          }
+        };
+      });
+    }
+  }, [initialTossServer, initialTossLeft, globalTbType, selectedSet, currentSetGames, match.pointHistory]);
+
   const isTB = state?.isTiebreak || false;
   const tbPoints = isTB ? Number(state?.tiebreak_p1 || 0) + Number(state?.tiebreak_p2 || 0) : 0;
   
@@ -513,28 +574,8 @@ export const CourtCard: React.FC<CourtCardProps> = ({
   } else {
     // --- DIŞ EKRAN İÇİN MÜTHİŞ OTOMATİK PİLOT (KURULUM OLMADIĞINDA) ---
     // Kurulum (MatchSetupModal) verilerini Kule Hakemi kurulumuna bağlıyoruz
-    let initialServer: 1 | 2 = state?.currentServer === 2 ? 2 : 1;
-    let initialLeft: 1 | 2 = 1;
-
-    if (match.Kura_Kazanan && match.Kura_Kazanan !== 'Secilmedi' && match.Kura_Tercih) {
-        const isWinnerP1 = match.Kura_Kazanan === match['Oyuncu 1'];
-        if (match.Kura_Tercih === 'Servis') {
-            initialServer = isWinnerP1 ? 1 : 2;
-        } else if (match.Kura_Tercih === 'Karşılama') {
-            initialServer = isWinnerP1 ? 2 : 1;
-        }
-    }
-
-    if (match.Saha_Tarafi && match.Kura_Kazanan && match.Kura_Kazanan !== 'Secilmedi') {
-        const isWinnerP1 = match.Kura_Kazanan === match['Oyuncu 1'];
-        const saha = match.Saha_Tarafi.toLowerCase();
-        
-        if (saha.includes('sol')) {
-            initialLeft = isWinnerP1 ? 1 : 2;
-        } else if (saha.includes('sağ') || saha.includes('sag')) {
-            initialLeft = isWinnerP1 ? 2 : 1;
-        }
-    }
+    const initialServer: 1 | 2 = initialTossServer;
+    const initialLeft: 1 | 2 = initialTossLeft;
 
     let autoServer = initialServer;
     let autoLeft = initialLeft;

@@ -139,17 +139,41 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
     }, 2500); 
   };
 
-  // YENİ EKLENDİ: Sadece kortu ve ayarları kaydedip "Başlamadı" (Bekliyor) olarak bırakan fonksiyon
-  const handleJustSave = () => {
-    let finalFirstServer = 1;
+  const calculateFinalSetup = () => {
+    let finalFirstServer: 1 | 2 = 1;
     if (kuraTercih === 'Saha Seçimi') {
-      finalFirstServer = ilkServisiAtan === p2Name ? 2 : 1;
+      if (ilkServisiAtan === p2Name) finalFirstServer = 2;
+      else if (ilkServisiAtan === p1Name) finalFirstServer = 1;
+      else {
+        // Toss winner chose side, opponent serves
+        finalFirstServer = kuraKazanan === p1Name ? 2 : 1;
+      }
     } else if (kuraKazanan === p1Name) {
-      finalFirstServer = kuraTercih === 'Servis' ? 1 : 2;
+      finalFirstServer = kuraTercih === 'Karşılama' ? 2 : 1;
     } else if (kuraKazanan === p2Name) {
       finalFirstServer = kuraTercih === 'Servis' ? 2 : 1;
+    } else {
+      // Toss not drawn or Secilmedi: check if ilkServisiAtan is chosen
+      if (ilkServisiAtan === p2Name) finalFirstServer = 2;
+      else finalFirstServer = 1;
     }
 
+    let finalLeftTeam: 1 | 2 = 1;
+    const isSol = (sahaTarafi || '').toLowerCase().includes('sol');
+    const isWinnerP2 = kuraKazanan === p2Name;
+    if (isWinnerP2) {
+      finalLeftTeam = isSol ? 2 : 1;
+    } else {
+      finalLeftTeam = isSol ? 1 : 2;
+    }
+
+    return { finalFirstServer, finalLeftTeam };
+  };
+
+  const { finalFirstServer, finalLeftTeam } = calculateFinalSetup();
+
+  // Sadece kortu ve ayarları kaydedip "Başlamadı" (Bekliyor) olarak bırakan fonksiyon
+  const handleJustSave = () => {
     saveMatchSetup(match.id, {
       durum: match.Durum, // Mevcut durumu korur (Büyük ihtimalle "Baslamadi")
       kuraKazanan,
@@ -161,21 +185,13 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
       isNoAd, 
       yeniKort: secilenKort !== match.Kort ? secilenKort : undefined, // Kort değişikliği varsa bildir
       ilkServisOyuncusu: finalFirstServer,
+      ilkSolTakim: finalLeftTeam,
     });
 
     onClose();
   };
 
   const handleSaveAndStart = () => {
-    let finalFirstServer = 1;
-    if (kuraTercih === 'Saha Seçimi') {
-      finalFirstServer = ilkServisiAtan === p2Name ? 2 : 1;
-    } else if (kuraKazanan === p1Name) {
-      finalFirstServer = kuraTercih === 'Servis' ? 1 : 2;
-    } else if (kuraKazanan === p2Name) {
-      finalFirstServer = kuraTercih === 'Servis' ? 2 : 1;
-    }
-
     saveMatchSetup(match.id, {
       durum: 'Oynaniyor',
       kuraKazanan,
@@ -187,6 +203,7 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
       isNoAd, 
       yeniKort: secilenKort !== match.Kort ? secilenKort : undefined, // Kort değişikliği varsa bildir
       ilkServisOyuncusu: finalFirstServer,
+      ilkSolTakim: finalLeftTeam,
     });
 
     onClose();
@@ -469,7 +486,33 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
           </div>
         </div>
 
-        <div className="flex flex-col gap-2 pt-2">
+        {/* Canlı Kurulum Önizleme Rozeti */}
+        <div className="p-3 bg-slate-950/90 rounded-2xl border border-emerald-500/40 text-xs space-y-1.5 shadow-inner">
+          <div className="flex items-center justify-between font-black text-emerald-400 text-[11px] uppercase tracking-wider">
+            <span>🎯 Maç Başlangıç Durumu Önizlemesi</span>
+            <span className="text-[10px] font-semibold text-slate-400">Canlı Ekrana Yansıyacak</span>
+          </div>
+          <div className="grid grid-cols-2 gap-2 text-[11px]">
+            <div className="flex items-center gap-1.5 bg-slate-900/90 px-2.5 py-1.5 rounded-xl border border-slate-800 truncate">
+              <span className="text-amber-400 font-bold shrink-0">🎾 İlk Servis:</span>
+              <span className="font-black text-white truncate">
+                {finalFirstServer === 1 ? p1Name : p2Name}
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5 bg-slate-900/90 px-2.5 py-1.5 rounded-xl border border-slate-800 truncate">
+              <span className="text-cyan-400 font-bold shrink-0">🪑 Sol Saha:</span>
+              <span className="font-black text-white truncate">
+                {finalLeftTeam === 1 ? p1Name : p2Name}
+              </span>
+            </div>
+          </div>
+          <div className="text-[10px] text-slate-400 flex items-center justify-between px-1">
+            <span>👉 Sağ Saha: <strong className="text-slate-200">{finalLeftTeam === 1 ? p2Name : p1Name}</strong></span>
+            <span>Kura: <strong className="text-slate-200">{kuraKazanan === 'Secilmedi' ? 'Belirtilmedi' : kuraKazanan}</strong> ({kuraTercih})</span>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-2 pt-1">
           {/* Orijinal Maçı Başlat Butonu */}
           <button type="button" onClick={handleSaveAndStart} className="w-full py-3.5 px-5 rounded-2xl bg-gradient-to-r from-emerald-500 to-emerald-400 hover:from-emerald-400 hover:to-emerald-300 text-slate-950 font-black text-sm flex items-center justify-center gap-2 shadow-xl transition active:scale-95">
             <Play className="w-4 h-4 fill-slate-950" />

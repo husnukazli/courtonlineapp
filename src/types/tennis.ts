@@ -98,6 +98,8 @@ export interface MatchItem {
   Kura_Kazanan: string;
   Kura_Tercih: TossChoice | string;
   Saha_Tarafi: CourtSide | string;
+  ilkServisOyuncusu?: 1 | 2;
+  ilkSolTakim?: 1 | 2;
   Baslangic_Saati: string;
   Bitis_Saati: string;
   startTimeTimestamp?: number;

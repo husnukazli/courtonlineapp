@@ -35,7 +35,10 @@ export const sanitizeMatchList = (rawList: any[]): MatchItem[] => {
       Kategori: item?.Kategori || 'Büyükler', Skor_Formati: item?.Skor_Formati || '3 Normal Set',
       isNoAd: !!item?.isNoAd, Durum: item?.Durum || 'Baslamadi', Skor: item?.Skor || '-',
       Kura_Kazanan: item?.Kura_Kazanan || 'Secilmedi', Kura_Tercih: item?.Kura_Tercih || 'Servis',
-      Saha_Tarafi: item?.Saha_Tarafi || 'Sandalyenin Sağı', Baslangic_Saati: item?.Baslangic_Saati || 'Secilmedi',
+      Saha_Tarafi: item?.Saha_Tarafi || 'Sandalyenin Sağı',
+      ilkServisOyuncusu: item?.ilkServisOyuncusu,
+      ilkSolTakim: item?.ilkSolTakim,
+      Baslangic_Saati: item?.Baslangic_Saati || 'Secilmedi',
       Bitis_Saati: item?.Bitis_Saati || 'Secilmedi', Son_Hakem: item?.Son_Hakem || 'Turnuva Masası',
       Gorevli_Hakem: item?.Gorevli_Hakem || item?.Son_Hakem || 'Atanmadı',
       Son_Islem_Hakem: item?.Son_Islem_Hakem || item?.Son_Hakem || 'Turnuva Masası',
@@ -553,14 +556,47 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         const chosenFormat = data.skorFormati || m.Skor_Formati || '3 Normal Set';
         const chosenNoAd = data.isNoAd !== undefined ? data.isNoAd : !!m.isNoAd;
 
-        if (!detState || (m.Durum === 'Baslamadi' && data.durum === 'Oynaniyor')) {
-          let server: 1 | 2 = 1;
-          if (data.kuraKazanan && data.kuraTercih) {
-            if (data.kuraTercih === 'Servis') server = data.kuraKazanan === m['Oyuncu 1'] ? 1 : 2;
-            else if (data.kuraTercih === 'Karşılama') server = data.kuraKazanan === m['Oyuncu 1'] ? 2 : 1;
+        let server: 1 | 2 = 1;
+        if (data.ilkServisOyuncusu === 1 || data.ilkServisOyuncusu === 2) {
+          server = data.ilkServisOyuncusu;
+        } else if (data.kuraKazanan && data.kuraKazanan !== 'Secilmedi' && data.kuraTercih) {
+          const isWinnerP1 = data.kuraKazanan === m['Oyuncu 1'];
+          if (data.kuraTercih === 'Servis') {
+            server = isWinnerP1 ? 1 : 2;
+          } else if (data.kuraTercih === 'Karşılama') {
+            server = isWinnerP1 ? 2 : 1;
+          } else if (data.kuraTercih === 'Saha Seçimi') {
+            server = isWinnerP1 ? 2 : 1;
           }
-          if (data.ilkServisOyuncusu) server = data.ilkServisOyuncusu;
+        }
+
+        let leftTeam: 1 | 2 = 1;
+        if (data.ilkSolTakim === 1 || data.ilkSolTakim === 2) {
+          leftTeam = data.ilkSolTakim;
+        } else if (data.sahaTarafi && data.sahaTarafi !== 'Secilmedi') {
+          const isWinnerP2 = data.kuraKazanan === m['Oyuncu 2'];
+          const isSol = (data.sahaTarafi || '').toLowerCase().includes('sol');
+          if (isWinnerP2) {
+            leftTeam = isSol ? 2 : 1;
+          } else {
+            leftTeam = isSol ? 1 : 2;
+          }
+        }
+
+        const hasPointsPlayed = (m.pointHistory && m.pointHistory.length > 0) ||
+          Number(detState?.set1_p1 || 0) > 0 ||
+          Number(detState?.set1_p2 || 0) > 0 ||
+          Number(detState?.set2_p1 || 0) > 0 ||
+          Number(detState?.set2_p2 || 0) > 0 ||
+          Number(detState?.set3_p1 || 0) > 0 ||
+          Number(detState?.set3_p2 || 0) > 0 ||
+          (detState?.gamePoint_p1 && detState.gamePoint_p1 !== '0') ||
+          (detState?.gamePoint_p2 && detState.gamePoint_p2 !== '0');
+
+        if (!detState || !hasPointsPlayed) {
           detState = createInitialMatchState(server, chosenFormat, chosenNoAd);
+          detState.currentServer = server;
+          detState.firstServerOfMatch = server;
         } else {
           detState.isNoAd = chosenNoAd;
         }
@@ -620,7 +656,10 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           ...m,
           Kort: data.yeniKort || m.Kort,
           Durum: data.durum, Kura_Kazanan: data.kuraKazanan, Kura_Tercih: data.kuraTercih,
-          Saha_Tarafi: data.sahaTarafi, Baslangic_Saati: data.baslangicSaati, startTimeTimestamp: finalStartTs,
+          Saha_Tarafi: data.sahaTarafi,
+          ilkServisOyuncusu: server,
+          ilkSolTakim: leftTeam,
+          Baslangic_Saati: data.baslangicSaati, startTimeTimestamp: finalStartTs,
           Bitis_Saati: finalEndStr, lastPausedTimestamp: finalLastPaused,
           pausedAccumulatedMs: finalPausedAcc, totalPausedSeconds: finalTotalPaused,
           totalDurationSeconds: finalTotalDuration,
@@ -1193,6 +1232,24 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           }
           if (!startTs) startTs = Date.now();
           totalDuration = undefined;
+
+          const hasPointsPlayed = (m.pointHistory && m.pointHistory.length > 0) ||
+            Number(dState?.set1_p1 || 0) > 0 ||
+            Number(dState?.set1_p2 || 0) > 0 ||
+            (dState?.gamePoint_p1 && dState.gamePoint_p1 !== '0') ||
+            (dState?.gamePoint_p2 && dState.gamePoint_p2 !== '0');
+
+          if (!hasPointsPlayed) {
+            let startingServer: 1 | 2 = m.ilkServisOyuncusu || 1;
+            if (!m.ilkServisOyuncusu && m.Kura_Kazanan && m.Kura_Kazanan !== 'Secilmedi') {
+              const isP1 = m.Kura_Kazanan === m['Oyuncu 1'];
+              if (m.Kura_Tercih === 'Servis') startingServer = isP1 ? 1 : 2;
+              else if (m.Kura_Tercih === 'Karşılama') startingServer = isP1 ? 2 : 1;
+              else if (m.Kura_Tercih === 'Saha Seçimi') startingServer = isP1 ? 2 : 1;
+            }
+            dState.currentServer = startingServer;
+            dState.firstServerOfMatch = startingServer;
+          }
         }
 
         const activeRef = currentReferee ? currentReferee.name : (m.Son_Islem_Hakem || m.Son_Hakem || 'Turnuva Masası');
