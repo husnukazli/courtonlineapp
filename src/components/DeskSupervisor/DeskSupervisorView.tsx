@@ -3,7 +3,7 @@ import {
   Tv, Filter, Search, ZoomIn, ZoomOut, RefreshCw, Plus, Trash2, CheckCircle2,
   Clock, Award, Layers, Users, FileSpreadsheet, Download, Upload, AlertCircle,
   Eye, Lock, KeyRound, ShieldCheck, FileText, RotateCcw, Sun, Moon, MonitorPlay,
-  Maximize2
+  Maximize2, Minimize2
 } from 'lucide-react';
 import { useTennisData } from '../../context/TennisDataContext';
 import { MatchItem, ScoreFormatType } from '../../types/tennis';
@@ -75,6 +75,7 @@ export const DeskSupervisorView: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState<string>('');
   
   const [zoomLevel, setZoomLevel] = useState<number>(100);
+  const [isGridFullscreen, setIsGridFullscreen] = useState<boolean>(false);
   const [selectedMatchForModal, setSelectedMatchForModal] = useState<MatchItem | null>(null);
   const [hoveredMatchInfo, setHoveredMatchInfo] = useState<{ match: MatchItem; rect: DOMRect } | null>(null);
 
@@ -127,24 +128,82 @@ export const DeskSupervisorView: React.FC = () => {
   const scrollStartY = useRef(0);
   const hasDragged = useRef(false);
 
-  const handleFitAllCourts = () => {
-    if (!scrollContainerRef.current) return;
-    const container = scrollContainerRef.current;
-    const availableWidth = container.clientWidth - 28;
-    const displayedCourts = (selectedCourtFilter === 'ALL' ? distinctCourts : [selectedCourtFilter]);
-    const count = displayedCourts.length;
-    if (count <= 0) return;
+  // TAM EKRAN VE ESC TUŞU DİNLEYİCİSİ
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isGridFullscreen) {
+        handleExitFullscreen();
+      }
+    };
+    const handleFullscreenChange = () => {
+      if (!document.fullscreenElement && isGridFullscreen) {
+        setIsGridFullscreen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    };
+  }, [isGridFullscreen, selectedCourtFilter, distinctCourts]);
 
-    // Her bir kort sütunu 300px genişlikte ve aralarında gap-4 (16px) var
-    const totalContentWidth = count * 300 + (count - 1) * 16;
-    
-    // Sığması için gereken ölçek (yüzde):
-    const calculatedZoom = Math.round((availableWidth / totalContentWidth) * 100);
-    
-    // 1 ile 100 arasında sınırla
-    const finalZoom = Math.max(1, Math.min(100, calculatedZoom));
-    setZoomLevel(finalZoom);
-    setHoveredMatchInfo(null);
+  const handleFitAllCourts = () => {
+    // 1. Henüz tam ekranda değilse tam ekrana geçir
+    if (!isGridFullscreen) {
+      setIsGridFullscreen(true);
+      try {
+        if (!document.fullscreenElement && document.documentElement) {
+          document.documentElement.requestFullscreen().catch(() => {});
+        }
+      } catch (err) {}
+    }
+
+    // 2. DOM boyutu güncellendikten sonra mevcut konteyner genişliğine göre tam sığdırma oranını hesapla
+    setTimeout(() => {
+      if (!scrollContainerRef.current) return;
+      const container = scrollContainerRef.current;
+      const availableWidth = container.clientWidth - 28;
+      const displayedCourts = (selectedCourtFilter === 'ALL' ? distinctCourts : [selectedCourtFilter]);
+      const count = displayedCourts.length;
+      if (count <= 0) return;
+
+      // Her bir kort sütunu 300px genişlikte ve aralarında gap-4 (16px) var
+      const totalContentWidth = count * 300 + (count - 1) * 16;
+      
+      // Sığması için gereken ölçek (yüzde):
+      const calculatedZoom = Math.round((availableWidth / totalContentWidth) * 100);
+      
+      // 1 ile 100 arasında sınırla
+      const finalZoom = Math.max(1, Math.min(100, calculatedZoom));
+      setZoomLevel(finalZoom);
+      setHoveredMatchInfo(null);
+    }, 70);
+  };
+
+  const handleExitFullscreen = () => {
+    setIsGridFullscreen(false);
+    try {
+      if (document.fullscreenElement) {
+        document.exitFullscreen().catch(() => {});
+      }
+    } catch (err) {}
+
+    // Normal görünüme dönüldüğünde konteyner genişliğine göre yeniden hesapla
+    setTimeout(() => {
+      if (!scrollContainerRef.current) return;
+      const container = scrollContainerRef.current;
+      const availableWidth = container.clientWidth - 28;
+      const displayedCourts = (selectedCourtFilter === 'ALL' ? distinctCourts : [selectedCourtFilter]);
+      const count = displayedCourts.length;
+      if (count <= 0) return;
+
+      const totalContentWidth = count * 300 + (count - 1) * 16;
+      const calculatedZoom = Math.round((availableWidth / totalContentWidth) * 100);
+      const finalZoom = Math.max(1, Math.min(100, calculatedZoom));
+      setZoomLevel(finalZoom);
+      setHoveredMatchInfo(null);
+    }, 70);
   };
 
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -325,144 +384,283 @@ export const DeskSupervisorView: React.FC = () => {
   };
 
   return (
-    <div className={`max-w-7xl mx-auto space-y-6 overflow-hidden transition-colors duration-300 ${isLightMode ? 'text-slate-900' : 'text-slate-100'}`}>
+    <div className={`transition-colors duration-300 ${
+      isGridFullscreen
+        ? `fixed inset-0 z-50 w-screen h-screen flex flex-col p-2 sm:p-4 overflow-hidden ${isLightMode ? 'bg-slate-100 text-slate-900' : 'bg-slate-950 text-slate-100'}`
+        : `max-w-7xl mx-auto space-y-6 overflow-hidden ${isLightMode ? 'text-slate-900' : 'text-slate-100'}`
+    }`}>
       
-      <div className={`border rounded-3xl p-4 sm:p-5 shadow-xl space-y-4 transition-colors ${isLightMode ? 'bg-white border-slate-300' : 'bg-slate-900 border-slate-800'}`}>
-        <div className={`flex flex-wrap items-center justify-between gap-3 pb-3 border-b ${isLightMode ? 'border-slate-200' : 'border-slate-800'}`}>
-          <div className={`flex flex-wrap items-center gap-1.5 p-1 rounded-2xl border ${isLightMode ? 'bg-slate-100 border-slate-300' : 'bg-slate-950 border-slate-800'}`}>
-            <button type="button" onClick={() => setActiveSubTab('grid')} className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition ${activeSubTab === 'grid' ? (isLightMode ? 'bg-cyan-600 text-white shadow-md font-black' : 'bg-cyan-400 text-slate-950 shadow-md font-black') : (isLightMode ? 'text-slate-500 hover:text-slate-900' : 'text-slate-400 hover:text-slate-200')}`}>
-              <Tv className="w-3.5 h-3.5" /><span>Canlı Kortlar Akışı</span>
-            </button>
-            <button type="button" onClick={() => setActiveSubTab('stats')} className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition ${activeSubTab === 'stats' ? (isLightMode ? 'bg-cyan-600 text-white shadow-md font-black' : 'bg-cyan-400 text-slate-950 shadow-md font-black') : (isLightMode ? 'text-slate-500 hover:text-slate-900' : 'text-slate-400 hover:text-slate-200')}`}>
-              <Award className="w-3.5 h-3.5" /><span>Turnuva İstatistikleri</span>
-            </button>
-            <button type="button" onClick={() => setActiveSubTab('formats')} className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition ${activeSubTab === 'formats' ? (isLightMode ? 'bg-cyan-600 text-white shadow-md font-black' : 'bg-cyan-400 text-slate-950 shadow-md font-black') : (isLightMode ? 'text-slate-500 hover:text-slate-900' : 'text-slate-400 hover:text-slate-200')}`}>
-              <Layers className="w-3.5 h-3.5" /><span>Format Hafızası</span>
-            </button>
-            <button type="button" onClick={() => setActiveSubTab('tv')} className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition ${activeSubTab === 'tv' ? (isLightMode ? 'bg-indigo-600 text-white shadow-md font-black' : 'bg-indigo-400 text-slate-950 shadow-md font-black') : (isLightMode ? 'text-slate-500 hover:text-slate-900' : 'text-slate-400 hover:text-slate-200')}`}>
-              <MonitorPlay className="w-3.5 h-3.5" /><span>TV / Yayın Ayarları</span>
-            </button>
-            <button type="button" onClick={() => setActiveSubTab('referees')} className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition ${activeSubTab === 'referees' ? (isLightMode ? 'bg-cyan-600 text-white shadow-md font-black' : 'bg-cyan-400 text-slate-950 shadow-md font-black') : (isLightMode ? 'text-slate-500 hover:text-slate-900' : 'text-slate-400 hover:text-slate-200')}`}>
-              <Users className="w-3.5 h-3.5" /><span>Hakem Yönetimi</span>
-            </button>
-            <button type="button" onClick={() => setActiveSubTab('manage')} className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition ${activeSubTab === 'manage' ? (isLightMode ? 'bg-cyan-600 text-white shadow-md font-black' : 'bg-cyan-400 text-slate-950 shadow-md font-black') : (isLightMode ? 'text-slate-500 hover:text-slate-900' : 'text-slate-400 hover:text-slate-200')}`}>
-              <FileSpreadsheet className="w-3.5 h-3.5" /><span>Program & JSON</span>
-            </button>
-            <button type="button" onClick={() => { setLocalInfo(tournamentInfo); setActiveSubTab('info'); }} className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition ${activeSubTab === 'info' ? (isLightMode ? 'bg-cyan-600 text-white shadow-md font-black' : 'bg-cyan-400 text-slate-950 shadow-md font-black') : (isLightMode ? 'text-slate-500 hover:text-slate-900' : 'text-slate-400 hover:text-slate-200')}`}>
-              <span>🏆</span><span>Turnuva Bilgileri</span>
-            </button>
+      {isGridFullscreen ? (
+        /* TAM EKRAN MODU: SADECE ÖLÇEK AYARLARI VE TAM EKRANDAN ÇIKIŞ BUTONU */
+        <div className={`flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl border shadow-xl shrink-0 transition-colors ${
+          isLightMode ? 'bg-white border-slate-300 shadow-slate-200' : 'bg-slate-900 border-slate-800 shadow-2xl'
+        }`}>
+          {/* Sol Taraf: Canlı Başlık & Büyüteç Rozeti */}
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <span className="flex h-3 w-3 relative">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+              </span>
+              <span className={`font-black text-xs sm:text-sm tracking-wide flex items-center gap-1.5 ${isLightMode ? 'text-slate-800' : 'text-white'}`}>
+                <span>Canlı Kortlar</span>
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${isLightMode ? 'bg-cyan-50 text-cyan-700 border-cyan-200' : 'bg-cyan-500/10 text-cyan-300 border-cyan-500/30'}`}>
+                  Tam Ekran
+                </span>
+              </span>
+            </div>
+
+            {zoomLevel <= 85 && (
+              <span className={`hidden sm:inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-xl border ${
+                isLightMode 
+                  ? 'bg-cyan-50 text-cyan-700 border-cyan-200' 
+                  : 'bg-cyan-500/10 text-cyan-300 border-cyan-500/20'
+              }`}>
+                🔍 Büyüteç Aktif
+              </span>
+            )}
           </div>
 
-          <div className="flex items-center gap-2 text-xs font-mono ml-auto">
-            <span className={`px-2.5 py-1 rounded-lg border font-bold ${isLightMode ? 'bg-emerald-100 border-emerald-300 text-emerald-800' : 'bg-emerald-950/60 border-emerald-500/30 text-emerald-300'}`}>{liveMatches} Canlı</span>
-            <span className={`px-2.5 py-1 rounded-lg border font-bold ${isLightMode ? 'bg-cyan-100 border-cyan-300 text-cyan-800' : 'bg-cyan-950/60 border-cyan-500/30 text-cyan-300'}`}>%{completionRate} Bitti</span>
-            <button onClick={toggleTheme} className={`ml-2 p-1.5 rounded-xl border transition flex items-center justify-center ${isLightMode ? 'bg-white hover:bg-slate-100 border-slate-300 text-amber-600 shadow-sm' : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-amber-300'}`} title="Temayı Değiştir">
+          {/* Sağ Taraf: SADECE ÖLÇEK AYARLARI + TAM EKRANDAN ÇIKIŞ */}
+          <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 ml-auto">
+            {/* Slider Çubuğu (%1 - %100) */}
+            <div className={`flex items-center gap-2 text-xs p-1.5 px-2.5 rounded-xl border ${
+              isLightMode ? 'bg-slate-100 border-slate-200 text-slate-500' : 'bg-slate-950 border-slate-800 text-slate-400'
+            }`}>
+              <ZoomOut className={`w-3.5 h-3.5 ${isLightMode ? 'text-cyan-600' : 'text-cyan-400'}`} />
+              <input 
+                type="range" 
+                min="1" 
+                max="100" 
+                step="1" 
+                value={zoomLevel} 
+                onChange={(e) => {
+                  setZoomLevel(Number(e.target.value));
+                  setHoveredMatchInfo(null);
+                }} 
+                className={`w-24 sm:w-36 cursor-pointer ${isLightMode ? 'accent-cyan-600' : 'accent-cyan-400'}`} 
+                title="Ölçek Kaydırıcı (%1 - %100)"
+              />
+              <ZoomIn className={`w-3.5 h-3.5 ${isLightMode ? 'text-cyan-600' : 'text-cyan-400'}`} />
+              <span className={`font-mono text-[12px] w-9 text-right font-black ${isLightMode ? 'text-cyan-700' : 'text-cyan-400'}`}>
+                %{zoomLevel}
+              </span>
+            </div>
+
+            {/* Tüm Kortları Sığdır Butonu */}
+            <button
+              type="button"
+              onClick={handleFitAllCourts}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition shadow-sm active:scale-95 border ${
+                isLightMode 
+                  ? 'bg-cyan-600 hover:bg-cyan-500 text-white border-cyan-600' 
+                  : 'bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border-cyan-500/40'
+              }`}
+              title="Tüm kortları tam ekrana sığacak şekilde yeniden oranlar"
+            >
+              <Maximize2 className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Tüm Kortları Sığdır</span>
+              <span className="sm:hidden">Sığdır</span>
+            </button>
+
+            {/* Hızlı Ölçek Seçici Açılır Menü */}
+            <select
+              value={['100', '85', '70', '50', '35', '20'].includes(zoomLevel.toString()) ? zoomLevel.toString() : 'custom'}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === 'fit') {
+                  handleFitAllCourts();
+                } else if (val !== 'custom') {
+                  setZoomLevel(Number(val));
+                  setHoveredMatchInfo(null);
+                }
+              }}
+              className={`px-2.5 py-1.5 rounded-xl text-xs border font-bold focus:outline-none focus:border-cyan-400 ${
+                isLightMode ? 'bg-white border-slate-300 text-slate-800' : 'bg-slate-950 border-slate-800 text-slate-200'
+              }`}
+              title="Ölçek Seçici (Tüm Kortları Sığdır / Yüzdeler)"
+            >
+              <option value="fit">📐 Tüm Kortları Sığdır</option>
+              <option value="100">%100 Standart</option>
+              <option value="85">%85 Geniş</option>
+              <option value="70">%70 Kompakt</option>
+              <option value="50">%50 Çoklu Kort</option>
+              <option value="35">%35 Kuş Bakışı</option>
+              <option value="20">%20 Maksimum Sığdırma</option>
+              {!['100', '85', '70', '50', '35', '20'].includes(zoomLevel.toString()) && (
+                <option value="custom">%{zoomLevel} (Özel)</option>
+              )}
+            </select>
+
+            {/* Tema Butonu */}
+            <button 
+              onClick={toggleTheme} 
+              className={`p-1.5 rounded-xl border transition flex items-center justify-center ${
+                isLightMode ? 'bg-white hover:bg-slate-100 border-slate-300 text-amber-600 shadow-sm' : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-amber-300'
+              }`} 
+              title="Temayı Değiştir"
+            >
               {isLightMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            </button>
+
+            {/* TAM EKRANDAN ÇIKIŞ BUTONU */}
+            <button
+              type="button"
+              onClick={handleExitFullscreen}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-black transition shadow-md active:scale-95 border ${
+                isLightMode
+                  ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-300'
+                  : 'bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border-rose-500/40'
+              }`}
+              title="Tam ekrandan çık (ESC tuşuna basarak da çıkabilirsiniz)"
+            >
+              <Minimize2 className="w-3.5 h-3.5" />
+              <span>Tam Ekrandan Çık</span>
+              <kbd className="hidden sm:inline-block px-1.5 py-0.5 text-[9px] font-mono font-bold bg-black/20 border border-current/20 rounded">
+                ESC
+              </kbd>
             </button>
           </div>
         </div>
-
-        {activeSubTab === 'grid' && (
-          <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="relative">
-                <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Oyuncu veya hakem ara..." className={`pl-8 pr-3 py-1.5 border rounded-xl text-xs w-44 sm:w-56 focus:outline-none focus:border-cyan-400 ${isLightMode ? 'bg-white border-slate-300 text-slate-900 placeholder:text-slate-400' : 'bg-slate-950 border-slate-800 text-white placeholder:text-slate-500'}`} />
-                <Search className={`w-3.5 h-3.5 absolute left-2.5 top-2.5 pointer-events-none ${isLightMode ? 'text-slate-400' : 'text-slate-500'}`} />
-              </div>
-              <select value={selectedCourtFilter} onChange={(e) => setSelectedCourtFilter(e.target.value)} className={`px-3 py-1.5 border rounded-xl text-xs focus:outline-none focus:border-cyan-400 ${isLightMode ? 'bg-white border-slate-300 text-slate-900' : 'bg-slate-950 border-slate-800 text-white'}`}>
-                <option value="ALL">Tüm Kortlar ({distinctCourts.length})</option>
-                {distinctCourts.map((c) => (<option key={c} value={c}>{c}</option>))}
-              </select>
-              <select value={selectedStatusFilter} onChange={(e) => setSelectedStatusFilter(e.target.value)} className={`px-3 py-1.5 border rounded-xl text-xs focus:outline-none focus:border-cyan-400 ${isLightMode ? 'bg-white border-slate-300 text-slate-900' : 'bg-slate-950 border-slate-800 text-white'}`}>
-                <option value="ALL">Tüm Durumlar</option>
-                <option value="Oynaniyor">Devam Edenler (Canlı)</option>
-                <option value="Baslamadi">Başlamayanlar</option>
-                <option value="Bitti">Bitenler</option>
-                <option value="Retired">Retired (Çekildi)</option>
-                <option value="Walkover">Walkover (Hükmen)</option>
-              </select>
+      ) : (
+        /* NORMAL SEKME BAŞLIĞI */
+        <div className={`border rounded-3xl p-4 sm:p-5 shadow-xl space-y-4 transition-colors ${isLightMode ? 'bg-white border-slate-300' : 'bg-slate-900 border-slate-800'}`}>
+          <div className={`flex flex-wrap items-center justify-between gap-3 pb-3 border-b ${isLightMode ? 'border-slate-200' : 'border-slate-800'}`}>
+            <div className={`flex flex-wrap items-center gap-1.5 p-1 rounded-2xl border ${isLightMode ? 'bg-slate-100 border-slate-300' : 'bg-slate-950 border-slate-800'}`}>
+              <button type="button" onClick={() => setActiveSubTab('grid')} className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition ${activeSubTab === 'grid' ? (isLightMode ? 'bg-cyan-600 text-white shadow-md font-black' : 'bg-cyan-400 text-slate-950 shadow-md font-black') : (isLightMode ? 'text-slate-500 hover:text-slate-900' : 'text-slate-400 hover:text-slate-200')}`}>
+                <Tv className="w-3.5 h-3.5" /><span>Canlı Kortlar Akışı</span>
+              </button>
+              <button type="button" onClick={() => setActiveSubTab('stats')} className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition ${activeSubTab === 'stats' ? (isLightMode ? 'bg-cyan-600 text-white shadow-md font-black' : 'bg-cyan-400 text-slate-950 shadow-md font-black') : (isLightMode ? 'text-slate-500 hover:text-slate-900' : 'text-slate-400 hover:text-slate-200')}`}>
+                <Award className="w-3.5 h-3.5" /><span>Turnuva İstatistikleri</span>
+              </button>
+              <button type="button" onClick={() => setActiveSubTab('formats')} className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition ${activeSubTab === 'formats' ? (isLightMode ? 'bg-cyan-600 text-white shadow-md font-black' : 'bg-cyan-400 text-slate-950 shadow-md font-black') : (isLightMode ? 'text-slate-500 hover:text-slate-900' : 'text-slate-400 hover:text-slate-200')}`}>
+                <Layers className="w-3.5 h-3.5" /><span>Format Hafızası</span>
+              </button>
+              <button type="button" onClick={() => setActiveSubTab('tv')} className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition ${activeSubTab === 'tv' ? (isLightMode ? 'bg-indigo-600 text-white shadow-md font-black' : 'bg-indigo-400 text-slate-950 shadow-md font-black') : (isLightMode ? 'text-slate-500 hover:text-slate-900' : 'text-slate-400 hover:text-slate-200')}`}>
+                <MonitorPlay className="w-3.5 h-3.5" /><span>TV / Yayın Ayarları</span>
+              </button>
+              <button type="button" onClick={() => setActiveSubTab('referees')} className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition ${activeSubTab === 'referees' ? (isLightMode ? 'bg-cyan-600 text-white shadow-md font-black' : 'bg-cyan-400 text-slate-950 shadow-md font-black') : (isLightMode ? 'text-slate-500 hover:text-slate-900' : 'text-slate-400 hover:text-slate-200')}`}>
+                <Users className="w-3.5 h-3.5" /><span>Hakem Yönetimi</span>
+              </button>
+              <button type="button" onClick={() => setActiveSubTab('manage')} className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition ${activeSubTab === 'manage' ? (isLightMode ? 'bg-cyan-600 text-white shadow-md font-black' : 'bg-cyan-400 text-slate-950 shadow-md font-black') : (isLightMode ? 'text-slate-500 hover:text-slate-900' : 'text-slate-400 hover:text-slate-200')}`}>
+                <FileSpreadsheet className="w-3.5 h-3.5" /><span>Program & JSON</span>
+              </button>
+              <button type="button" onClick={() => { setLocalInfo(tournamentInfo); setActiveSubTab('info'); }} className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition ${activeSubTab === 'info' ? (isLightMode ? 'bg-cyan-600 text-white shadow-md font-black' : 'bg-cyan-400 text-slate-950 shadow-md font-black') : (isLightMode ? 'text-slate-500 hover:text-slate-900' : 'text-slate-400 hover:text-slate-200')}`}>
+                <span>🏆</span><span>Turnuva Bilgileri</span>
+              </button>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
-              {/* Büyüteç Göstergesi */}
-              {zoomLevel <= 85 && (
-                <span className={`hidden xl:inline-flex items-center gap-1 text-[11px] font-bold px-2 py-1 rounded-xl border ${
-                  isLightMode 
-                    ? 'bg-cyan-50 text-cyan-700 border-cyan-200' 
-                    : 'bg-cyan-500/10 text-cyan-300 border-cyan-500/20'
-                }`}>
-                  🔍 Büyüteç Aktif
-                </span>
-              )}
-
-              {/* Slider Çubuğu (1 - 100) */}
-              <div className={`flex items-center gap-2 text-xs p-1.5 px-2.5 rounded-xl border ${isLightMode ? 'bg-slate-100 border-slate-200 text-slate-500' : 'bg-slate-950 border-slate-800 text-slate-400'}`}>
-                <ZoomOut className={`w-3.5 h-3.5 ${isLightMode ? 'text-cyan-600' : 'text-cyan-400'}`} />
-                <input 
-                  type="range" 
-                  min="1" 
-                  max="100" 
-                  step="1" 
-                  value={zoomLevel} 
-                  onChange={(e) => {
-                    setZoomLevel(Number(e.target.value));
-                    setHoveredMatchInfo(null);
-                  }} 
-                  className={`w-20 sm:w-28 cursor-pointer ${isLightMode ? 'accent-cyan-600' : 'accent-cyan-400'}`} 
-                  title="Ölçek Kaydırıcı (%1 - %100)"
-                />
-                <ZoomIn className={`w-3.5 h-3.5 ${isLightMode ? 'text-cyan-600' : 'text-cyan-400'}`} />
-                <span className={`font-mono text-[12px] w-9 text-right font-black ${isLightMode ? 'text-cyan-700' : 'text-cyan-400'}`}>%{zoomLevel}</span>
-              </div>
-
-              {/* Tüm Kortları Sığdır Butonu */}
-              <button
-                type="button"
-                onClick={handleFitAllCourts}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition shadow-sm active:scale-95 border ${
-                  isLightMode 
-                    ? 'bg-cyan-600 hover:bg-cyan-500 text-white border-cyan-600' 
-                    : 'bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border-cyan-500/40'
-                }`}
-                title="Mevcut ekrana tüm kort sütunlarını sığacak şekilde otomatik oranlar"
-              >
-                <Maximize2 className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Tüm Kortları Sığdır</span>
-                <span className="sm:hidden">Sığdır</span>
+            <div className="flex items-center gap-2 text-xs font-mono ml-auto">
+              <span className={`px-2.5 py-1 rounded-lg border font-bold ${isLightMode ? 'bg-emerald-100 border-emerald-300 text-emerald-800' : 'bg-emerald-950/60 border-emerald-500/30 text-emerald-300'}`}>{liveMatches} Canlı</span>
+              <span className={`px-2.5 py-1 rounded-lg border font-bold ${isLightMode ? 'bg-cyan-100 border-cyan-300 text-cyan-800' : 'bg-cyan-950/60 border-cyan-500/30 text-cyan-300'}`}>%{completionRate} Bitti</span>
+              <button onClick={toggleTheme} className={`ml-2 p-1.5 rounded-xl border transition flex items-center justify-center ${isLightMode ? 'bg-white hover:bg-slate-100 border-slate-300 text-amber-600 shadow-sm' : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-amber-300'}`} title="Temayı Değiştir">
+                {isLightMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
               </button>
-
-              {/* Hızlı Ölçek Seçici Açılır Menü */}
-              <select
-                value={['100', '85', '70', '50', '35', '20'].includes(zoomLevel.toString()) ? zoomLevel.toString() : 'custom'}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  if (val === 'fit') {
-                    handleFitAllCourts();
-                  } else if (val !== 'custom') {
-                    setZoomLevel(Number(val));
-                    setHoveredMatchInfo(null);
-                  }
-                }}
-                className={`px-2.5 py-1.5 rounded-xl text-xs border font-bold focus:outline-none focus:border-cyan-400 ${
-                  isLightMode ? 'bg-white border-slate-300 text-slate-800' : 'bg-slate-950 border-slate-800 text-slate-200'
-                }`}
-                title="Ölçek Seçici (Tüm Kortları Sığdır / Yüzdeler)"
-              >
-                <option value="fit">📐 Tüm Kortları Sığdır</option>
-                <option value="100">%100 Standart</option>
-                <option value="85">%85 Geniş</option>
-                <option value="70">%70 Kompakt</option>
-                <option value="50">%50 Çoklu Kort</option>
-                <option value="35">%35 Kuş Bakışı</option>
-                <option value="20">%20 Maksimum Sığdırma</option>
-                {!['100', '85', '70', '50', '35', '20'].includes(zoomLevel.toString()) && (
-                  <option value="custom">%{zoomLevel} (Özel)</option>
-                )}
-              </select>
             </div>
           </div>
-        )}
-      </div>
+
+          {activeSubTab === 'grid' && (
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="relative">
+                  <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Oyuncu veya hakem ara..." className={`pl-8 pr-3 py-1.5 border rounded-xl text-xs w-44 sm:w-56 focus:outline-none focus:border-cyan-400 ${isLightMode ? 'bg-white border-slate-300 text-slate-900 placeholder:text-slate-400' : 'bg-slate-950 border-slate-800 text-white placeholder:text-slate-500'}`} />
+                  <Search className={`w-3.5 h-3.5 absolute left-2.5 top-2.5 pointer-events-none ${isLightMode ? 'text-slate-400' : 'text-slate-500'}`} />
+                </div>
+                <select value={selectedCourtFilter} onChange={(e) => setSelectedCourtFilter(e.target.value)} className={`px-3 py-1.5 border rounded-xl text-xs focus:outline-none focus:border-cyan-400 ${isLightMode ? 'bg-white border-slate-300 text-slate-900' : 'bg-slate-950 border-slate-800 text-white'}`}>
+                  <option value="ALL">Tüm Kortlar ({distinctCourts.length})</option>
+                  {distinctCourts.map((c) => (<option key={c} value={c}>{c}</option>))}
+                </select>
+                <select value={selectedStatusFilter} onChange={(e) => setSelectedStatusFilter(e.target.value)} className={`px-3 py-1.5 border rounded-xl text-xs focus:outline-none focus:border-cyan-400 ${isLightMode ? 'bg-white border-slate-300 text-slate-900' : 'bg-slate-950 border-slate-800 text-white'}`}>
+                  <option value="ALL">Tüm Durumlar</option>
+                  <option value="Oynaniyor">Devam Edenler (Canlı)</option>
+                  <option value="Baslamadi">Başlamayanlar</option>
+                  <option value="Bitti">Bitenler</option>
+                  <option value="Retired">Retired (Çekildi)</option>
+                  <option value="Walkover">Walkover (Hükmen)</option>
+                </select>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Büyüteç Göstergesi */}
+                {zoomLevel <= 85 && (
+                  <span className={`hidden xl:inline-flex items-center gap-1 text-[11px] font-bold px-2 py-1 rounded-xl border ${
+                    isLightMode 
+                      ? 'bg-cyan-50 text-cyan-700 border-cyan-200' 
+                      : 'bg-cyan-500/10 text-cyan-300 border-cyan-500/20'
+                  }`}>
+                    🔍 Büyüteç Aktif
+                  </span>
+                )}
+
+                {/* Slider Çubuğu (1 - 100) */}
+                <div className={`flex items-center gap-2 text-xs p-1.5 px-2.5 rounded-xl border ${isLightMode ? 'bg-slate-100 border-slate-200 text-slate-500' : 'bg-slate-950 border-slate-800 text-slate-400'}`}>
+                  <ZoomOut className={`w-3.5 h-3.5 ${isLightMode ? 'text-cyan-600' : 'text-cyan-400'}`} />
+                  <input 
+                    type="range" 
+                    min="1" 
+                    max="100" 
+                    step="1" 
+                    value={zoomLevel} 
+                    onChange={(e) => {
+                      setZoomLevel(Number(e.target.value));
+                      setHoveredMatchInfo(null);
+                    }} 
+                    className={`w-20 sm:w-28 cursor-pointer ${isLightMode ? 'accent-cyan-600' : 'accent-cyan-400'}`} 
+                    title="Ölçek Kaydırıcı (%1 - %100)"
+                  />
+                  <ZoomIn className={`w-3.5 h-3.5 ${isLightMode ? 'text-cyan-600' : 'text-cyan-400'}`} />
+                  <span className={`font-mono text-[12px] w-9 text-right font-black ${isLightMode ? 'text-cyan-700' : 'text-cyan-400'}`}>%{zoomLevel}</span>
+                </div>
+
+                {/* Tüm Kortları Sığdır Butonu */}
+                <button
+                  type="button"
+                  onClick={handleFitAllCourts}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition shadow-sm active:scale-95 border ${
+                    isLightMode 
+                      ? 'bg-cyan-600 hover:bg-cyan-500 text-white border-cyan-600' 
+                      : 'bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border-cyan-500/40'
+                  }`}
+                  title="Mevcut ekrana tüm kort sütunlarını sığacak şekilde tam ekran oranlar"
+                >
+                  <Maximize2 className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Tüm Kortları Sığdır</span>
+                  <span className="sm:hidden">Sığdır</span>
+                </button>
+
+                {/* Hızlı Ölçek Seçici Açılır Menü */}
+                <select
+                  value={['100', '85', '70', '50', '35', '20'].includes(zoomLevel.toString()) ? zoomLevel.toString() : 'custom'}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === 'fit') {
+                      handleFitAllCourts();
+                    } else if (val !== 'custom') {
+                      setZoomLevel(Number(val));
+                      setHoveredMatchInfo(null);
+                    }
+                  }}
+                  className={`px-2.5 py-1.5 rounded-xl text-xs border font-bold focus:outline-none focus:border-cyan-400 ${
+                    isLightMode ? 'bg-white border-slate-300 text-slate-800' : 'bg-slate-950 border-slate-800 text-slate-200'
+                  }`}
+                  title="Ölçek Seçici (Tüm Kortları Sığdır / Yüzdeler)"
+                >
+                  <option value="fit">📐 Tüm Kortları Sığdır</option>
+                  <option value="100">%100 Standart</option>
+                  <option value="85">%85 Geniş</option>
+                  <option value="70">%70 Kompakt</option>
+                  <option value="50">%50 Çoklu Kort</option>
+                  <option value="35">%35 Kuş Bakışı</option>
+                  <option value="20">%20 Maksimum Sığdırma</option>
+                  {!['100', '85', '70', '50', '35', '20'].includes(zoomLevel.toString()) && (
+                    <option value="custom">%{zoomLevel} (Özel)</option>
+                  )}
+                </select>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {activeSubTab === 'grid' && (
         <div 
@@ -472,7 +670,9 @@ export const DeskSupervisorView: React.FC = () => {
           onMouseUp={handleMouseUpOrLeave}
           onMouseLeave={handleMouseUpOrLeave}
           onScroll={() => setHoveredMatchInfo(null)}
-          className="w-full overflow-auto max-h-[75vh] pb-6 md:cursor-grab md:active:cursor-grabbing md:[&::-webkit-scrollbar]:hidden md:[-ms-overflow-style:none] md:[scrollbar-width:none]"
+          className={`w-full overflow-auto md:cursor-grab md:active:cursor-grabbing md:[&::-webkit-scrollbar]:hidden md:[-ms-overflow-style:none] md:[scrollbar-width:none] ${
+            isGridFullscreen ? 'flex-1 h-full pb-3 pt-1' : 'max-h-[75vh] pb-6'
+          }`}
         >
           <div style={{ transform: `scale(${zoomLevel / 100})`, transformOrigin: 'top left', minWidth: 'min-content' }} className="transition-transform duration-150 p-2">
             
