@@ -110,8 +110,10 @@ export const DeskSupervisorView: React.FC = () => {
       const p1 = m['Oyuncu 1'].toLowerCase();
       const p2 = m['Oyuncu 2'].toLowerCase();
       const kat = m.Kategori.toLowerCase();
-      const ref = m.Son_Hakem.toLowerCase();
-      return p1.includes(q) || p2.includes(q) || kat.includes(q) || ref.includes(q);
+      const ref = (m.Son_Hakem || '').toLowerCase();
+      const gorevli = (m.Gorevli_Hakem || '').toLowerCase();
+      const sonIslem = (m.Son_Islem_Hakem || '').toLowerCase();
+      return p1.includes(q) || p2.includes(q) || kat.includes(q) || ref.includes(q) || gorevli.includes(q) || sonIslem.includes(q);
     }
     return true;
   });
@@ -634,15 +636,25 @@ export const DeskSupervisorView: React.FC = () => {
                                   </div>
                                 </div>
                               </div>
-                              <div className={`pt-2 mt-2 border-t flex items-center justify-between text-[10px] ${isLightMode ? 'border-slate-200' : 'border-slate-800/50'}`}>
-                                {isLive && state ? (
-                                  <div className={`font-mono font-bold px-2 py-0.5 rounded border ${isLightMode ? 'text-emerald-700 bg-emerald-50 border-emerald-300' : 'text-emerald-400 bg-emerald-950/40 border-emerald-500/30'}`}>{state.isTiebreak ? `TB: ${state.tiebreak_p1}-${state.tiebreak_p2}` : `${state.gamePoint_p1} - ${state.gamePoint_p2}`}</div>
-                                ) : (
-                                  <div className={`font-mono font-bold ${isLightMode ? 'text-slate-500' : 'text-slate-400'}`}>Skor: <span className={isFinished ? (isLightMode ? 'text-slate-900 font-black text-[11px]' : 'text-white font-black text-[11px]') : (isLightMode ? 'text-slate-600' : 'text-slate-200')}>{m.Skor}</span></div>
-                                )}
-                                <div className={`truncate max-w-[110px] text-right ${isLightMode ? 'text-slate-500' : 'text-slate-400'}`}>
-                                  {m.Son_Hakem && m.Son_Hakem !== '-' ? <span className={`font-medium ${isLightMode ? 'text-amber-600' : 'text-amber-300/90'}`}>👤 {m.Son_Hakem.split(' ')[0]}</span> : <span className={isLightMode ? 'text-slate-400' : 'text-slate-600'}>Hakem Yok</span>}
+                              <div className={`pt-2 mt-2 border-t flex flex-col gap-1 text-[10px] ${isLightMode ? 'border-slate-200' : 'border-slate-800/50'}`}>
+                                <div className="flex items-center justify-between gap-1">
+                                  {isLive && state ? (
+                                    <div className={`font-mono font-bold px-2 py-0.5 rounded border ${isLightMode ? 'text-emerald-700 bg-emerald-50 border-emerald-300' : 'text-emerald-400 bg-emerald-950/40 border-emerald-500/30'}`}>{state.isTiebreak ? `TB: ${state.tiebreak_p1}-${state.tiebreak_p2}` : `${state.gamePoint_p1} - ${state.gamePoint_p2}`}</div>
+                                  ) : (
+                                    <div className={`font-mono font-bold ${isLightMode ? 'text-slate-500' : 'text-slate-400'}`}>Skor: <span className={isFinished ? (isLightMode ? 'text-slate-900 font-black text-[11px]' : 'text-white font-black text-[11px]') : (isLightMode ? 'text-slate-600' : 'text-slate-200')}>{m.Skor}</span></div>
+                                  )}
+                                  <div className={`truncate max-w-[120px] text-right ${isLightMode ? 'text-slate-600' : 'text-slate-300'}`} title={`Görevli Hakem: ${m.Gorevli_Hakem || m.Son_Hakem || 'Atanmadı'}`}>
+                                    <span className="font-semibold">{m.Gorevli_Hakem || m.Son_Hakem || 'Atanmadı'}</span>
+                                  </div>
                                 </div>
+                                {(m.Son_Islem_Hakem || (m.Son_Hakem && m.Son_Hakem !== '-' && m.Son_Hakem !== 'Atanmadı')) && (
+                                  <div className={`flex items-center justify-between text-[9px] px-1.5 py-0.5 rounded border font-mono ${
+                                    isLightMode ? 'bg-amber-50/90 text-amber-900 border-amber-300/80' : 'bg-amber-950/40 text-amber-300 border-amber-500/30'
+                                  }`}>
+                                    <span className="truncate">👤 Son İşlem: <b>{m.Son_Islem_Hakem || m.Son_Hakem}</b></span>
+                                    {m.Son_Islem_Zamani && <span className="shrink-0 opacity-80">({m.Son_Islem_Zamani})</span>}
+                                  </div>
+                                )}
                               </div>
                             </div>
                           );
@@ -1228,23 +1240,31 @@ export const DeskSupervisorView: React.FC = () => {
             </div>
 
             {/* Alt Bilgi: Canlı Puan / Skor ve Hakem */}
-            <div className={`pt-2 mt-2 border-t flex items-center justify-between text-[11px] ${isLightMode ? 'border-slate-200' : 'border-slate-800'}`}>
-              {isLive && state ? (
-                <div className={`font-mono font-bold px-2 py-0.5 rounded border ${isLightMode ? 'text-emerald-700 bg-emerald-50 border-emerald-300' : 'text-emerald-400 bg-emerald-950/40 border-emerald-500/30'}`}>
-                  {state.isTiebreak ? `TB: ${state.tiebreak_p1}-${state.tiebreak_p2}` : `${state.gamePoint_p1} - ${state.gamePoint_p2}`}
+            <div className={`pt-2 mt-2 border-t flex flex-col gap-1.5 text-[11px] ${isLightMode ? 'border-slate-200' : 'border-slate-800'}`}>
+              <div className="flex items-center justify-between gap-1">
+                {isLive && state ? (
+                  <div className={`font-mono font-bold px-2 py-0.5 rounded border ${isLightMode ? 'text-emerald-700 bg-emerald-50 border-emerald-300' : 'text-emerald-400 bg-emerald-950/40 border-emerald-500/30'}`}>
+                    {state.isTiebreak ? `TB: ${state.tiebreak_p1}-${state.tiebreak_p2}` : `${state.gamePoint_p1} - ${state.gamePoint_p2}`}
+                  </div>
+                ) : (
+                  <div className={`font-mono font-bold ${isLightMode ? 'text-slate-500' : 'text-slate-400'}`}>
+                    Skor: <span className={isFinished ? (isLightMode ? 'text-slate-900 font-black text-xs' : 'text-white font-black text-xs') : (isLightMode ? 'text-slate-700' : 'text-slate-200')}>{m.Skor || '-'}</span>
+                  </div>
+                )}
+                <div className={`truncate max-w-[140px] text-right ${isLightMode ? 'text-slate-600' : 'text-slate-300'}`}>
+                  <span className="text-[10px] text-slate-400 mr-1">Görevli:</span>
+                  <span className="font-bold">{m.Gorevli_Hakem || m.Son_Hakem || 'Atanmadı'}</span>
                 </div>
-              ) : (
-                <div className={`font-mono font-bold ${isLightMode ? 'text-slate-500' : 'text-slate-400'}`}>
-                  Skor: <span className={isFinished ? (isLightMode ? 'text-slate-900 font-black text-xs' : 'text-white font-black text-xs') : (isLightMode ? 'text-slate-700' : 'text-slate-200')}>{m.Skor || '-'}</span>
+              </div>
+
+              {(m.Son_Islem_Hakem || (m.Son_Hakem && m.Son_Hakem !== '-' && m.Son_Hakem !== 'Atanmadı')) && (
+                <div className={`flex items-center justify-between text-[10px] px-2 py-0.5 rounded-lg border font-mono ${
+                  isLightMode ? 'bg-amber-50 text-amber-900 border-amber-300' : 'bg-amber-950/40 text-amber-300 border-amber-500/30'
+                }`}>
+                  <span className="truncate">👤 Son İşlem: <b>{m.Son_Islem_Hakem || m.Son_Hakem}</b></span>
+                  {m.Son_Islem_Zamani && <span className="shrink-0 opacity-80">({m.Son_Islem_Zamani})</span>}
                 </div>
               )}
-              <div className={`truncate max-w-[140px] text-right ${isLightMode ? 'text-slate-500' : 'text-slate-400'}`}>
-                {m.Son_Hakem && m.Son_Hakem !== '-' ? (
-                  <span className={`font-medium ${isLightMode ? 'text-amber-600' : 'text-amber-300/90'}`}>👤 {m.Son_Hakem}</span>
-                ) : (
-                  <span className={isLightMode ? 'text-slate-400' : 'text-slate-600'}>Hakem Yok</span>
-                )}
-              </div>
             </div>
 
             <div className="mt-2 text-[10px] text-center text-slate-400 border-t border-slate-200/60 dark:border-slate-800/60 pt-1.5">

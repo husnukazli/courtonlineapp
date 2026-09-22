@@ -1056,6 +1056,31 @@ export const CourtCard: React.FC<CourtCardProps> = ({
           )}
         </div>
 
+        {/* Hakem Durum Bilgisi (Görevli Hakem & Son İşlem Yapan Hakem Rozeti) */}
+        <div className={`px-3 py-1.5 border-t text-[11px] flex items-center justify-between flex-wrap gap-2 ${
+          isLightMode ? 'bg-slate-100/70 border-slate-200 text-slate-600' : 'bg-slate-900/60 border-slate-800 text-slate-400'
+        }`}>
+          <div className="flex items-center gap-1.5 truncate">
+            <span className="font-semibold text-slate-500">Görevli:</span>
+            <span className={`font-bold ${isLightMode ? 'text-slate-800' : 'text-slate-200'}`}>
+              {match.Gorevli_Hakem || match.Son_Hakem || 'Atanmadı'}
+            </span>
+          </div>
+          {(match.Son_Islem_Hakem || (match.Son_Hakem && match.Son_Hakem !== 'Turnuva Masası' && match.Son_Hakem !== 'Atanmadı')) && (
+            <div className={`flex items-center gap-1 px-2 py-0.5 rounded-lg border text-[10px] font-bold ${
+              isLightMode 
+                ? 'bg-amber-50 text-amber-900 border-amber-300' 
+                : 'bg-amber-950/40 text-amber-300 border-amber-500/30'
+            }`}>
+              <span>👤 Son İşlem:</span>
+              <span className="font-extrabold">{match.Son_Islem_Hakem || match.Son_Hakem}</span>
+              {match.Son_Islem_Zamani && (
+                <span className="font-mono text-[9px] opacity-80 font-normal">({match.Son_Islem_Zamani})</span>
+              )}
+            </div>
+          )}
+        </div>
+
         <div className={`p-3 sm:p-4 border-t flex items-center gap-2 ${isLightMode ? 'bg-slate-50 border-slate-200' : 'bg-slate-950/70 border-slate-800'}`}>
           {isUpcoming ? (
             <div className="flex items-center gap-2 w-full">

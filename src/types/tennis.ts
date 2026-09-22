@@ -106,6 +106,9 @@ export interface MatchItem {
   totalDurationSeconds?: number;
   totalPausedSeconds?: number;
   Son_Hakem: string;
+  Gorevli_Hakem?: string;
+  Son_Islem_Hakem?: string;
+  Son_Islem_Zamani?: string;
   Kazanan: string;
   detailedState?: TennisMatchState;
   pointHistory?: PointHistoryItem[];

@@ -37,6 +37,9 @@ export const sanitizeMatchList = (rawList: any[]): MatchItem[] => {
       Kura_Kazanan: item?.Kura_Kazanan || 'Secilmedi', Kura_Tercih: item?.Kura_Tercih || 'Servis',
       Saha_Tarafi: item?.Saha_Tarafi || 'Sandalyenin Sağı', Baslangic_Saati: item?.Baslangic_Saati || 'Secilmedi',
       Bitis_Saati: item?.Bitis_Saati || 'Secilmedi', Son_Hakem: item?.Son_Hakem || 'Turnuva Masası',
+      Gorevli_Hakem: item?.Gorevli_Hakem || item?.Son_Hakem || 'Atanmadı',
+      Son_Islem_Hakem: item?.Son_Islem_Hakem || item?.Son_Hakem || 'Turnuva Masası',
+      Son_Islem_Zamani: item?.Son_Islem_Zamani || (item?.Baslangic_Saati && item.Baslangic_Saati !== 'Secilmedi' ? item.Baslangic_Saati : undefined),
       Kazanan: item?.Kazanan || 'Secilmedi', ...item, id: rawId,
     };
     return matchItem;
@@ -523,9 +526,18 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const logoutAuth = () => { setCurrentReferee(null); setAuthRole('none'); };
 
   const updateMatch = (updated: MatchItem) => {
+    const activeRef = currentReferee ? currentReferee.name : (updated.Son_Islem_Hakem || updated.Son_Hakem || 'Turnuva Masası');
+    const nowTimeStr = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+    const finalUpdated: MatchItem = {
+      ...updated,
+      Gorevli_Hakem: updated.Gorevli_Hakem && updated.Gorevli_Hakem !== 'Atanmadı' ? updated.Gorevli_Hakem : activeRef,
+      Son_Hakem: activeRef,
+      Son_Islem_Hakem: activeRef,
+      Son_Islem_Zamani: nowTimeStr,
+    };
     setMatches((prev) => {
-      const next = prev.map((m) => (m.id === updated.id ? updated : m));
-      broadcastAndSyncSingleMatch(updated, next);
+      const next = prev.map((m) => (m.id === finalUpdated.id ? finalUpdated : m));
+      broadcastAndSyncSingleMatch(finalUpdated, next);
       return next;
     });
   };
@@ -601,6 +613,9 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           finalLastPaused = Date.now();
         }
 
+        const activeRef = currentReferee ? currentReferee.name : (m.Son_Islem_Hakem || m.Son_Hakem || 'Turnuva Masası');
+        const nowTimeStr = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+
         const res: MatchItem = {
           ...m,
           Kort: data.yeniKort || m.Kort,
@@ -609,7 +624,11 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           Bitis_Saati: finalEndStr, lastPausedTimestamp: finalLastPaused,
           pausedAccumulatedMs: finalPausedAcc, totalPausedSeconds: finalTotalPaused,
           totalDurationSeconds: finalTotalDuration,
-          Skor_Formati: chosenFormat, isNoAd: chosenNoAd, Son_Hakem: currentReferee ? currentReferee.name : 'Turnuva Masası',
+          Skor_Formati: chosenFormat, isNoAd: chosenNoAd,
+          Gorevli_Hakem: m.Gorevli_Hakem && m.Gorevli_Hakem !== 'Atanmadı' ? m.Gorevli_Hakem : activeRef,
+          Son_Hakem: activeRef,
+          Son_Islem_Hakem: activeRef,
+          Son_Islem_Zamani: nowTimeStr,
           detailedState: detState,
         };
         updatedItem = res;
@@ -734,11 +753,18 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             }
         }
 
+        const activeRef = currentReferee ? currentReferee.name : (m.Son_Islem_Hakem || m.Son_Hakem || 'Turnuva Masası');
+        const nowTimeStr = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+
         const res: MatchItem = {
           ...m, Durum: newDurum, Kazanan: newKazanan, detailedState: dState,
           Bitis_Saati: bitis, totalDurationSeconds: totalDuration,
           startTimeTimestamp: startTs, pausedAccumulatedMs: pausedAcc,
           lastPausedTimestamp: lastPause, totalPausedSeconds: totalPaused,
+          Gorevli_Hakem: m.Gorevli_Hakem && m.Gorevli_Hakem !== 'Atanmadı' ? m.Gorevli_Hakem : activeRef,
+          Son_Hakem: activeRef,
+          Son_Islem_Hakem: activeRef,
+          Son_Islem_Zamani: nowTimeStr,
           Skor: buildScoreString(
              dState.set1_p1, dState.set1_p2, dState.set2_p1, dState.set2_p2, dState.set3_p1, dState.set3_p2,
              dState.set1_tb_p1, dState.set1_tb_p2, dState.set2_tb_p1, dState.set2_tb_p2, dState.set3_tb_p1, dState.set3_tb_p2
@@ -816,8 +842,15 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             }
         }
 
+        const activeRef = currentReferee ? currentReferee.name : (m.Son_Islem_Hakem || m.Son_Hakem || 'Turnuva Masası');
+        const nowTimeStr = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+
         const res: MatchItem = {
           ...m, Durum: newDurum, Kazanan: newKazanan, detailedState: dState,
+          Gorevli_Hakem: m.Gorevli_Hakem && m.Gorevli_Hakem !== 'Atanmadı' ? m.Gorevli_Hakem : activeRef,
+          Son_Hakem: activeRef,
+          Son_Islem_Hakem: activeRef,
+          Son_Islem_Zamani: nowTimeStr,
           Skor: buildScoreString(
              dState.set1_p1, dState.set1_p2, dState.set2_p1, dState.set2_p2, dState.set3_p1, dState.set3_p2,
              dState.set1_tb_p1, dState.set1_tb_p2, dState.set2_tb_p1, dState.set2_tb_p2, dState.set3_tb_p1, dState.set3_tb_p2
@@ -923,12 +956,19 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           totalDuration = undefined;
         }
 
+        const activeRef = currentReferee ? currentReferee.name : (m.Son_Islem_Hakem || m.Son_Hakem || 'Turnuva Masası');
+        const nowTimeStr = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+
         const res: MatchItem = {
           ...m, Durum: data.status, Kazanan: data.winner || m.Kazanan,
           Baslangic_Saati: data.startTime || m.Baslangic_Saati, Bitis_Saati: bitis,
           startTimeTimestamp: startTs, pausedAccumulatedMs: pausedAcc,
           lastPausedTimestamp: lastPause, totalPausedSeconds: totalPaused,
           totalDurationSeconds: totalDuration,
+          Gorevli_Hakem: m.Gorevli_Hakem && m.Gorevli_Hakem !== 'Atanmadı' ? m.Gorevli_Hakem : activeRef,
+          Son_Hakem: activeRef,
+          Son_Islem_Hakem: activeRef,
+          Son_Islem_Zamani: nowTimeStr,
           detailedState: dState,
           Skor: buildScoreString(
              dState.set1_p1, dState.set1_p2, dState.set2_p1, dState.set2_p2, dState.set3_p1, dState.set3_p2,
@@ -1009,13 +1049,19 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           totalDuration = undefined;
         }
 
+        const activeRef = currentReferee ? currentReferee.name : (m.Son_Islem_Hakem || m.Son_Hakem || 'Turnuva Masası');
+        const nowTimeStr = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+
         const res: MatchItem = {
           ...m, Skor: newScoreStr, Durum: newDurum, Kazanan: newKazanan,
           Baslangic_Saati: startFormatted, startTimeTimestamp: startTs,
           Bitis_Saati: bitis, totalDurationSeconds: totalDuration,
           pausedAccumulatedMs: pausedAcc, lastPausedTimestamp: lastPause,
           totalPausedSeconds: totalPaused,
-          Son_Hakem: currentReferee ? currentReferee.name : m.Son_Hakem,
+          Gorevli_Hakem: m.Gorevli_Hakem && m.Gorevli_Hakem !== 'Atanmadı' ? m.Gorevli_Hakem : activeRef,
+          Son_Hakem: activeRef,
+          Son_Islem_Hakem: activeRef,
+          Son_Islem_Zamani: nowTimeStr,
           detailedState: nextState, pointHistory: updatedHistory,
         };
         updatedItem = res;
@@ -1043,10 +1089,17 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         const restoredState = lastItem.snapshot;
         restoredState.lastActionMessage = `Geri alındı: ${lastItem.description}`;
 
+        const activeRef = currentReferee ? currentReferee.name : (m.Son_Islem_Hakem || m.Son_Hakem || 'Turnuva Masası');
+        const nowTimeStr = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+
         const res: MatchItem = {
           ...m, Skor: formatScoreString(restoredState),
           Durum: m.Durum === 'Bitti' ? 'Oynaniyor' : m.Durum,
           Kazanan: m.Durum === 'Bitti' ? 'Secilmedi' : m.Kazanan,
+          Gorevli_Hakem: m.Gorevli_Hakem && m.Gorevli_Hakem !== 'Atanmadı' ? m.Gorevli_Hakem : activeRef,
+          Son_Hakem: activeRef,
+          Son_Islem_Hakem: activeRef,
+          Son_Islem_Zamani: nowTimeStr,
           detailedState: restoredState, pointHistory: history,
         };
         updatedItem = res;
@@ -1073,9 +1126,15 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           id: 'ch-' + Date.now(), timestamp: new Date().toLocaleTimeString('tr-TR'),
           player, playerName: player === 1 ? m['Oyuncu 1'] : m['Oyuncu 2'], outcome, reason, notes: notes || '',
         };
+        const activeRef = currentReferee ? currentReferee.name : (m.Son_Islem_Hakem || m.Son_Hakem || 'Turnuva Masası');
+        const nowTimeStr = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+
         return {
           ...m, detailedState: stateCopy, challenges: [...(m.challenges || []), record],
-          Son_Hakem: currentReferee ? currentReferee.name : m.Son_Hakem,
+          Gorevli_Hakem: m.Gorevli_Hakem && m.Gorevli_Hakem !== 'Atanmadı' ? m.Gorevli_Hakem : activeRef,
+          Son_Hakem: activeRef,
+          Son_Islem_Hakem: activeRef,
+          Son_Islem_Zamani: nowTimeStr,
         };
       });
       broadcastAndSyncMatches(next);
@@ -1136,6 +1195,9 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           totalDuration = undefined;
         }
 
+        const activeRef = currentReferee ? currentReferee.name : (m.Son_Islem_Hakem || m.Son_Hakem || 'Turnuva Masası');
+        const nowTimeStr = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+
         const res: MatchItem = {
           ...m, Durum: status, Kazanan: winner || m.Kazanan,
           startTimeTimestamp: startTs,
@@ -1144,7 +1206,11 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           pausedAccumulatedMs: pausedAcc,
           lastPausedTimestamp: lastPause,
           totalPausedSeconds: totalPaused,
-          Son_Hakem: currentReferee ? currentReferee.name : m.Son_Hakem, detailedState: dState,
+          Gorevli_Hakem: m.Gorevli_Hakem && m.Gorevli_Hakem !== 'Atanmadı' ? m.Gorevli_Hakem : activeRef,
+          Son_Hakem: activeRef,
+          Son_Islem_Hakem: activeRef,
+          Son_Islem_Zamani: nowTimeStr,
+          detailedState: dState,
         };
         updatedItem = res;
         return res;
@@ -1166,6 +1232,8 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
              if (m.lastPausedTimestamp) {
                pausedAcc += Math.max(0, Date.now() - m.lastPausedTimestamp);
              }
+             const activeRef = currentReferee ? currentReferee.name : (m.Son_Islem_Hakem || m.Son_Hakem || 'Turnuva Masası');
+             const nowTimeStr = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
              return {
                ...m,
                Durum: 'Oynaniyor' as MatchStatus,
@@ -1175,6 +1243,10 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                pausedAccumulatedMs: pausedAcc,
                lastPausedTimestamp: undefined,
                totalPausedSeconds: Math.floor(pausedAcc / 1000),
+               Gorevli_Hakem: m.Gorevli_Hakem && m.Gorevli_Hakem !== 'Atanmadı' ? m.Gorevli_Hakem : activeRef,
+               Son_Hakem: activeRef,
+               Son_Islem_Hakem: activeRef,
+               Son_Islem_Zamani: nowTimeStr,
                detailedState: dState,
              };
           }
@@ -1216,6 +1288,8 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         if (m.id !== matchId) return m;
         const normStatus = (durum || '').trim().replace(/ı/g, 'i').replace(/İ/g, 'i').toLowerCase();
         const isEnding = ['bitti', 'retired', 'walkover'].includes(normStatus);
+        const activeRef = currentReferee ? currentReferee.name : (m.Son_Islem_Hakem || m.Son_Hakem || 'Turnuva Masası');
+        const nowTimeStr = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
         if (isEnding) {
           const finalized = finalizeMatchDurationAndPause(m, durum, bitisSaati);
           return {
@@ -1229,9 +1303,23 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             lastPausedTimestamp: finalized.lastPause,
             totalPausedSeconds: finalized.totalPausedSeconds,
             totalDurationSeconds: finalized.totalDurationSeconds,
+            Gorevli_Hakem: m.Gorevli_Hakem && m.Gorevli_Hakem !== 'Atanmadı' ? m.Gorevli_Hakem : activeRef,
+            Son_Hakem: activeRef,
+            Son_Islem_Hakem: activeRef,
+            Son_Islem_Zamani: nowTimeStr,
           };
         }
-        return { ...m, Skor: skorStr, Durum: durum, Kazanan: kazanan, Bitis_Saati: bitisSaati };
+        return {
+          ...m,
+          Skor: skorStr,
+          Durum: durum,
+          Kazanan: kazanan,
+          Bitis_Saati: bitisSaati,
+          Gorevli_Hakem: m.Gorevli_Hakem && m.Gorevli_Hakem !== 'Atanmadı' ? m.Gorevli_Hakem : activeRef,
+          Son_Hakem: activeRef,
+          Son_Islem_Hakem: activeRef,
+          Son_Islem_Zamani: nowTimeStr,
+        };
       });
       broadcastAndSyncMatches(next);
       return next;
@@ -1311,6 +1399,9 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
         const finalized = finalizeMatchDurationAndPause(m, status, endStr);
 
+        const activeRef = currentReferee ? currentReferee.name : (m.Son_Islem_Hakem || m.Son_Hakem || 'Turnuva Masası');
+        const nowTimeStr = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+
         const res: MatchItem = {
           ...m, Durum: status, Kazanan: winner, Skor: customScore || m.Skor,
           Baslangic_Saati: startStr,
@@ -1320,7 +1411,11 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           lastPausedTimestamp: finalized.lastPause,
           totalPausedSeconds: finalized.totalPausedSeconds,
           totalDurationSeconds: finalized.totalDurationSeconds,
-          Son_Hakem: currentReferee ? currentReferee.name : m.Son_Hakem, detailedState: dState,
+          Gorevli_Hakem: m.Gorevli_Hakem && m.Gorevli_Hakem !== 'Atanmadı' ? m.Gorevli_Hakem : activeRef,
+          Son_Hakem: activeRef,
+          Son_Islem_Hakem: activeRef,
+          Son_Islem_Zamani: nowTimeStr,
+          detailedState: dState,
         };
         updatedItem = res;
         return res;
