@@ -43,6 +43,61 @@ export const sanitizeMatchList = (rawList: any[]): MatchItem[] => {
   });
 };
 
+export function finalizeMatchDurationAndPause(m: MatchItem, targetStatus: MatchStatus, endStr?: string, customNowMs: number = Date.now()) {
+  const normStatus = (targetStatus || '').trim().replace(/ı/g, 'i').replace(/İ/g, 'i').toLowerCase();
+  const isEnding = ['bitti', 'retired', 'walkover'].includes(normStatus);
+  const nowMs = customNowMs;
+  let pausedAcc = m.pausedAccumulatedMs || 0;
+  let lastPause = m.lastPausedTimestamp;
+
+  if (lastPause) {
+    pausedAcc += Math.max(0, nowMs - lastPause);
+    lastPause = undefined;
+  }
+
+  let startTs = m.startTimeTimestamp;
+  if (!startTs || startTs <= 0) {
+    if (m.Baslangic_Saati && m.Baslangic_Saati !== 'Secilmedi' && m.Baslangic_Saati.includes(':')) {
+      const parts = m.Baslangic_Saati.split(':');
+      const h = parseInt(parts[0], 10);
+      const min = parseInt(parts[1], 10);
+      if (!isNaN(h) && !isNaN(min)) {
+        const d = new Date(nowMs);
+        d.setHours(h, min, 0, 0);
+        let candidate = d.getTime();
+        if (candidate > nowMs) candidate -= 86400000;
+        startTs = candidate;
+      }
+    }
+    if (!startTs) startTs = nowMs;
+  }
+
+  const bitis = endStr || (isEnding ? (m.Bitis_Saati && m.Bitis_Saati !== 'Secilmedi' ? m.Bitis_Saati : new Date(nowMs).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })) : m.Bitis_Saati);
+  const totalPausedSeconds = Math.floor(pausedAcc / 1000);
+
+  let totalDurationSeconds: number | undefined = undefined;
+  if (isEnding) {
+    const calc = calculateMatchDurationSeconds({
+      ...m,
+      Durum: targetStatus,
+      Bitis_Saati: bitis,
+      startTimeTimestamp: startTs,
+      pausedAccumulatedMs: pausedAcc,
+      lastPausedTimestamp: undefined,
+    }, nowMs);
+    totalDurationSeconds = calc > 0 ? calc : Math.floor(Math.max(0, nowMs - startTs - pausedAcc) / 1000);
+  }
+
+  return {
+    startTs,
+    bitis,
+    pausedAcc,
+    lastPause,
+    totalPausedSeconds,
+    totalDurationSeconds,
+  };
+}
+
 interface TennisDataContextType {
   matches: MatchItem[]; referees: RefereeUser[]; currentReferee: RefereeUser | null;
   categoryFormats: Record<string, string>; categoryNoAdSettings: Record<string, boolean>;
@@ -519,13 +574,41 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           }
         }
 
+        const targetStatus = data.durum;
+        const normStatus = (targetStatus || '').trim().replace(/ı/g, 'i').replace(/İ/g, 'i').toLowerCase();
+        const isEnding = ['bitti', 'retired', 'walkover'].includes(normStatus);
+
+        let finalStartTs = setupStartTs;
+        let finalEndStr = data.bitisSaati;
+        let finalLastPaused = undefined;
+        let finalPausedAcc = m.pausedAccumulatedMs || 0;
+        let finalTotalPaused = m.totalPausedSeconds || 0;
+        let finalTotalDuration = undefined;
+
+        if (isEnding) {
+          const finalized = finalizeMatchDurationAndPause(
+            { ...m, Baslangic_Saati: data.baslangicSaati, startTimeTimestamp: setupStartTs },
+            targetStatus,
+            data.bitisSaati
+          );
+          finalStartTs = finalized.startTs;
+          finalEndStr = finalized.bitis;
+          finalPausedAcc = finalized.pausedAcc;
+          finalLastPaused = finalized.lastPause;
+          finalTotalPaused = finalized.totalPausedSeconds;
+          finalTotalDuration = finalized.totalDurationSeconds;
+        } else if (normStatus === 'duraklatildi') {
+          finalLastPaused = Date.now();
+        }
+
         const res: MatchItem = {
           ...m,
           Kort: data.yeniKort || m.Kort,
           Durum: data.durum, Kura_Kazanan: data.kuraKazanan, Kura_Tercih: data.kuraTercih,
-          Saha_Tarafi: data.sahaTarafi, Baslangic_Saati: data.baslangicSaati, startTimeTimestamp: setupStartTs,
-          Bitis_Saati: data.bitisSaati, lastPausedTimestamp: setupEndTs,
-          totalDurationSeconds: (data.durum === 'Bitti' || data.durum === 'Retired' || data.durum === 'Walkover') && setupEndTs ? Math.floor(Math.max(0, setupEndTs - setupStartTs) / 1000) : undefined,
+          Saha_Tarafi: data.sahaTarafi, Baslangic_Saati: data.baslangicSaati, startTimeTimestamp: finalStartTs,
+          Bitis_Saati: finalEndStr, lastPausedTimestamp: finalLastPaused,
+          pausedAccumulatedMs: finalPausedAcc, totalPausedSeconds: finalTotalPaused,
+          totalDurationSeconds: finalTotalDuration,
           Skor_Formati: chosenFormat, isNoAd: chosenNoAd, Son_Hakem: currentReferee ? currentReferee.name : 'Turnuva Masası',
           detailedState: detState,
         };
@@ -625,20 +708,37 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
         let newDurum: import("../types/tennis").MatchStatus = m.Durum;
         let newKazanan = m.Kazanan;
+        let bitis = m.Bitis_Saati;
+        let totalDuration = m.totalDurationSeconds;
+        let startTs = m.startTimeTimestamp;
+        let pausedAcc = m.pausedAccumulatedMs || 0;
+        let lastPause = m.lastPausedTimestamp;
+        let totalPaused = m.totalPausedSeconds;
         
         if (dState.matchEnded) {
             newDurum = 'Bitti';
             if (dState.matchWinner === 1) newKazanan = m['Oyuncu 1'];
             else if (dState.matchWinner === 2) newKazanan = m['Oyuncu 2'];
+            const finalized = finalizeMatchDurationAndPause(m, 'Bitti');
+            startTs = finalized.startTs;
+            bitis = finalized.bitis;
+            pausedAcc = finalized.pausedAcc;
+            lastPause = finalized.lastPause;
+            totalPaused = finalized.totalPausedSeconds;
+            totalDuration = finalized.totalDurationSeconds;
         } else {
             if (m.Durum === 'Bitti' || m.Durum === 'Walkover' || m.Durum === 'Retired') {
                 newDurum = 'Oynaniyor'; 
                 newKazanan = 'Secilmedi';
+                totalDuration = undefined;
             }
         }
 
         const res: MatchItem = {
           ...m, Durum: newDurum, Kazanan: newKazanan, detailedState: dState,
+          Bitis_Saati: bitis, totalDurationSeconds: totalDuration,
+          startTimeTimestamp: startTs, pausedAccumulatedMs: pausedAcc,
+          lastPausedTimestamp: lastPause, totalPausedSeconds: totalPaused,
           Skor: buildScoreString(
              dState.set1_p1, dState.set1_p2, dState.set2_p1, dState.set2_p2, dState.set3_p1, dState.set3_p2,
              dState.set1_tb_p1, dState.set1_tb_p2, dState.set2_tb_p1, dState.set2_tb_p2, dState.set3_tb_p1, dState.set3_tb_p2
@@ -787,9 +887,48 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         dState.gamePoint_p1 = '0'; dState.gamePoint_p2 = '0';
         dState.tiebreak_p1 = 0; dState.tiebreak_p2 = 0;
 
+        const targetStatus = data.status;
+        const normStatus = (targetStatus || '').trim().replace(/ı/g, 'i').replace(/İ/g, 'i').toLowerCase();
+        const prevNorm = (m.Durum || '').trim().replace(/ı/g, 'i').replace(/İ/g, 'i').toLowerCase();
+        const isEnding = ['bitti', 'retired', 'walkover'].includes(normStatus);
+
+        let startTs = m.startTimeTimestamp;
+        let pausedAcc = m.pausedAccumulatedMs || 0;
+        let lastPause = m.lastPausedTimestamp;
+        let totalPaused = m.totalPausedSeconds;
+        let totalDuration = m.totalDurationSeconds;
+        let bitis = data.endTime || m.Bitis_Saati;
+
+        if (isEnding) {
+          const finalized = finalizeMatchDurationAndPause(m, targetStatus, bitis);
+          startTs = finalized.startTs;
+          bitis = finalized.bitis;
+          pausedAcc = finalized.pausedAcc;
+          lastPause = finalized.lastPause;
+          totalPaused = finalized.totalPausedSeconds;
+          totalDuration = finalized.totalDurationSeconds;
+        } else if (normStatus === 'duraklatildi') {
+          if (prevNorm !== 'duraklatildi') {
+            lastPause = Date.now();
+          }
+          if (!startTs) startTs = Date.now();
+          totalDuration = undefined;
+        } else if (normStatus === 'oynaniyor') {
+          if (prevNorm === 'duraklatildi' && lastPause) {
+            pausedAcc += Math.max(0, Date.now() - lastPause);
+            lastPause = undefined;
+            totalPaused = Math.floor(pausedAcc / 1000);
+          }
+          if (!startTs) startTs = Date.now();
+          totalDuration = undefined;
+        }
+
         const res: MatchItem = {
           ...m, Durum: data.status, Kazanan: data.winner || m.Kazanan,
-          Baslangic_Saati: data.startTime || m.Baslangic_Saati, Bitis_Saati: data.endTime || m.Bitis_Saati,
+          Baslangic_Saati: data.startTime || m.Baslangic_Saati, Bitis_Saati: bitis,
+          startTimeTimestamp: startTs, pausedAccumulatedMs: pausedAcc,
+          lastPausedTimestamp: lastPause, totalPausedSeconds: totalPaused,
+          totalDurationSeconds: totalDuration,
           detailedState: dState,
           Skor: buildScoreString(
              dState.set1_p1, dState.set1_p2, dState.set2_p1, dState.set2_p2, dState.set3_p1, dState.set3_p2,
@@ -845,12 +984,21 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         let startTs = m.startTimeTimestamp;
         let startFormatted = m.Baslangic_Saati;
         let totalDuration = m.totalDurationSeconds;
+        let pausedAcc = m.pausedAccumulatedMs || 0;
+        let lastPause = m.lastPausedTimestamp;
+        let totalPaused = m.totalPausedSeconds;
 
         if (matchEnded) {
           newDurum = 'Bitti';
           newKazanan = matchWinner === 1 ? p1Name : p2Name;
-          bitis = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
-          totalDuration = calculateMatchDurationSeconds({ ...m, Bitis_Saati: bitis });
+          const finalized = finalizeMatchDurationAndPause(m, 'Bitti');
+          startTs = finalized.startTs;
+          startFormatted = startFormatted && startFormatted !== 'Secilmedi' ? startFormatted : new Date(startTs).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+          bitis = finalized.bitis;
+          pausedAcc = finalized.pausedAcc;
+          lastPause = finalized.lastPause;
+          totalPaused = finalized.totalPausedSeconds;
+          totalDuration = finalized.totalDurationSeconds;
         } else if (newDurum === 'Baslamadi') {
           newDurum = 'Oynaniyor';
           if (!startTs) startTs = Date.now();
@@ -865,6 +1013,8 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           ...m, Skor: newScoreStr, Durum: newDurum, Kazanan: newKazanan,
           Baslangic_Saati: startFormatted, startTimeTimestamp: startTs,
           Bitis_Saati: bitis, totalDurationSeconds: totalDuration,
+          pausedAccumulatedMs: pausedAcc, lastPausedTimestamp: lastPause,
+          totalPausedSeconds: totalPaused,
           Son_Hakem: currentReferee ? currentReferee.name : m.Son_Hakem,
           detailedState: nextState, pointHistory: updatedHistory,
         };
@@ -939,7 +1089,9 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       let updatedItem: MatchItem | null = null;
       const next = prev.map((m) => {
         if (m.id !== matchId) return m;
-        const isEnding = ['Bitti', 'Retired', 'Walkover'].includes(status);
+        const normStatus = (status || '').trim().replace(/ı/g, 'i').replace(/İ/g, 'i').toLowerCase();
+        const prevNorm = (m.Durum || '').trim().replace(/ı/g, 'i').replace(/İ/g, 'i').toLowerCase();
+        const isEnding = ['bitti', 'retired', 'walkover'].includes(normStatus);
         const format = m.Skor_Formati || '3 Normal Set';
         const dState = JSON.parse(JSON.stringify(m.detailedState || createInitialMatchState(1, format, !!m.isNoAd)));
         
@@ -953,10 +1105,45 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             dState.matchWinner = matchSafetyCheck.winner;
         }
 
+        let startTs = m.startTimeTimestamp;
+        let pausedAcc = m.pausedAccumulatedMs || 0;
+        let lastPause = m.lastPausedTimestamp;
+        let totalPaused = m.totalPausedSeconds;
+        let totalDuration = m.totalDurationSeconds;
+        let bitis = endTime || m.Bitis_Saati;
+
+        if (isEnding) {
+          const finalized = finalizeMatchDurationAndPause(m, status, bitis);
+          startTs = finalized.startTs;
+          bitis = finalized.bitis;
+          pausedAcc = finalized.pausedAcc;
+          lastPause = finalized.lastPause;
+          totalPaused = finalized.totalPausedSeconds;
+          totalDuration = finalized.totalDurationSeconds;
+        } else if (normStatus === 'duraklatildi') {
+          if (prevNorm !== 'duraklatildi') {
+            lastPause = Date.now();
+          }
+          if (!startTs) startTs = Date.now();
+          totalDuration = undefined;
+        } else if (normStatus === 'oynaniyor') {
+          if (prevNorm === 'duraklatildi' && lastPause) {
+            pausedAcc += Math.max(0, Date.now() - lastPause);
+            lastPause = undefined;
+            totalPaused = Math.floor(pausedAcc / 1000);
+          }
+          if (!startTs) startTs = Date.now();
+          totalDuration = undefined;
+        }
+
         const res: MatchItem = {
           ...m, Durum: status, Kazanan: winner || m.Kazanan,
-          Bitis_Saati: endTime || (isEnding ? new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }) : m.Bitis_Saati),
-          totalDurationSeconds: isEnding ? calculateMatchDurationSeconds({ ...m, Durum: status, Bitis_Saati: endTime || new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }) }) : m.totalDurationSeconds,
+          startTimeTimestamp: startTs,
+          Bitis_Saati: bitis,
+          totalDurationSeconds: totalDuration,
+          pausedAccumulatedMs: pausedAcc,
+          lastPausedTimestamp: lastPause,
+          totalPausedSeconds: totalPaused,
           Son_Hakem: currentReferee ? currentReferee.name : m.Son_Hakem, detailedState: dState,
         };
         updatedItem = res;
@@ -975,7 +1162,21 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
              const format = m.Skor_Formati || '3 Normal Set';
              const dState = JSON.parse(JSON.stringify(m.detailedState || createInitialMatchState(1, format, !!m.isNoAd)));
              dState.matchEnded = false; dState.matchWinner = undefined;
-             return { ...m, Durum: 'Oynaniyor' as MatchStatus, Kazanan: 'Secilmedi', Bitis_Saati: 'Secilmedi', detailedState: dState };
+             let pausedAcc = m.pausedAccumulatedMs || 0;
+             if (m.lastPausedTimestamp) {
+               pausedAcc += Math.max(0, Date.now() - m.lastPausedTimestamp);
+             }
+             return {
+               ...m,
+               Durum: 'Oynaniyor' as MatchStatus,
+               Kazanan: 'Secilmedi',
+               Bitis_Saati: 'Secilmedi',
+               totalDurationSeconds: undefined,
+               pausedAccumulatedMs: pausedAcc,
+               lastPausedTimestamp: undefined,
+               totalPausedSeconds: Math.floor(pausedAcc / 1000),
+               detailedState: dState,
+             };
           }
           return m;
       });
@@ -987,7 +1188,22 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const resetMatchScore = (matchId: string) => {
     if (!matchId) return;
     setMatches((prev) => {
-      const next = prev.map((m) => (m.id === matchId ? { ...m, Skor: '-', Durum: 'Baslamadi' as MatchStatus, Kazanan: 'Secilmedi', detailedState: createInitialMatchState(1, m.Skor_Formati || '3 Normal Set', !!m.isNoAd), pointHistory: [], challenges: [] } : m));
+      const next = prev.map((m) => (m.id === matchId ? {
+        ...m,
+        Skor: '-',
+        Durum: 'Baslamadi' as MatchStatus,
+        Kazanan: 'Secilmedi',
+        Baslangic_Saati: 'Secilmedi',
+        Bitis_Saati: 'Secilmedi',
+        startTimeTimestamp: undefined,
+        pausedAccumulatedMs: 0,
+        lastPausedTimestamp: undefined,
+        totalPausedSeconds: 0,
+        totalDurationSeconds: 0,
+        detailedState: createInitialMatchState(1, m.Skor_Formati || '3 Normal Set', !!m.isNoAd),
+        pointHistory: [],
+        challenges: []
+      } : m));
       broadcastAndSyncMatches(next);
       return next;
     });
@@ -996,7 +1212,27 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const manualUpdateScoreString = (matchId: string, skorStr: string, durum: MatchItem['Durum'], kazanan: string, bitisSaati: string) => {
     if (!matchId) return;
     setMatches((prev) => {
-      const next = prev.map((m) => (m.id === matchId ? { ...m, Skor: skorStr, Durum: durum, Kazanan: kazanan, Bitis_Saati: bitisSaati } : m));
+      const next = prev.map((m) => {
+        if (m.id !== matchId) return m;
+        const normStatus = (durum || '').trim().replace(/ı/g, 'i').replace(/İ/g, 'i').toLowerCase();
+        const isEnding = ['bitti', 'retired', 'walkover'].includes(normStatus);
+        if (isEnding) {
+          const finalized = finalizeMatchDurationAndPause(m, durum, bitisSaati);
+          return {
+            ...m,
+            Skor: skorStr,
+            Durum: durum,
+            Kazanan: kazanan,
+            Bitis_Saati: finalized.bitis,
+            startTimeTimestamp: finalized.startTs,
+            pausedAccumulatedMs: finalized.pausedAcc,
+            lastPausedTimestamp: finalized.lastPause,
+            totalPausedSeconds: finalized.totalPausedSeconds,
+            totalDurationSeconds: finalized.totalDurationSeconds,
+          };
+        }
+        return { ...m, Skor: skorStr, Durum: durum, Kazanan: kazanan, Bitis_Saati: bitisSaati };
+      });
       broadcastAndSyncMatches(next);
       return next;
     });
@@ -1073,10 +1309,17 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         if (winner === m['Oyuncu 1']) dState.matchWinner = 1;
         else if (winner === m['Oyuncu 2']) dState.matchWinner = 2;
 
+        const finalized = finalizeMatchDurationAndPause(m, status, endStr);
+
         const res: MatchItem = {
           ...m, Durum: status, Kazanan: winner, Skor: customScore || m.Skor,
-          Baslangic_Saati: startStr, Bitis_Saati: endStr,
-          totalDurationSeconds: calculateMatchDurationSeconds({ ...m, Durum: status, Bitis_Saati: endStr }),
+          Baslangic_Saati: startStr,
+          Bitis_Saati: finalized.bitis,
+          startTimeTimestamp: finalized.startTs,
+          pausedAccumulatedMs: finalized.pausedAcc,
+          lastPausedTimestamp: finalized.lastPause,
+          totalPausedSeconds: finalized.totalPausedSeconds,
+          totalDurationSeconds: finalized.totalDurationSeconds,
           Son_Hakem: currentReferee ? currentReferee.name : m.Son_Hakem, detailedState: dState,
         };
         updatedItem = res;

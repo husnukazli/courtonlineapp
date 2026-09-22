@@ -2,6 +2,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import { MatchItem } from '../../types/tennis';
 import { useTennisData } from '../../context/TennisDataContext';
 import { parseScoreString, validateSingleSet } from '../../utils/tennisScoringEngine';
+import { MatchLiveTimer } from '../Common/MatchLiveTimer';
 import {
   Trophy, Clock, CheckCircle2, PlayCircle, Plus, Minus, RotateCcw,
   Swords, PauseCircle, Timer, X, ArrowRightLeft, Settings, LogOut, Info, PenLine, Sun, Moon, Lock, Unlock
@@ -938,10 +939,13 @@ export const CourtCard: React.FC<CourtCardProps> = ({
             </div>
             
             {(isLive || isPaused || isFinished) && (
-               <div className={`flex flex-col justify-center border-l pl-2 sm:pl-3 ${isLightMode ? 'border-slate-300' : 'border-slate-700/80'}`}>
-                 <span className={`text-[9px] sm:text-[10px] font-bold uppercase leading-none mb-0.5 ${isLightMode ? 'text-slate-600' : 'text-slate-500'}`}>Fiili Başlama</span>
-                 <strong className={`text-xs sm:text-sm leading-none font-black ${isLightMode ? 'text-slate-900' : 'text-slate-300'}`}>{match.Baslangic_Saati && match.Baslangic_Saati !== 'Secilmedi' ? match.Baslangic_Saati : '--:--'}</strong>
-               </div>
+              <div className="flex items-center gap-2">
+                <div className={`flex flex-col justify-center border-l pl-2 sm:pl-3 ${isLightMode ? 'border-slate-300' : 'border-slate-700/80'}`}>
+                  <span className={`text-[9px] sm:text-[10px] font-bold uppercase leading-none mb-0.5 ${isLightMode ? 'text-slate-600' : 'text-slate-500'}`}>Fiili Başlama</span>
+                  <strong className={`text-xs sm:text-sm leading-none font-black ${isLightMode ? 'text-slate-900' : 'text-slate-300'}`}>{match.Baslangic_Saati && match.Baslangic_Saati !== 'Secilmedi' ? match.Baslangic_Saati : '--:--'}</strong>
+                </div>
+                <MatchLiveTimer match={match} size="sm" />
+              </div>
             )}
           </div>
           <div className={`font-sans text-[11px] sm:text-xs font-black truncate pl-2 max-w-[120px] sm:max-w-[150px] text-right leading-tight ${isLightMode ? 'text-slate-700' : 'text-slate-400'}`}>
@@ -1103,8 +1107,12 @@ export const CourtCard: React.FC<CourtCardProps> = ({
               </span>
               <div className="flex flex-col">
                 <span className={`font-black text-sm sm:text-base leading-none mb-1 ${isLightMode ? 'text-black' : 'text-white'}`}>Kule Hakemi</span>
-                <span className={`text-[9px] sm:text-[10px] font-black tracking-widest uppercase flex items-center gap-1 ${isLightMode ? 'text-green-700' : 'text-emerald-400'}`}><span className={`w-1.5 h-1.5 rounded-full ${isLightMode ? 'bg-green-600' : 'bg-emerald-400'}`}></span>Canlı</span>
+                <span className={`text-[9px] sm:text-[10px] font-black tracking-widest uppercase flex items-center gap-1 ${isPaused ? (isLightMode ? 'text-amber-800' : 'text-amber-400') : (isLightMode ? 'text-green-700' : 'text-emerald-400')}`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${isPaused ? 'bg-amber-500 animate-pulse' : (isLightMode ? 'bg-green-600' : 'bg-emerald-400')}`}></span>
+                  {isPaused ? 'Askıda' : 'Canlı'}
+                </span>
               </div>
+              <MatchLiveTimer match={match} size="sm" />
             </div>
             
             <div className="flex items-center gap-2">
@@ -1415,8 +1423,8 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                       <button type="button" onClick={handleUndo} disabled={isPaused} className={`flex-1 flex items-center justify-center gap-1.5 py-4 sm:py-5 border text-[13px] sm:text-lg font-black rounded-xl transition active:scale-95 disabled:opacity-50 ${isLightMode ? 'bg-slate-100 border-slate-400 text-slate-800 shadow-md hover:bg-slate-200' : 'bg-slate-800 hover:bg-slate-700 text-white border-slate-600 shadow-md'}`}>
                         <RotateCcw className="w-5 h-5 sm:w-6 sm:h-6" /> Geri Al
                       </button>
-                      <button type="button" onClick={toggleSuspend} className={`flex-1 flex items-center justify-center gap-1.5 py-4 sm:py-5 text-[13px] sm:text-lg font-black rounded-xl transition active:scale-95 border shadow-md ${isPaused ? (isLightMode ? 'bg-emerald-600 text-white border-emerald-800' : 'bg-emerald-600 text-white border-emerald-700') : (isLightMode ? 'bg-amber-100 border-amber-400 text-amber-900 hover:bg-amber-200' : 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 border-amber-500/50')}`}>
-                        {isPaused ? <><PlayCircle className="w-5 h-5 sm:w-6 sm:h-6" /> Devam Et</> : <><PauseCircle className="w-5 h-5 sm:w-6 sm:h-6" /> Maçı Askıya Al</>}
+                      <button type="button" onClick={toggleSuspend} className={`flex-1 flex items-center justify-center gap-1.5 py-4 sm:py-5 text-[13px] sm:text-lg font-black rounded-xl transition active:scale-95 border shadow-md ${isPaused ? (isLightMode ? 'bg-emerald-600 text-white border-emerald-800 shadow-emerald-600/30' : 'bg-emerald-600 text-white border-emerald-700 shadow-emerald-600/30') : (isLightMode ? 'bg-amber-100 border-amber-400 text-amber-900 hover:bg-amber-200' : 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 border-amber-500/50')}`}>
+                        {isPaused ? <><PlayCircle className="w-5 h-5 sm:w-6 sm:h-6" /> Mola Bitti, Devam Et</> : <><PauseCircle className="w-5 h-5 sm:w-6 sm:h-6" /> Maçı Askıya Al (Mola)</>}
                       </button>
                     </div>
                   </div>

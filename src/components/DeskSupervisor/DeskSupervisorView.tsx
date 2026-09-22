@@ -139,8 +139,8 @@ export const DeskSupervisorView: React.FC = () => {
     // Sığması için gereken ölçek (yüzde):
     const calculatedZoom = Math.round((availableWidth / totalContentWidth) * 100);
     
-    // 15 ile 120 arasında sınırla
-    const finalZoom = Math.max(15, Math.min(120, calculatedZoom));
+    // 1 ile 100 arasında sınırla
+    const finalZoom = Math.max(1, Math.min(100, calculatedZoom));
     setZoomLevel(finalZoom);
     setHoveredMatchInfo(null);
   };
@@ -393,13 +393,13 @@ export const DeskSupervisorView: React.FC = () => {
                 </span>
               )}
 
-              {/* Slider Çubuğu */}
+              {/* Slider Çubuğu (1 - 100) */}
               <div className={`flex items-center gap-2 text-xs p-1.5 px-2.5 rounded-xl border ${isLightMode ? 'bg-slate-100 border-slate-200 text-slate-500' : 'bg-slate-950 border-slate-800 text-slate-400'}`}>
                 <ZoomOut className={`w-3.5 h-3.5 ${isLightMode ? 'text-cyan-600' : 'text-cyan-400'}`} />
                 <input 
                   type="range" 
-                  min="15" 
-                  max="150" 
+                  min="1" 
+                  max="100" 
                   step="1" 
                   value={zoomLevel} 
                   onChange={(e) => {
@@ -407,7 +407,7 @@ export const DeskSupervisorView: React.FC = () => {
                     setHoveredMatchInfo(null);
                   }} 
                   className={`w-20 sm:w-28 cursor-pointer ${isLightMode ? 'accent-cyan-600' : 'accent-cyan-400'}`} 
-                  title="Ölçek Kaydırıcı (%15 - %150)"
+                  title="Ölçek Kaydırıcı (%1 - %100)"
                 />
                 <ZoomIn className={`w-3.5 h-3.5 ${isLightMode ? 'text-cyan-600' : 'text-cyan-400'}`} />
                 <span className={`font-mono text-[12px] w-9 text-right font-black ${isLightMode ? 'text-cyan-700' : 'text-cyan-400'}`}>%{zoomLevel}</span>
@@ -431,7 +431,7 @@ export const DeskSupervisorView: React.FC = () => {
 
               {/* Hızlı Ölçek Seçici Açılır Menü */}
               <select
-                value={['100', '80', '60', '45', '30'].includes(zoomLevel.toString()) ? zoomLevel.toString() : 'custom'}
+                value={['100', '85', '70', '50', '35', '20'].includes(zoomLevel.toString()) ? zoomLevel.toString() : 'custom'}
                 onChange={(e) => {
                   const val = e.target.value;
                   if (val === 'fit') {
@@ -444,15 +444,16 @@ export const DeskSupervisorView: React.FC = () => {
                 className={`px-2.5 py-1.5 rounded-xl text-xs border font-bold focus:outline-none focus:border-cyan-400 ${
                   isLightMode ? 'bg-white border-slate-300 text-slate-800' : 'bg-slate-950 border-slate-800 text-slate-200'
                 }`}
-                title="Ölçek Seçici"
+                title="Ölçek Seçici (Tüm Kortları Sığdır / Yüzdeler)"
               >
-                <option value="fit">📐 Tümünü Sığdır</option>
+                <option value="fit">📐 Tüm Kortları Sığdır</option>
                 <option value="100">%100 Standart</option>
-                <option value="80">%80 Geniş</option>
-                <option value="60">%60 Kompakt</option>
-                <option value="45">%45 Çoklu Kort</option>
-                <option value="30">%30 Kuş Bakışı</option>
-                {!['100', '80', '60', '45', '30'].includes(zoomLevel.toString()) && (
+                <option value="85">%85 Geniş</option>
+                <option value="70">%70 Kompakt</option>
+                <option value="50">%50 Çoklu Kort</option>
+                <option value="35">%35 Kuş Bakışı</option>
+                <option value="20">%20 Maksimum Sığdırma</option>
+                {!['100', '85', '70', '50', '35', '20'].includes(zoomLevel.toString()) && (
                   <option value="custom">%{zoomLevel} (Özel)</option>
                 )}
               </select>
@@ -582,7 +583,7 @@ export const DeskSupervisorView: React.FC = () => {
                                 setSelectedMatchForModal(m); 
                               }} 
                               onMouseEnter={(e) => {
-                                if (zoomLevel <= 85 && !isDragging.current) {
+                                if (zoomLevel <= 90 && !isDragging.current) {
                                   setHoveredMatchInfo({
                                     match: m,
                                     rect: e.currentTarget.getBoundingClientRect()
@@ -596,7 +597,7 @@ export const DeskSupervisorView: React.FC = () => {
                               <div className={`flex items-center justify-between text-[10px] font-bold mb-2 gap-1 pb-2 border-b ${isLightMode ? 'border-slate-200' : 'border-slate-800/50'}`}>
                                 <span className={`${timeClass} font-mono flex items-center gap-1.5`}><Clock className={`${isUpcoming ? 'w-4 h-4' : 'w-3.5 h-3.5'}`} />{m.Saat}</span>
                                 <div className="flex items-center gap-1.5">
-                                  {isLive && <MatchLiveTimer match={m} size="sm" />}
+                                  {(isLive || isPaused || isFinished) && <MatchLiveTimer match={m} size="sm" />}
                                   <span className={`px-2 py-0.5 rounded-md border uppercase text-[9px] font-black tracking-widest ${statusBadgeClass}`}>{statusText}</span>
                                 </div>
                               </div>
@@ -1055,7 +1056,7 @@ export const DeskSupervisorView: React.FC = () => {
       )}
 
       {/* KORTLAR KÜÇÜKKEN ÜZERİNE GELİNDİĞİNDE AÇILAN BÜYÜTÜLMÜŞ ÖNİZLEME KARTI */}
-      {hoveredMatchInfo && zoomLevel <= 85 && (() => {
+      {hoveredMatchInfo && zoomLevel <= 90 && (() => {
         const { match: initialMatch, rect } = hoveredMatchInfo;
         const m = matches.find((x) => x.id === initialMatch.id) || initialMatch;
         const cardWidth = 340;
@@ -1175,7 +1176,7 @@ export const DeskSupervisorView: React.FC = () => {
                 </span>
               </div>
               <div className="flex items-center gap-1.5">
-                {isLive && <MatchLiveTimer match={m} size="sm" />}
+                {(isLive || isPaused || isFinished) && <MatchLiveTimer match={m} size="sm" />}
                 <span className={`px-2 py-0.5 rounded-md border uppercase text-[10px] font-black tracking-widest ${statusBadgeClass}`}>
                   {statusText}
                 </span>

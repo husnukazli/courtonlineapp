@@ -104,6 +104,7 @@ export interface MatchItem {
   pausedAccumulatedMs?: number;
   lastPausedTimestamp?: number;
   totalDurationSeconds?: number;
+  totalPausedSeconds?: number;
   Son_Hakem: string;
   Kazanan: string;
   detailedState?: TennisMatchState;
