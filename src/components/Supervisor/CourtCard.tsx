@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { MatchItem } from '../../types/tennis';
 import { useTennisData } from '../../context/TennisDataContext';
 import { parseScoreString, validateSingleSet } from '../../utils/tennisScoringEngine';
@@ -38,7 +38,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
   onEditScore,
   onOpenSetup,
 }) => {
-  const { updateGameScore, setMatchStatus, awardPointToMatch, undoLastPoint, tournamentInfo } = useTennisData();
+  const { updateGameScore, setMatchStatus, awardPointToMatch, undoLastPoint, tournamentInfo, saveMatchSetup } = useTennisData();
   const lastScoreClickRef = useRef<number>(0);
 
   const [selectedSet, setSelectedSet] = useState<1 | 2 | 3>(() => {
@@ -210,28 +210,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
   const prevSetRef = useRef<number>(selectedSet);
   const [thirdSetWarning, setThirdSetWarning] = useState<{show: boolean, text: string}>({show: false, text: ''});
 
-  const [setupsBySet, setSetupsBySet] = useState<Record<number, ChairSetup>>({});
-  const chairSetup = setupsBySet[selectedSet] || null;
-  const isSetupValid = !!chairSetup;
-  const showSetupOverlay = isEditingSetup || !isSetupValid;
-
-  const globalTbType = (tournamentInfo?.tbType as 'standard' | 'coman') || 'standard';
-
-  const [setupForm, setSetupForm] = useState<{
-    firstServingTeam: 1 | 2 | null; 
-    leftTeam: 1 | 2 | null; 
-    tbType: 'standard' | 'coman'; 
-    t1ServerIdx: 0 | 1; 
-    t2ServerIdx: 0 | 1;
-    t1RecIdx: 0 | 1;
-    t2RecIdx: 0 | 1;
-  }>({ 
-    firstServingTeam: null, leftTeam: null, tbType: globalTbType, t1ServerIdx: 0, t2ServerIdx: 0, t1RecIdx: 0, t2RecIdx: 0 
-  });
-
-  const [firstFault, setFirstFault] = useState<boolean>(false);
-  const [activeTimer, setActiveTimer] = useState<{ label: string; seconds: number } | null>(null);
-
   const parsed = parseScoreString(match.Skor);
   const state = match.detailedState;
   
@@ -251,6 +229,90 @@ export const CourtCard: React.FC<CourtCardProps> = ({
   const isDoubles = match['Oyuncu 1'].includes('/') || match['Oyuncu 2'].includes('/');
   const t1Players = isDoubles ? match['Oyuncu 1'].split('/').map(p => p.trim()) : [match['Oyuncu 1']];
   const t2Players = isDoubles ? match['Oyuncu 2'].split('/').map(p => p.trim()) : [match['Oyuncu 2']];
+
+  const globalTbType = (tournamentInfo?.tbType as 'standard' | 'coman') || 'standard';
+
+  // Kura ve Maç Kurulumundan ilk servis ve sol takım hesabı
+  const initialTossServer: 1 | 2 = useMemo(() => {
+    if (match.ilkServisOyuncusu === 1 || match.ilkServisOyuncusu === 2) {
+      return match.ilkServisOyuncusu;
+    }
+    if (match.Kura_Kazanan && match.Kura_Kazanan !== 'Secilmedi' && match.Kura_Tercih) {
+      const isWinnerP1 = match.Kura_Kazanan === match['Oyuncu 1'];
+      if (match.Kura_Tercih === 'Servis') return isWinnerP1 ? 1 : 2;
+      if (match.Kura_Tercih === 'Karşılama') return isWinnerP1 ? 2 : 1;
+      if (match.Kura_Tercih === 'Saha Seçimi') return isWinnerP1 ? 2 : 1;
+    }
+    if (state?.firstServerOfMatch) return state.firstServerOfMatch;
+    if (state?.currentServer) return state.currentServer;
+    return 1;
+  }, [match.ilkServisOyuncusu, match.Kura_Kazanan, match.Kura_Tercih, match['Oyuncu 1'], state?.firstServerOfMatch, state?.currentServer]);
+
+  const initialTossLeft: 1 | 2 = useMemo(() => {
+    if (match.ilkSolTakim === 1 || match.ilkSolTakim === 2) {
+      return match.ilkSolTakim;
+    }
+    if (match.Saha_Tarafi && match.Saha_Tarafi !== 'Secilmedi') {
+      const isWinnerP2 = match.Kura_Kazanan === match['Oyuncu 2'];
+      const isSol = match.Saha_Tarafi.toLowerCase().includes('sol');
+      if (isWinnerP2) return isSol ? 2 : 1;
+      return isSol ? 1 : 2;
+    }
+    return 1;
+  }, [match.ilkSolTakim, match.Saha_Tarafi, match.Kura_Kazanan, match['Oyuncu 2']]);
+
+  const [setupsBySet, setSetupsBySet] = useState<Record<number, ChairSetup>>(() => {
+    if (match.chairSetups && Object.keys(match.chairSetups).length > 0) {
+      return match.chairSetups;
+    }
+    return {};
+  });
+
+  // Gelen veriler güncellendiğinde setupsBySet'i senkronize et
+  useEffect(() => {
+    if (match.chairSetups && Object.keys(match.chairSetups).length > 0) {
+      setSetupsBySet(prev => ({
+        ...match.chairSetups,
+        ...prev
+      }));
+    }
+  }, [match.chairSetups]);
+
+  const chairSetup: ChairSetup | null = useMemo(() => {
+    if (setupsBySet[selectedSet]) return setupsBySet[selectedSet];
+    if (match.chairSetups && match.chairSetups[selectedSet]) return match.chairSetups[selectedSet];
+    if (selectedSet === 1) {
+      return {
+        setupSetNum: 1,
+        firstServingTeam: initialTossServer,
+        leftTeam: initialTossLeft,
+        tbType: (match.tbKurali as any) || globalTbType,
+        t1ServerIdx: match.ilkT1ServisOyuncusu ?? 0,
+        t2ServerIdx: match.ilkT2ServisOyuncusu ?? 0,
+        t1DeuceReceiverIdx: match.ilkT1KarsilayanOyuncusu ?? 0,
+        t2DeuceReceiverIdx: match.ilkT2KarsilayanOyuncusu ?? 0
+      };
+    }
+    return null;
+  }, [setupsBySet, match.chairSetups, selectedSet, initialTossServer, initialTossLeft, match.tbKurali, globalTbType, match.ilkT1ServisOyuncusu, match.ilkT2ServisOyuncusu, match.ilkT1KarsilayanOyuncusu, match.ilkT2KarsilayanOyuncusu]);
+
+  const isSetupValid = !!chairSetup;
+  const showSetupOverlay = isEditingSetup || (!isSetupValid && selectedSet > 1);
+
+  const [setupForm, setSetupForm] = useState<{
+    firstServingTeam: 1 | 2 | null; 
+    leftTeam: 1 | 2 | null; 
+    tbType: 'standard' | 'coman'; 
+    t1ServerIdx: 0 | 1; 
+    t2ServerIdx: 0 | 1;
+    t1RecIdx: 0 | 1;
+    t2RecIdx: 0 | 1;
+  }>({ 
+    firstServingTeam: null, leftTeam: null, tbType: globalTbType, t1ServerIdx: 0, t2ServerIdx: 0, t1RecIdx: 0, t2RecIdx: 0 
+  });
+
+  const [firstFault, setFirstFault] = useState<boolean>(false);
+  const [activeTimer, setActiveTimer] = useState<{ label: string; seconds: number } | null>(null);
 
   const val1 = validateSingleSet(s1_p1, s1_p2, 1, format);
   const val2 = validateSingleSet(s2_p1, s2_p2, 2, format);
@@ -401,35 +463,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
 
   const currentSetGames = selectedSet === 1 ? s1_p1 + s1_p2 : selectedSet === 2 ? s2_p1 + s2_p2 : s3_p1 + s3_p2;
 
-  // Kura ve Maç Kurulumundan ilk servis ve sol takım hesabı
-  const initialTossServer: 1 | 2 = (() => {
-    if (match.ilkServisOyuncusu === 1 || match.ilkServisOyuncusu === 2) {
-      return match.ilkServisOyuncusu;
-    }
-    if (match.Kura_Kazanan && match.Kura_Kazanan !== 'Secilmedi' && match.Kura_Tercih) {
-      const isWinnerP1 = match.Kura_Kazanan === match['Oyuncu 1'];
-      if (match.Kura_Tercih === 'Servis') return isWinnerP1 ? 1 : 2;
-      if (match.Kura_Tercih === 'Karşılama') return isWinnerP1 ? 2 : 1;
-      if (match.Kura_Tercih === 'Saha Seçimi') return isWinnerP1 ? 2 : 1;
-    }
-    if (state?.firstServerOfMatch) return state.firstServerOfMatch;
-    if (state?.currentServer) return state.currentServer;
-    return 1;
-  })();
-
-  const initialTossLeft: 1 | 2 = (() => {
-    if (match.ilkSolTakim === 1 || match.ilkSolTakim === 2) {
-      return match.ilkSolTakim;
-    }
-    if (match.Saha_Tarafi && match.Saha_Tarafi !== 'Secilmedi') {
-      const isWinnerP2 = match.Kura_Kazanan === match['Oyuncu 2'];
-      const isSol = match.Saha_Tarafi.toLowerCase().includes('sol');
-      if (isWinnerP2) return isSol ? 2 : 1;
-      return isSol ? 1 : 2;
-    }
-    return 1;
-  })();
-
   // Set 1 kurulumunu maç kurulumu ile otomatik bağlama (Kura & Kurulum yansıması)
   useEffect(() => {
     const isStartOfMatch = selectedSet === 1 && currentSetGames === 0 && (!match.pointHistory || match.pointHistory.length === 0);
@@ -440,7 +473,11 @@ export const CourtCard: React.FC<CourtCardProps> = ({
           existing &&
           existing.firstServingTeam === initialTossServer &&
           existing.leftTeam === initialTossLeft &&
-          existing.tbType === globalTbType
+          existing.tbType === ((match.tbKurali as any) || globalTbType) &&
+          existing.t1ServerIdx === (match.ilkT1ServisOyuncusu ?? 0) &&
+          existing.t2ServerIdx === (match.ilkT2ServisOyuncusu ?? 0) &&
+          existing.t1DeuceReceiverIdx === (match.ilkT1KarsilayanOyuncusu ?? 0) &&
+          existing.t2DeuceReceiverIdx === (match.ilkT2KarsilayanOyuncusu ?? 0)
         ) {
           return prev;
         }
@@ -450,16 +487,16 @@ export const CourtCard: React.FC<CourtCardProps> = ({
             setupSetNum: 1,
             firstServingTeam: initialTossServer,
             leftTeam: initialTossLeft,
-            tbType: globalTbType,
-            t1ServerIdx: existing?.t1ServerIdx ?? 0,
-            t2ServerIdx: existing?.t2ServerIdx ?? 0,
-            t1DeuceReceiverIdx: existing?.t1DeuceReceiverIdx ?? 0,
-            t2DeuceReceiverIdx: existing?.t2DeuceReceiverIdx ?? 0
+            tbType: (match.tbKurali as any) || globalTbType,
+            t1ServerIdx: match.ilkT1ServisOyuncusu ?? existing?.t1ServerIdx ?? 0,
+            t2ServerIdx: match.ilkT2ServisOyuncusu ?? existing?.t2ServerIdx ?? 0,
+            t1DeuceReceiverIdx: match.ilkT1KarsilayanOyuncusu ?? existing?.t1DeuceReceiverIdx ?? 0,
+            t2DeuceReceiverIdx: match.ilkT2KarsilayanOyuncusu ?? existing?.t2DeuceReceiverIdx ?? 0
           }
         };
       });
     }
-  }, [initialTossServer, initialTossLeft, globalTbType, selectedSet, currentSetGames, match.pointHistory]);
+  }, [initialTossServer, initialTossLeft, globalTbType, selectedSet, currentSetGames, match.pointHistory, match.tbKurali, match.ilkT1ServisOyuncusu, match.ilkT2ServisOyuncusu, match.ilkT1KarsilayanOyuncusu, match.ilkT2KarsilayanOyuncusu]);
 
   const isTB = state?.isTiebreak || false;
   const tbPoints = isTB ? Number(state?.tiebreak_p1 || 0) + Number(state?.tiebreak_p2 || 0) : 0;
@@ -652,6 +689,23 @@ export const CourtCard: React.FC<CourtCardProps> = ({
     computedLeftTeam = autoLeft;
   }
 
+  // Her zaman aktif servisçi ve karşılayıcı isimlerini garantiye al
+  if (!activeServerName) {
+    if (isDoubles) {
+      const sIdx = computedServerTeam === 1 ? currentT1ServerIdx : currentT2ServerIdx;
+      activeServerName = computedServerTeam === 1 
+        ? (t1Players[sIdx] || t1Players[0] || match['Oyuncu 1']) 
+        : (t2Players[sIdx] || t2Players[0] || match['Oyuncu 2']);
+      const rIdx = computedServerTeam === 1 ? currentT2ServerIdx : currentT1ServerIdx;
+      activeReceiverName = computedServerTeam === 1 
+        ? (t2Players[rIdx] || t2Players[0] || match['Oyuncu 2']) 
+        : (t1Players[rIdx] || t1Players[0] || match['Oyuncu 1']);
+    } else {
+      activeServerName = computedServerTeam === 1 ? match['Oyuncu 1'] : match['Oyuncu 2'];
+      activeReceiverName = computedServerTeam === 1 ? match['Oyuncu 2'] : match['Oyuncu 1'];
+    }
+  }
+
   const leftTeamId = computedLeftTeam;
   const rightTeamId = computedLeftTeam === 1 ? 2 : 1;
 
@@ -735,8 +789,8 @@ export const CourtCard: React.FC<CourtCardProps> = ({
       t2InitSrvIdx = ((setupForm.t2ServerIdx - teamServicesBeforeNowT2) % 2 + 2) % 2 as 0 | 1;
     }
 
-    setSetupsBySet(prev => ({
-      ...prev,
+    const updatedSetups = {
+      ...setupsBySet,
       [selectedSet]: {
         setupSetNum: selectedSet,
         firstServingTeam: initialServer,
@@ -747,7 +801,19 @@ export const CourtCard: React.FC<CourtCardProps> = ({
         t1DeuceReceiverIdx: setupForm.t1RecIdx,
         t2DeuceReceiverIdx: setupForm.t2RecIdx
       }
-    }));
+    };
+
+    setSetupsBySet(updatedSetups);
+    saveMatchSetup(match.id, {
+      chairSetups: updatedSetups,
+      ilkServisOyuncusu: updatedSetups[1]?.firstServingTeam ?? match.ilkServisOyuncusu,
+      ilkSolTakim: updatedSetups[1]?.leftTeam ?? match.ilkSolTakim,
+      ilkT1ServisOyuncusu: updatedSetups[1]?.t1ServerIdx ?? match.ilkT1ServisOyuncusu,
+      ilkT2ServisOyuncusu: updatedSetups[1]?.t2ServerIdx ?? match.ilkT2ServisOyuncusu,
+      ilkT1KarsilayanOyuncusu: updatedSetups[1]?.t1DeuceReceiverIdx ?? match.ilkT1KarsilayanOyuncusu,
+      ilkT2KarsilayanOyuncusu: updatedSetups[1]?.t2DeuceReceiverIdx ?? match.ilkT2KarsilayanOyuncusu,
+      tbType: setupForm.tbType,
+    });
 
     setIsEditingSetup(false);
     setSetupForm(prev => ({ ...prev, firstServingTeam: null, leftTeam: null }));
@@ -1352,7 +1418,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                       </div>
                     </div>
                     <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-                       {isTB && <div className={`px-2 sm:px-3 py-1 text-[9px] sm:text-xs font-black uppercase rounded-lg border ${isLightMode ? 'bg-slate-200 text-slate-800 border-slate-400' : 'bg-slate-800 text-slate-300 border-slate-700'}`}>{chairSetup.tbType === 'coman' ? 'Coman Tie-Break' : 'Standart Tie-Break'}</div>}
+                       {isTB && <div className={`px-2 sm:px-3 py-1 text-[9px] sm:text-xs font-black uppercase rounded-lg border ${isLightMode ? 'bg-slate-200 text-slate-800 border-slate-400' : 'bg-slate-800 text-slate-300 border-slate-700'}`}>{(chairSetup?.tbType || globalTbType) === 'coman' ? 'Coman Tie-Break' : 'Standart Tie-Break'}</div>}
                        {isSideChangePoint && <div className={`flex items-center gap-1.5 font-black text-[9px] sm:text-sm uppercase px-2 sm:px-3 py-1 rounded-lg border shadow-sm text-white bg-rose-500 border-rose-600 ${!activeTimer ? 'animate-pulse' : ''}`}><ArrowRightLeft className="w-3 h-3 sm:w-4 sm:h-4"/> Saha Değişimi</div>}
                     </div>
                   </div>

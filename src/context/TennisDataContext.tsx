@@ -601,6 +601,29 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           detState.isNoAd = chosenNoAd;
         }
 
+        const t1SIdx = data.t1ServerIdx !== undefined ? (data.t1ServerIdx as 0 | 1) : (m.ilkT1ServisOyuncusu ?? 0);
+        const t2SIdx = data.t2ServerIdx !== undefined ? (data.t2ServerIdx as 0 | 1) : (m.ilkT2ServisOyuncusu ?? 0);
+        const t1RIdx = data.t1RecIdx !== undefined ? (data.t1RecIdx as 0 | 1) : (m.ilkT1KarsilayanOyuncusu ?? 0);
+        const t2RIdx = data.t2RecIdx !== undefined ? (data.t2RecIdx as 0 | 1) : (m.ilkT2KarsilayanOyuncusu ?? 0);
+        const tbRule = data.tbType || m.tbKurali || 'standard';
+
+        const updatedChairSetups = { ...(m.chairSetups || {}) };
+        if (data.chairSetups) {
+          Object.assign(updatedChairSetups, data.chairSetups);
+        }
+        if (!hasPointsPlayed || !updatedChairSetups[1]) {
+          updatedChairSetups[1] = {
+            setupSetNum: 1,
+            firstServingTeam: server,
+            leftTeam: leftTeam,
+            tbType: tbRule,
+            t1ServerIdx: t1SIdx,
+            t2ServerIdx: t2SIdx,
+            t1DeuceReceiverIdx: t1RIdx,
+            t2DeuceReceiverIdx: t2RIdx,
+          };
+        }
+
         let setupStartTs = m.startTimeTimestamp;
         if (data.baslangicSaati && data.baslangicSaati !== 'Secilmedi') {
           const parts = data.baslangicSaati.split(':');
@@ -659,6 +682,12 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           Saha_Tarafi: data.sahaTarafi,
           ilkServisOyuncusu: server,
           ilkSolTakim: leftTeam,
+          ilkT1ServisOyuncusu: t1SIdx,
+          ilkT2ServisOyuncusu: t2SIdx,
+          ilkT1KarsilayanOyuncusu: t1RIdx,
+          ilkT2KarsilayanOyuncusu: t2RIdx,
+          tbKurali: tbRule,
+          chairSetups: updatedChairSetups,
           Baslangic_Saati: data.baslangicSaati, startTimeTimestamp: finalStartTs,
           Bitis_Saati: finalEndStr, lastPausedTimestamp: finalLastPaused,
           pausedAccumulatedMs: finalPausedAcc, totalPausedSeconds: finalTotalPaused,

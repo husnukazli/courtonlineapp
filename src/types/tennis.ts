@@ -100,6 +100,12 @@ export interface MatchItem {
   Saha_Tarafi: CourtSide | string;
   ilkServisOyuncusu?: 1 | 2;
   ilkSolTakim?: 1 | 2;
+  ilkT1ServisOyuncusu?: 0 | 1;
+  ilkT2ServisOyuncusu?: 0 | 1;
+  ilkT1KarsilayanOyuncusu?: 0 | 1;
+  ilkT2KarsilayanOyuncusu?: 0 | 1;
+  tbKurali?: 'standard' | 'coman';
+  chairSetups?: Record<number, any>;
   Baslangic_Saati: string;
   Bitis_Saati: string;
   startTimeTimestamp?: number;
