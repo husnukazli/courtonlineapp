@@ -1107,16 +1107,16 @@ export const CourtCard: React.FC<CourtCardProps> = ({
               {match.Gorevli_Hakem || match.Son_Hakem || 'Atanmadı'}
             </span>
           </div>
-          {(match.Son_Islem_Hakem || (match.Son_Hakem && match.Son_Hakem !== 'Turnuva Masası' && match.Son_Hakem !== 'Atanmadı')) && (
-            <div className={`flex items-center gap-1 px-2 py-0.5 rounded-lg border text-[10px] font-bold ${
+          {!isUpcoming && (match.Son_Islem_Hakem || (match.Son_Hakem && match.Son_Hakem !== 'Turnuva Masası' && match.Son_Hakem !== 'Atanmadı')) && (
+            <div className={`flex items-center gap-1 px-2 py-0.5 rounded-lg border text-[10px] font-medium ${
               isLightMode 
-                ? 'bg-amber-50 text-amber-900 border-amber-300' 
-                : 'bg-amber-950/40 text-amber-300 border-amber-500/30'
+                ? 'bg-slate-100 text-slate-700 border-slate-200' 
+                : 'bg-slate-800/80 text-slate-300 border-slate-700/60'
             }`}>
-              <span>👤 Son İşlem:</span>
-              <span className="font-extrabold">{match.Son_Islem_Hakem || match.Son_Hakem}</span>
+              <span className="text-slate-400">👤 Son İşlem:</span>
+              <span className="font-bold">{match.Son_Islem_Hakem || match.Son_Hakem}</span>
               {match.Son_Islem_Zamani && (
-                <span className="font-mono text-[9px] opacity-80 font-normal">({match.Son_Islem_Zamani})</span>
+                <span className="font-mono text-[9px] opacity-75 font-normal">({match.Son_Islem_Zamani})</span>
               )}
             </div>
           )}

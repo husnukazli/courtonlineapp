@@ -175,21 +175,23 @@ export const MatchDetailModal: React.FC<MatchDetailModalProps> = ({ match, onClo
           </div>
 
           {/* Referee & Last Action Audit Bar */}
-          <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 bg-slate-950/80 rounded-xl border border-amber-500/20 text-xs">
-            <div className="flex items-center gap-1.5">
-              <span className="text-slate-400">🏛️ Görevli / Başlatan Hakem:</span>
-              <span className="font-bold text-amber-300">{match.Gorevli_Hakem || match.Son_Hakem || 'Atanmadı'}</span>
+          {match.Durum !== 'Baslamadi' && (match.Son_Islem_Hakem || (match.Son_Hakem && match.Son_Hakem !== '-' && match.Son_Hakem !== 'Atanmadı')) && (
+            <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 bg-slate-950/80 rounded-xl border border-slate-800 text-xs">
+              <div className="flex items-center gap-1.5">
+                <span className="text-slate-400">🏛️ Görevli Hakem:</span>
+                <span className="font-semibold text-slate-200">{match.Gorevli_Hakem || match.Son_Hakem || 'Atanmadı'}</span>
+              </div>
+              <div className="flex items-center gap-1.5 font-mono text-[11px]">
+                <span className="text-slate-400">👤 Son İşlem:</span>
+                <span className="font-medium text-slate-300">
+                  {match.Son_Islem_Hakem || match.Son_Hakem || 'Turnuva Masası'}
+                </span>
+                {match.Son_Islem_Zamani && (
+                  <span className="text-slate-500">({match.Son_Islem_Zamani})</span>
+                )}
+              </div>
             </div>
-            <div className="flex items-center gap-1.5 font-mono text-[11px]">
-              <span className="text-slate-400">👤 Son İşlem:</span>
-              <span className="font-bold text-cyan-300">
-                {match.Son_Islem_Hakem || match.Son_Hakem || 'Turnuva Masası'}
-              </span>
-              {match.Son_Islem_Zamani && (
-                <span className="text-slate-400">({match.Son_Islem_Zamani})</span>
-              )}
-            </div>
-          </div>
+          )}
 
           {/* Match Times & Duration */}
           <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-slate-950 rounded-xl border border-slate-800 text-xs">

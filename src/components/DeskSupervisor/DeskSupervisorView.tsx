@@ -847,12 +847,12 @@ export const DeskSupervisorView: React.FC = () => {
                                     <span className="font-semibold">{m.Gorevli_Hakem || m.Son_Hakem || 'Atanmadı'}</span>
                                   </div>
                                 </div>
-                                {(m.Son_Islem_Hakem || (m.Son_Hakem && m.Son_Hakem !== '-' && m.Son_Hakem !== 'Atanmadı')) && (
+                                {!isUpcoming && (m.Son_Islem_Hakem || (m.Son_Hakem && m.Son_Hakem !== '-' && m.Son_Hakem !== 'Atanmadı')) && (
                                   <div className={`flex items-center justify-between text-[9px] px-1.5 py-0.5 rounded border font-mono ${
-                                    isLightMode ? 'bg-amber-50/90 text-amber-900 border-amber-300/80' : 'bg-amber-950/40 text-amber-300 border-amber-500/30'
+                                    isLightMode ? 'bg-slate-100 text-slate-700 border-slate-200' : 'bg-slate-800/80 text-slate-300 border-slate-700/60'
                                   }`}>
-                                    <span className="truncate">👤 Son İşlem: <b>{m.Son_Islem_Hakem || m.Son_Hakem}</b></span>
-                                    {m.Son_Islem_Zamani && <span className="shrink-0 opacity-80">({m.Son_Islem_Zamani})</span>}
+                                    <span className="truncate"><span className="text-slate-400">👤 Son İşlem:</span> <b>{m.Son_Islem_Hakem || m.Son_Hakem}</b></span>
+                                    {m.Son_Islem_Zamani && <span className="shrink-0 opacity-75">({m.Son_Islem_Zamani})</span>}
                                   </div>
                                 )}
                               </div>
@@ -1457,12 +1457,12 @@ export const DeskSupervisorView: React.FC = () => {
                 </div>
               </div>
 
-              {(m.Son_Islem_Hakem || (m.Son_Hakem && m.Son_Hakem !== '-' && m.Son_Hakem !== 'Atanmadı')) && (
+              {!isUpcoming && (m.Son_Islem_Hakem || (m.Son_Hakem && m.Son_Hakem !== '-' && m.Son_Hakem !== 'Atanmadı')) && (
                 <div className={`flex items-center justify-between text-[10px] px-2 py-0.5 rounded-lg border font-mono ${
-                  isLightMode ? 'bg-amber-50 text-amber-900 border-amber-300' : 'bg-amber-950/40 text-amber-300 border-amber-500/30'
+                  isLightMode ? 'bg-slate-100 text-slate-700 border-slate-200' : 'bg-slate-800/80 text-slate-300 border-slate-700/60'
                 }`}>
-                  <span className="truncate">👤 Son İşlem: <b>{m.Son_Islem_Hakem || m.Son_Hakem}</b></span>
-                  {m.Son_Islem_Zamani && <span className="shrink-0 opacity-80">({m.Son_Islem_Zamani})</span>}
+                  <span className="truncate"><span className="text-slate-400">👤 Son İşlem:</span> <b>{m.Son_Islem_Hakem || m.Son_Hakem}</b></span>
+                  {m.Son_Islem_Zamani && <span className="shrink-0 opacity-75">({m.Son_Islem_Zamani})</span>}
                 </div>
               )}
             </div>
