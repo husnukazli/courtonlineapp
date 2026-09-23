@@ -209,13 +209,15 @@ export default defineConfig({
   plugins: [react(), tournamentSyncPlugin()],
   server: {
     host: '0.0.0.0',
-    port: Number(process.env.PORT) || 3000,
+    port: 3000,
+    strictPort: true,
     allowedHosts: true,
     watch: { ignored: ['**/tournament_state.json'] }
   },
   preview: {
     host: '0.0.0.0',
-    port: Number(process.env.PORT) || 3000,
+    port: 3000,
+    strictPort: true,
     allowedHosts: true,
   }
 });

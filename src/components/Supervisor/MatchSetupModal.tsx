@@ -198,7 +198,7 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
     const winner = isP1 ? p1Name : p2Name;
     
     const baseRotation = Math.floor(rotation / 360) * 360;
-    const spins = 5 * 360; 
+    const spins = 8 * 360; 
     
     let finalRotation;
     if (isP1) {
@@ -212,7 +212,7 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
     setTimeout(() => {
       setIsFlipping(false);
       handleSelectTossWinner(winner);
-    }, 1200); 
+    }, 2400); 
   };
 
   const buildPayload = (newStatus: MatchItem['Durum'], isStartingNow: boolean) => {
@@ -281,6 +281,81 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-4 bg-slate-950/90 backdrop-blur-md animate-in fade-in overflow-y-auto">
+      
+      <style>
+        {`
+          @keyframes coinParabolaScreenOverflow {
+            0% {
+              transform: scale(0.85) translateY(140px);
+              opacity: 0.9;
+            }
+            45% {
+              /* Ekrana doğru gelip ekrandan taşma noktası */
+              transform: scale(5.8) translateY(-40px);
+              opacity: 1;
+            }
+            100% {
+              transform: scale(1) translateY(0);
+              opacity: 1;
+            }
+          }
+          .coin-overflow-flight {
+            animation: coinParabolaScreenOverflow 2.4s cubic-bezier(0.22, 0.9, 0.3, 1) forwards;
+          }
+        `}
+      </style>
+
+      {/* --- EKRANA DOĞRU GELİP EKRANDAN TAŞAN PLATİN GÜMÜŞ KURA ANİMASYONU --- */}
+      {isFlipping && (
+        <div className="fixed inset-0 z-[100] pointer-events-none flex flex-col items-center justify-center overflow-visible bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="relative [perspective:1400px] flex items-center justify-center">
+            <div className="coin-overflow-flight">
+              <div
+                className="w-40 h-40 sm:w-48 sm:h-48 rounded-full p-2.5 bg-gradient-to-tr from-slate-300 via-slate-100 to-zinc-400 border-4 border-slate-100 shadow-[0_0_60px_rgba(255,255,255,0.7),0_25px_60px_rgba(0,0,0,0.9)] relative [transform-style:preserve-3d]"
+                style={{
+                  transform: `rotateY(${rotation}deg)`,
+                  transition: 'transform 2.4s cubic-bezier(0.18, 0.85, 0.25, 1)',
+                }}
+              >
+                {/* Metalik Tırtıklı Kenar Hissi */}
+                <div className="absolute inset-1.5 rounded-full border-2 border-dashed border-slate-400/80 pointer-events-none" />
+
+                {/* 1. Takım Yüzü (Platin Gümüş) */}
+                <div className="absolute inset-2.5 rounded-full bg-gradient-to-br from-slate-100 via-slate-200 to-zinc-400 border-2 border-white flex flex-col items-center justify-center p-3 text-center text-slate-800 shadow-inner [backface-visibility:hidden]">
+                  <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-transparent via-white/70 to-transparent pointer-events-none" />
+                  <span className="text-4xl mb-1 filter drop-shadow">🎾</span>
+                  <span className="font-black text-[11px] uppercase tracking-wider text-slate-700 bg-white/80 px-3 py-0.5 rounded-full border border-slate-300 shadow-sm">
+                    1. TAKIM
+                  </span>
+                  <span className="font-black text-xs sm:text-sm text-slate-900 truncate max-w-full px-2 mt-1 drop-shadow-sm">
+                    {p1Name}
+                  </span>
+                </div>
+
+                {/* 2. Takım Yüzü (Platin Gümüş) */}
+                <div
+                  className="absolute inset-2.5 rounded-full bg-gradient-to-br from-slate-100 via-slate-200 to-zinc-400 border-2 border-white flex flex-col items-center justify-center p-3 text-center text-slate-800 shadow-inner [backface-visibility:hidden]"
+                  style={{ transform: 'rotateY(180deg)' }}
+                >
+                  <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-transparent via-white/70 to-transparent pointer-events-none" />
+                  <span className="text-4xl mb-1 filter drop-shadow">🛡️</span>
+                  <span className="font-black text-[11px] uppercase tracking-wider text-slate-700 bg-white/80 px-3 py-0.5 rounded-full border border-slate-300 shadow-sm">
+                    2. TAKIM
+                  </span>
+                  <span className="font-black text-xs sm:text-sm text-slate-900 truncate max-w-full px-2 mt-1 drop-shadow-sm">
+                    {p2Name}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div className="mt-8 px-5 py-2.5 rounded-full bg-slate-900/90 border border-slate-600 text-slate-100 font-black text-sm tracking-wider shadow-2xl animate-pulse flex items-center gap-2">
+            <span>🪙</span>
+            <span>Platin Kura Atılıyor...</span>
+          </div>
+        </div>
+      )}
 
       {/* --- ANA KURULUM PENCERESİ --- */}
       <div className="w-full max-w-2xl bg-slate-900 border border-slate-700/80 rounded-3xl p-4 sm:p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
@@ -321,11 +396,11 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
           </div>
         </div>
 
-        {/* Kura Atışı Başlatma Bölümü (İnline 3D Kura) */}
+        {/* Kura Atışı Başlatma Bölümü (İnline 3D Platin Gümüş Kura) */}
         <div className="bg-slate-950 p-3.5 rounded-2xl border border-slate-800 space-y-3 shadow-md">
           <div className="flex items-center justify-between">
             <span className="text-xs font-black text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-              <span>🪙 Kura Atışı (Para Çevirme)</span>
+              <span>🪙 Platin Gümüş Kura Atışı</span>
             </span>
             {kuraKazanan !== 'Secilmedi' && (
               <span className="text-xs font-black text-emerald-400 bg-emerald-950/60 px-2.5 py-1 rounded-lg border border-emerald-500/30">
@@ -335,29 +410,39 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
           </div>
 
           <div className="flex flex-col sm:flex-row items-center gap-4 p-3 bg-slate-900/80 rounded-2xl border border-slate-800">
-            {/* 3D Dönen Para */}
-            <div className="relative w-24 h-24 [perspective:1000px] shrink-0 flex items-center justify-center">
+            {/* 3D Platin Gümüş Dönen Para */}
+            <div className="relative w-24 h-24 sm:w-28 sm:h-28 [perspective:1000px] shrink-0 flex items-center justify-center">
               <div
                 className="w-full h-full rounded-full transition-transform duration-[1200ms] cubic-bezier(0.2, 0.85, 0.3, 1) [transform-style:preserve-3d] shadow-xl relative"
                 style={{
                   transform: `rotateY(${rotation}deg)`,
                 }}
               >
-                {/* 1. Takım Yüzü */}
-                <div className="absolute inset-0 rounded-full border-2 border-emerald-400 bg-gradient-to-br from-emerald-600 via-emerald-700 to-teal-900 flex flex-col items-center justify-center p-2 text-center text-white [backface-visibility:hidden] shadow-inner">
-                  <span className="text-2xl mb-0.5">🎾</span>
-                  <span className="font-extrabold text-[9px] uppercase tracking-wider text-emerald-200">1. Takım</span>
-                  <span className="font-black text-[10px] truncate w-full px-1">{p1Name.split('/')[0]}</span>
+                {/* 1. Takım Yüzü (Platin Gümüş) */}
+                <div className="absolute inset-0 rounded-full bg-gradient-to-br from-slate-100 via-slate-200 to-zinc-400 border-2 border-white flex flex-col items-center justify-center p-2 text-center text-slate-800 shadow-inner [backface-visibility:hidden]">
+                  <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-transparent via-white/60 to-transparent pointer-events-none" />
+                  <span className="text-2xl mb-0.5 filter drop-shadow">🎾</span>
+                  <span className="font-extrabold text-[9px] uppercase tracking-wider text-slate-700 bg-white/70 px-1.5 py-0.5 rounded-full border border-slate-300">
+                    1. Takım
+                  </span>
+                  <span className="font-black text-[10px] text-slate-900 truncate w-full px-1 mt-0.5">
+                    {p1Name.split('/')[0]}
+                  </span>
                 </div>
 
-                {/* 2. Takım Yüzü */}
+                {/* 2. Takım Yüzü (Platin Gümüş) */}
                 <div
-                  className="absolute inset-0 rounded-full border-2 border-blue-400 bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-900 flex flex-col items-center justify-center p-2 text-center text-white shadow-inner [backface-visibility:hidden]"
+                  className="absolute inset-0 rounded-full bg-gradient-to-br from-slate-100 via-slate-200 to-zinc-400 border-2 border-white flex flex-col items-center justify-center p-2 text-center text-slate-800 shadow-inner [backface-visibility:hidden]"
                   style={{ transform: 'rotateY(180deg)' }}
                 >
-                  <span className="text-2xl mb-0.5">🛡️</span>
-                  <span className="font-extrabold text-[9px] uppercase tracking-wider text-blue-200">2. Takım</span>
-                  <span className="font-black text-[10px] truncate w-full px-1">{p2Name.split('/')[0]}</span>
+                  <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-transparent via-white/60 to-transparent pointer-events-none" />
+                  <span className="text-2xl mb-0.5 filter drop-shadow">🛡️</span>
+                  <span className="font-extrabold text-[9px] uppercase tracking-wider text-slate-700 bg-white/70 px-1.5 py-0.5 rounded-full border border-slate-300">
+                    2. Takım
+                  </span>
+                  <span className="font-black text-[10px] text-slate-900 truncate w-full px-1 mt-0.5">
+                    {p2Name.split('/')[0]}
+                  </span>
                 </div>
               </div>
             </div>
