@@ -119,6 +119,7 @@ interface TennisDataContextType {
   loginDesk: (pin: string) => boolean; logoutReferee: () => void; logoutAuth: () => void;
   setAuthRole: (role: 'none' | 'supervisor' | 'desk' | 'referee') => void; updateDeskPin: (newPin: string) => void;
   setActiveMatchId: (id: string | null) => void; updateMatch: (match: MatchItem) => void;
+  setMatchChairActive: (matchId: string, isActive: boolean, refereeName?: string) => void;
   updateGameScore: (matchId: string, setIndex: 1 | 2 | 3, player: 1 | 2, delta: number) => void;
   setDirectSetScores: (matchId: string, s1_p1: number, s1_p2: number, s2_p1: number, s2_p2: number, s3_p1: number, s3_p2: number) => void;
   saveDirectScoreAndStatus: (matchId: string, data: any) => void;
@@ -541,6 +542,29 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setMatches((prev) => {
       const next = prev.map((m) => (m.id === finalUpdated.id ? finalUpdated : m));
       broadcastAndSyncSingleMatch(finalUpdated, next);
+      return next;
+    });
+  };
+
+  const setMatchChairActive = (matchId: string, isActive: boolean, refereeName?: string) => {
+    if (!matchId) return;
+    setMatches((prev) => {
+      let targetItem: MatchItem | null = null;
+      const next = prev.map((m) => {
+        if (m.id !== matchId) return m;
+        const activeRef = refereeName || (currentReferee ? currentReferee.name : (m.Son_Hakem || 'Kule Hakemi'));
+        const updated: MatchItem = {
+          ...m,
+          isChairActive: isActive,
+          chairUmpireName: isActive ? activeRef : undefined,
+          chairActiveTimestamp: isActive ? Date.now() : undefined,
+        };
+        targetItem = updated;
+        return updated;
+      });
+      if (targetItem) {
+        broadcastAndSyncSingleMatch(targetItem, next);
+      }
       return next;
     });
   };
@@ -1524,6 +1548,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         wipeAllMatchesForTournament, tournamentId, setTournamentId, purgeOrphanMatches,
         resetAllScores, loginReferee, loginRefereeDirect, loginSupervisorByPin, loginDesk,
         logoutReferee, logoutAuth, setAuthRole, updateDeskPin, setActiveMatchId, updateMatch,
+        setMatchChairActive,
         updateGameScore, setDirectSetScores, saveDirectScoreAndStatus, finishAndReportMatch,
         saveMatchSetup, awardPointToMatch, undoLastPoint, recordChallenge, setMatchStatus,
         resumeMatchToLive, resetMatchScore, manualUpdateScoreString, addReferee, deleteReferee,

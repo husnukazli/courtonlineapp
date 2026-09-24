@@ -38,8 +38,106 @@ export const CourtCard: React.FC<CourtCardProps> = ({
   onEditScore,
   onOpenSetup,
 }) => {
-  const { updateGameScore, setMatchStatus, awardPointToMatch, undoLastPoint, tournamentInfo, saveMatchSetup } = useTennisData();
+  const { 
+    updateGameScore, setMatchStatus, awardPointToMatch, undoLastPoint, 
+    tournamentInfo, saveMatchSetup, setMatchChairActive, currentReferee 
+  } = useTennisData();
   const lastScoreClickRef = useRef<number>(0);
+
+  // 5 DAKİKA ISINMA ZAMAN SAYACI STATE'LERİ
+  const [warmupSeconds, setWarmupSeconds] = useState<number | null>(null);
+  const [isWarmupBlinking, setIsWarmupBlinking] = useState<boolean>(false);
+  const [warmupAlertLabel, setWarmupAlertLabel] = useState<string | null>(null);
+
+  const playWarmupSound = (freq = 880, beeps = 1) => {
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      for (let i = 0; i < beeps; i++) {
+        const startTime = ctx.currentTime + i * 0.18;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, startTime);
+        gain.gain.setValueAtTime(0.3, startTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.15);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(startTime);
+        osc.stop(startTime + 0.15);
+      }
+    } catch {}
+  };
+
+  const startWarmupTimer = () => {
+    vibrateDevice([100, 50, 100]);
+    playWarmupSound(880, 1);
+    setWarmupSeconds(300); // 5 dakika = 300 saniye
+    setIsWarmupBlinking(false);
+    setWarmupAlertLabel('5 DAKİKA ISINMA BAŞLADI');
+    setTimeout(() => setWarmupAlertLabel(null), 2500);
+  };
+
+  const cancelWarmupTimer = () => {
+    vibrateDevice(50);
+    setWarmupSeconds(null);
+    setIsWarmupBlinking(false);
+    setWarmupAlertLabel(null);
+  };
+
+  useEffect(() => {
+    if (warmupSeconds === null) return;
+    const interval = setInterval(() => {
+      setWarmupSeconds((prev) => {
+        if (prev === null) return null;
+        if (prev <= 1) {
+          // BİTTİĞİNDE: Titreşim ve sesli uyarı
+          vibrateDevice([500, 150, 500, 150, 900]);
+          playWarmupSound(980, 3);
+          setIsWarmupBlinking(true);
+          setWarmupAlertLabel('⏱️ ISINMA SÜRESİ DOLDU!');
+          // 3.5 saniye ekranda yanıp söndükten sonra kendiliğinden kaybolsun
+          setTimeout(() => {
+            setWarmupSeconds(null);
+            setIsWarmupBlinking(false);
+            setWarmupAlertLabel(null);
+          }, 3500);
+          return 0;
+        }
+
+        const next = prev - 1;
+        if (next === 180) { // 3 Dakika
+          vibrateDevice([250, 100, 250]);
+          playWarmupSound(750, 1);
+          setIsWarmupBlinking(true);
+          setWarmupAlertLabel('🟡 3 DAKİKA KALDI');
+          setTimeout(() => setIsWarmupBlinking(false), 3000);
+        } else if (next === 120) { // 2 Dakika
+          vibrateDevice([300, 100, 300]);
+          playWarmupSound(800, 2);
+          setIsWarmupBlinking(true);
+          setWarmupAlertLabel('🟠 2 DAKİKA KALDI');
+          setTimeout(() => setIsWarmupBlinking(false), 3000);
+        } else if (next === 60) { // 1 Dakika
+          vibrateDevice([350, 100, 350, 100, 350]);
+          playWarmupSound(880, 2);
+          setIsWarmupBlinking(true);
+          setWarmupAlertLabel('🔴 1 DAKİKA KALDI!');
+          setTimeout(() => setIsWarmupBlinking(false), 3500);
+        } else if (next === 30) { // 30 Saniye
+          vibrateDevice([400, 100, 400, 100, 400]);
+          playWarmupSound(950, 3);
+          setIsWarmupBlinking(true);
+          setWarmupAlertLabel('🚨 30 SANİYE KALDI!');
+          setTimeout(() => setIsWarmupBlinking(false), 3500);
+        }
+        return next;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [warmupSeconds !== null]);
 
   const [selectedSet, setSelectedSet] = useState<1 | 2 | 3>(() => {
     const fmt = match.Skor_Formati || '3 Normal Set';
@@ -74,9 +172,11 @@ export const CourtCard: React.FC<CourtCardProps> = ({
     }
   }, [isChairMode, match.id]);
 
-  const handleExitChairMode = (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleExitChairMode = (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
     if (window.confirm('Kule hakemi modundan çıkıp genel maç ekranına dönmek istiyor musunuz?')) {
+      setMatchChairActive(match.id, false);
+      cancelWarmupTimer();
       setIsChairMode(false);
       setIsCardLocked(false);
       localStorage.removeItem('courtonline_active_chair_match');
@@ -88,6 +188,8 @@ export const CourtCard: React.FC<CourtCardProps> = ({
     const handlePopState = () => {
       if (isChairMode) {
         if (window.confirm('Kule hakemi modundan çıkmak istiyor musunuz?')) {
+          setMatchChairActive(match.id, false);
+          cancelWarmupTimer();
           setIsChairMode(false);
           setIsCardLocked(false);
           localStorage.removeItem('courtonline_active_chair_match');
@@ -99,7 +201,11 @@ export const CourtCard: React.FC<CourtCardProps> = ({
     };
     
     const handleBeforeUnload = (e: BeforeUnloadEvent) => { 
-      if (isChairMode) { e.preventDefault(); e.returnValue = ''; } 
+      if (isChairMode) { 
+        setMatchChairActive(match.id, false);
+        e.preventDefault(); 
+        e.returnValue = ''; 
+      } 
     };
 
     if (isChairMode) {
@@ -738,6 +844,8 @@ export const CourtCard: React.FC<CourtCardProps> = ({
       if (selectedSet > 1 && setupsBySet[selectedSet - 1]) {
         setSelectedSet((selectedSet - 1) as 1 | 2 | 3);
       } else {
+        setMatchChairActive(match.id, false);
+        cancelWarmupTimer();
         setIsChairMode(false);
       }
     }
@@ -963,12 +1071,18 @@ export const CourtCard: React.FC<CourtCardProps> = ({
     );
   };
 
-  const baseCardClass = `transition-all duration-200 overflow-hidden flex flex-col justify-between shadow-md relative ${
+  const isChairActive = !!match.isChairActive;
+
+  const baseCardClass = `transition-all duration-300 overflow-hidden flex flex-col justify-between shadow-md relative ${
     isCardLocked ? '!fixed !inset-0 !z-[100000] !w-screen !h-[100dvh] !rounded-none !m-0 !max-w-none overflow-y-auto overflow-x-hidden overscroll-none touch-pan-y' : 'rounded-3xl'
   } ${
-    isLive || isPaused ? (isLightMode ? 'bg-white border-[3px] border-emerald-500' : 'bg-slate-900/95 border border-emerald-500/30')
-    : isUpcoming ? (isLightMode ? 'bg-slate-50 border-2 border-slate-300 cursor-pointer hover:border-slate-400' : 'bg-slate-900 border border-slate-700 cursor-pointer')
-    : (isLightMode ? 'bg-slate-100 border border-slate-300' : 'bg-slate-900/50 border border-slate-800')
+    isChairActive
+      ? (isLightMode 
+          ? 'bg-gradient-to-b from-cyan-50/70 via-white to-white border-[3.5px] border-cyan-500 ring-4 ring-cyan-400/30 shadow-[0_0_30px_rgba(6,182,212,0.35)]' 
+          : 'bg-gradient-to-b from-cyan-950/25 via-slate-900 to-slate-900 border-[3.5px] border-cyan-400 ring-4 ring-cyan-500/30 shadow-[0_0_35px_rgba(6,182,212,0.25)]')
+      : isLive || isPaused ? (isLightMode ? 'bg-white border-[3px] border-emerald-500' : 'bg-slate-900/95 border border-emerald-500/30')
+      : isUpcoming ? (isLightMode ? 'bg-slate-50 border-2 border-slate-300 cursor-pointer hover:border-slate-400' : 'bg-slate-900 border border-slate-700 cursor-pointer')
+      : (isLightMode ? 'bg-slate-100 border border-slate-300' : 'bg-slate-900/50 border border-slate-800')
   }`;
 
   return (
@@ -1002,17 +1116,36 @@ export const CourtCard: React.FC<CourtCardProps> = ({
             <span className="font-bold text-[11px] sm:text-sm">{toastMessage}</span>
           </div>
         )}
-        <div className={`h-1.5 w-full ${isLive ? 'bg-emerald-500' : isPaused ? 'bg-amber-500' : isUpcoming ? 'bg-slate-400' : 'bg-slate-300'}`} />
+        <div className={`h-2 w-full transition-colors ${
+          isChairActive
+            ? 'bg-gradient-to-r from-cyan-500 via-teal-400 to-indigo-500 animate-pulse'
+            : isLive ? 'bg-emerald-500' 
+            : isPaused ? 'bg-amber-500' 
+            : isUpcoming ? 'bg-slate-400' 
+            : 'bg-slate-300'
+        }`} />
 
         <div className={`px-4 sm:px-5 pt-4 pb-2 flex items-center justify-between border-b ${isLightMode ? 'border-slate-300' : 'border-slate-800/80'}`}>
           <div className="flex items-center gap-2.5">
-            <span className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-xs border ${isLive || isPaused ? (isLightMode ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30') : isUpcoming ? (isLightMode ? 'bg-slate-200 text-slate-700 border-slate-300' : 'bg-slate-800 text-slate-300 border-slate-700') : (isLightMode ? 'bg-slate-200 text-slate-500 border-slate-300' : 'bg-slate-800/50 text-slate-500 border-slate-700')}`}>
+            <span className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-xs border ${
+              isChairActive
+                ? 'bg-cyan-500 text-slate-950 border-cyan-400 font-black shadow-sm'
+                : isLive || isPaused ? (isLightMode ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30') 
+                : isUpcoming ? (isLightMode ? 'bg-slate-200 text-slate-700 border-slate-300' : 'bg-slate-800 text-slate-300 border-slate-700') 
+                : (isLightMode ? 'bg-slate-200 text-slate-500 border-slate-300' : 'bg-slate-800/50 text-slate-500 border-slate-700')
+            }`}>
               {match.Kort.replace('KORT', 'K').trim()}
             </span>
             <div className="min-w-0">
-              <h3 className={`font-extrabold text-base sm:text-lg flex items-center gap-1.5 truncate ${isLightMode ? 'text-black' : 'text-white'}`}>
+              <h3 className={`font-extrabold text-base sm:text-lg flex items-center gap-1.5 truncate flex-wrap ${isLightMode ? 'text-black' : 'text-white'}`}>
                 <span>{match.Kort}</span>
                 {isLive && <span className={`px-2 py-0.5 rounded-full text-[10px] font-black shrink-0 border ${isLightMode ? 'bg-emerald-100 text-emerald-700 border-emerald-300' : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'}`}>CANLI</span>}
+                {isChairActive && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black shrink-0 bg-cyan-500 text-slate-950 shadow-md animate-pulse flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-slate-950 animate-ping"></span>
+                    KULE AKTİF ({match.chairUmpireName || 'Hakem'})
+                  </span>
+                )}
               </h3>
               <p className={`text-xs font-bold truncate max-w-[180px] ${isLightMode ? 'text-slate-600' : 'text-slate-400'}`}>{match.Kategori}</p>
             </div>
@@ -1107,6 +1240,12 @@ export const CourtCard: React.FC<CourtCardProps> = ({
             <div className={`border rounded-2xl p-3 mt-2 ${isLightMode ? 'bg-slate-100 border-slate-300' : 'bg-slate-900 border-slate-700/80'}`}>
               <button type="button" onClick={(e) => { 
                   e.stopPropagation(); 
+                  if (isChairActive && match.chairUmpireName && match.chairUmpireName !== currentReferee?.name) {
+                    if (!window.confirm(`Bu maç şu anda Kule Hakemi (${match.chairUmpireName}) tarafından canlı yönetiliyor. Yine de kule moduna geçmek istiyor musunuz?`)) {
+                      return;
+                    }
+                  }
+                  setMatchChairActive(match.id, true, currentReferee?.name);
                   setIsChairMode(true); 
                   if (!isSetupValid) {
                      setSetupForm({
@@ -1120,8 +1259,17 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                      });
                   }
                 }} 
-                className={`w-full py-3 mb-3 font-black rounded-xl transition active:scale-95 flex items-center justify-center gap-2 shadow-sm ${isLightMode ? 'bg-slate-800 hover:bg-slate-900 text-white' : 'bg-slate-700 hover:bg-slate-600 text-white'}`}>
-                <Swords className="w-4 h-4" /> Kule Hakemi Moduna Geç
+                className={`w-full py-3 mb-3 font-black rounded-xl transition active:scale-95 flex items-center justify-center gap-2 shadow-sm ${
+                  isChairActive
+                    ? 'bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-500 hover:to-teal-500 text-white ring-2 ring-cyan-400/50 shadow-cyan-600/30'
+                    : isLightMode 
+                    ? 'bg-slate-800 hover:bg-slate-900 text-white' 
+                    : 'bg-slate-700 hover:bg-slate-600 text-white'
+                }`}>
+                <Swords className="w-4 h-4" /> 
+                {isChairActive 
+                  ? `💺 Kule Hakemi Görevde (${match.chairUmpireName || 'Aktif'}) - Aç` 
+                  : 'Kule Hakemi Moduna Geç'}
               </button>
 
               <div className="animate-in fade-in zoom-in-95 duration-200">
@@ -1225,6 +1373,43 @@ export const CourtCard: React.FC<CourtCardProps> = ({
       {isChairMode && (
         <div className={`!fixed !inset-0 !z-[50000] !w-screen !h-[100dvh] !m-0 !p-0 !max-w-none flex flex-col animate-in fade-in zoom-in-95 duration-200 select-none overflow-hidden ${isLightMode ? 'bg-white' : 'bg-slate-950'}`}>
           
+          {/* 5 DAKİKA ISINMA SAYACI - NON-BLOCKING FLOATING WIDGET (TÜM EKRANI KAPLAMAZ, DİĞER İŞLEMLERİ ENGELLEMEZ) */}
+          {warmupSeconds !== null && (
+            <div className="fixed top-14 sm:top-16 left-1/2 -translate-x-1/2 z-[50005] pointer-events-auto select-none animate-in fade-in zoom-in duration-200">
+              <div className={`px-4 sm:px-6 py-2 sm:py-2.5 rounded-full border-2 shadow-2xl flex items-center gap-3 transition-all duration-300 ${
+                warmupSeconds === 0
+                  ? 'bg-rose-600 border-white text-white animate-bounce shadow-[0_0_35px_rgba(225,29,72,0.9)]'
+                  : isWarmupBlinking || warmupSeconds <= 30
+                  ? 'bg-rose-600 text-white border-rose-300 animate-pulse shadow-[0_0_30px_rgba(244,63,94,0.7)]'
+                  : warmupSeconds <= 60
+                  ? 'bg-amber-600 text-white border-amber-300 animate-pulse shadow-[0_0_25px_rgba(245,158,11,0.6)]'
+                  : warmupSeconds <= 120
+                  ? 'bg-amber-900/95 text-amber-200 border-amber-500 shadow-[0_0_20px_rgba(245,158,11,0.4)]'
+                  : warmupSeconds <= 180
+                  ? 'bg-yellow-900/95 text-yellow-200 border-yellow-500 shadow-[0_0_15px_rgba(234,179,8,0.3)]'
+                  : (isLightMode ? 'bg-slate-900/95 text-emerald-400 border-emerald-500 shadow-xl' : 'bg-slate-900/95 text-emerald-400 border-emerald-500/80 shadow-2xl')
+              }`}>
+                <span className="text-base sm:text-xl">🎾</span>
+                <div className="flex flex-col">
+                  <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider leading-tight">
+                    {warmupAlertLabel || (warmupSeconds === 0 ? 'SÜRE DOLDU!' : 'Isınma Süresi')}
+                  </span>
+                  <span className="font-mono text-base sm:text-xl font-black tabular-nums tracking-tight leading-none">
+                    {Math.floor(warmupSeconds / 60)}:{(warmupSeconds % 60).toString().padStart(2, '0')}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); cancelWarmupTimer(); }}
+                  className="ml-1.5 p-1 rounded-full bg-black/30 hover:bg-black/60 text-white/80 hover:text-white transition"
+                  title="Sayacı Kapat / Bitir"
+                >
+                  <X className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                </button>
+              </div>
+            </div>
+          )}
+
           {toastMessage && (
             <div className={`absolute top-16 left-1/2 -translate-x-1/2 z-[50000] px-5 py-3 rounded-2xl border shadow-2xl animate-in fade-in slide-in-from-top-4 flex items-center gap-3 ${isLightMode ? 'bg-slate-900 text-white border-slate-700' : 'bg-slate-800 text-white border-slate-700'}`}>
               <Info className="w-5 h-5 shrink-0 text-amber-400" />
@@ -1238,7 +1423,9 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                 {match.Kort.replace('KORT', 'K').trim()}
               </span>
               <div className="flex flex-col">
-                <span className={`font-black text-sm sm:text-base leading-none mb-1 ${isLightMode ? 'text-black' : 'text-white'}`}>Kule Hakemi</span>
+                <span className={`font-black text-sm sm:text-base leading-none mb-1 ${isLightMode ? 'text-black' : 'text-white'}`}>
+                  Kule Hakemi {currentReferee?.name ? `(${currentReferee.name})` : ''}
+                </span>
                 <span className={`text-[9px] sm:text-[10px] font-black tracking-widest uppercase flex items-center gap-1 ${isPaused ? (isLightMode ? 'text-amber-800' : 'text-amber-400') : (isLightMode ? 'text-green-700' : 'text-emerald-400')}`}>
                   <span className={`w-1.5 h-1.5 rounded-full ${isPaused ? 'bg-amber-500 animate-pulse' : (isLightMode ? 'bg-green-600' : 'bg-emerald-400')}`}></span>
                   {isPaused ? 'Askıda' : 'Canlı'}
@@ -1546,6 +1733,24 @@ export const CourtCard: React.FC<CourtCardProps> = ({
 
                   <div className={`pt-2 border-t flex flex-col gap-2 sm:gap-3 shrink-0 pb-16 sm:pb-20 ${isLightMode ? 'border-slate-300' : 'border-slate-800'}`}>
                     <div className="flex gap-2 sm:gap-3">
+                      {/* 5 Dakika Isınma Butonu */}
+                      <button 
+                        type="button" 
+                        onClick={warmupSeconds !== null ? cancelWarmupTimer : startWarmupTimer} 
+                        className={`flex-1 py-3 sm:py-4 border text-[10px] sm:text-sm font-black rounded-xl transition flex items-center justify-center gap-1.5 ${
+                          warmupSeconds !== null 
+                            ? 'bg-amber-500 text-white border-amber-600 shadow-md animate-pulse' 
+                            : (isLightMode ? 'bg-white border-slate-400 text-slate-800 shadow-sm hover:bg-slate-100' : 'bg-slate-900 border-slate-700 text-slate-300 hover:text-white')
+                        }`}
+                        title="Maç Başı 5 Dakika Isınma Sayacı"
+                      >
+                        <span className="text-xs sm:text-base">🎾</span>
+                        {warmupSeconds !== null ? (
+                          <span>{Math.floor(warmupSeconds / 60)}:{(warmupSeconds % 60).toString().padStart(2, '0')} (Durdur)</span>
+                        ) : (
+                          <span>5dk Isınma</span>
+                        )}
+                      </button>
                       <button type="button" onClick={(e) => startTimer(e, 'Saha Değişimi', 90)} className={`flex-1 py-3 sm:py-4 border text-[10px] sm:text-sm font-black rounded-xl transition ${shouldBlink90s ? 'animate-pulse bg-rose-500 text-white border-rose-600 shadow-md' : (isLightMode ? 'bg-white border-slate-400 text-slate-800 shadow-sm hover:bg-slate-100' : 'bg-slate-900 border-slate-700 text-slate-300 hover:text-white')}`}>90s Değişim</button>
                       <button type="button" onClick={(e) => startTimer(e, 'Set Arası', 120)} className={`flex-1 py-3 sm:py-4 border text-[10px] sm:text-sm font-black rounded-xl transition ${shouldBlink120s ? 'animate-pulse bg-rose-500 text-white border-rose-600 shadow-md' : (isLightMode ? 'bg-white border-slate-400 text-slate-800 shadow-sm hover:bg-slate-100' : 'bg-slate-900 border-slate-700 text-slate-300 hover:text-white')}`}>120s Set</button>
                       <button type="button" onClick={(e) => startTimer(e, 'Sağlık Molası', 180)} className={`flex-1 py-3 sm:py-4 border text-[10px] sm:text-sm font-black rounded-xl transition ${isLightMode ? 'bg-white border-slate-400 text-slate-800 shadow-sm hover:bg-slate-100' : 'bg-slate-900 border-slate-700 text-slate-300 hover:text-white'}`}>3dk MTO</button>

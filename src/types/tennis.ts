@@ -117,6 +117,9 @@ export interface MatchItem {
   Gorevli_Hakem?: string;
   Son_Islem_Hakem?: string;
   Son_Islem_Zamani?: string;
+  isChairActive?: boolean; // Kule hakemi modu şu anda bu maçı yönetiyor mu
+  chairUmpireName?: string; // Yöneten kule hakeminin adı
+  chairActiveTimestamp?: number; // Kule hakemi aktifleşme zamanı
   Kazanan: string;
   detailedState?: TennisMatchState;
   pointHistory?: PointHistoryItem[];
