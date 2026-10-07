@@ -35,6 +35,7 @@ const isUpcomingMatch = (status?: string) => ['baslamadi'].includes((status || '
 export const CourtSupervisorView: React.FC = () => {
   const {
     matches,
+    customCourts,
     cloudSyncStatus,
     lastCloudSync,
     pullFromCloudNow,
@@ -102,11 +103,12 @@ export const CourtSupervisorView: React.FC = () => {
 
   const uniqueCourts = useMemo(() => {
     const set = new Set<string>();
+    (customCourts || []).forEach((c) => { if (c) set.add(c); });
     matches.forEach((m) => {
       if (m.Kort) set.add(m.Kort);
     });
     return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-  }, [matches]);
+  }, [matches, customCourts]);
 
   useEffect(() => {
     if (uniqueCourts.length > 0 && !uniqueCourts.includes(selectedCourt)) {

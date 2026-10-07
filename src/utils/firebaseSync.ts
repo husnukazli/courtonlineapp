@@ -24,6 +24,7 @@ export interface CloudTournamentMetadata {
   tournamentVersion?: number;  
   matches?: MatchItem[];
   tournamentInfo?: { ad: string; yer: string; tarih: string; not: string }; // YENİ: Bulut Hafızası
+  customCourts?: string[]; // YENİ: Otomatik analiz edilen ve başhakem tarafından yönetilen kortlar
 }  
 
 export interface TournamentListItem {  
@@ -193,7 +194,8 @@ export const subscribeToCloudTournament = (
           yer: d.yer || d.tournamentInfo?.yer || '',
           tarih: d.tarih || d.tournamentInfo?.tarih || '',
           not: d.not || d.tournamentInfo?.not || ''
-        }     
+        },
+        customCourts: Array.isArray(d.customCourts) ? d.customCourts : undefined
       });    
     },    
     (err: FirestoreError) => { if (onError) onError(err); }  
@@ -307,14 +309,26 @@ export const pushTournamentInfoToCloud = async (info: { ad: string; yer: string;
   }
 };  
 
+// YENİ EKLENDİ: Kort havuzunu / listesini Firebase'e gönderir
+export const pushCustomCourtsToCloud = async (courts: string[], tournamentId = 'main'): Promise<boolean> => {  
+  try { 
+    await setDoc(tDoc(tournamentId), { customCourts: courts }, { merge: true }); 
+    return true; 
+  } catch (e) { 
+    console.error('pushCustomCourtsToCloud:', e); 
+    return false; 
+  }
+};  
+
 export const pushFullTournamentToCloud = async (  
   matches: MatchItem[], referees: RefereeUser[],  
   categoryFormats: Record<string, string>, deskPin = '9999', tournamentId = 'main',
-  categoryNoAdSettings: Record<string, boolean> = {}
+  categoryNoAdSettings: Record<string, boolean> = {},
+  customCourts: string[] = []
 ): Promise<void> => {  
   try {    
     await setDoc(tDoc(tournamentId), {      
-      referees, categoryFormats, categoryNoAdSettings, deskPin, version: 1,      
+      referees, categoryFormats, categoryNoAdSettings, deskPin, version: 1, customCourts,     
       lastUpdated: new Date().toISOString(), updatedBy: 'Sistem Senkronizasyonu',    
     }, { merge: true });    
     await pushAllMatchesToCloud(matches, 'Sistem Senkronizasyonu', tournamentId);  
@@ -331,6 +345,7 @@ export const fetchTournamentFromCloud = async (tournamentId = 'main'): Promise<{
   deskPin?: string;  
   tournamentVersion?: number;
   tournamentInfo?: { ad: string; yer: string; tarih: string; not: string }; // YENİ
+  customCourts?: string[]; // YENİ
 } | null> => {  
   try {    
     const [metaSnap, matchSnap] = await Promise.all([      
@@ -351,7 +366,8 @@ export const fetchTournamentFromCloud = async (tournamentId = 'main'): Promise<{
         yer: meta.yer || meta.tournamentInfo?.yer || '',
         tarih: meta.tarih || meta.tournamentInfo?.tarih || '',
         not: meta.not || meta.tournamentInfo?.not || ''
-      }
+      },
+      customCourts: Array.isArray(meta.customCourts) ? meta.customCourts : undefined
     };  
   } catch (e) { 
     console.error('fetchTournamentFromCloud hata:', e); 

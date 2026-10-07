@@ -13,7 +13,7 @@ import { calculateMatchDurationSeconds } from '../utils/timerUtils';
 import {
   pushSingleMatchToCloud, pushAllMatchesToCloud, replaceAllMatchesInCloud,
   pushRefereesToCloud, pushCategoryFormatsToCloud, pushCategoryNoAdSettingsToCloud,
-  pushTournamentInfoToCloud, pushDeskPinToCloud, pushFullTournamentToCloud, 
+  pushTournamentInfoToCloud, pushCustomCourtsToCloud, pushDeskPinToCloud, pushFullTournamentToCloud, 
   subscribeToCloudTournament, fetchTournamentFromCloud, deleteAllMatchesFromCloud, purgeOrphanMatchesFromCloud,
 } from '../utils/firebaseSync';
 
@@ -134,6 +134,11 @@ interface TennisDataContextType {
   addReferee: (name: string, pin: string) => void; deleteReferee: (name: string) => void;
   updateCategoryFormat: (category: string, format: string) => void; bulkApplyCategoryFormats: (formatMap: Record<string, string>) => void;
   bulkApplyCategoryNoAdSettings: (noAdMap: Record<string, boolean>) => void;
+  customCourts: string[];
+  addCustomCourt: (courtName: string) => void;
+  renameCustomCourt: (oldName: string, newName: string) => void;
+  deleteCustomCourt: (courtName: string) => void;
+  reorderCustomCourts: (courts: string[]) => void;
   tournamentInfo: { ad: string; yer: string; tarih: string; not: string; tbType?: 'standard' | 'coman'; tvPages?: string[][] };
   saveTournamentInfo: (info: { ad: string; yer: string; tarih: string; not: string; tbType?: 'standard' | 'coman'; tvPages?: string[][] }) => void;
   importMatchesList: (newMatches: MatchItem[]) => void; resetTournamentToDefault: () => void;
@@ -146,6 +151,7 @@ const BASE_STORAGE_KEYS = {
   CATEGORY_FORMATS: 'courtonline_cat_formats_v2', CATEGORY_NOAD: 'courtonline_cat_noad_v2',
   TOURNAMENT_INFO: 'courtonline_t_info_v2', ACTIVE_MATCH_ID: 'courtonline_active_match_id_v2',
   DESK_PIN: 'courtonline_desk_pin_v2', AUTH_ROLE: 'courtonline_auth_role_v2', ACTIVE_TOURNAMENT: 'courtonline_active_tournament_id',
+  CUSTOM_COURTS: 'courtonline_custom_courts_v2',
 };
 
 const getStorageKey = (key: string, tId: string) => (tId ? `${key}_${tId}` : key);
@@ -234,6 +240,12 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     } catch { return defaultInfo; }
   });
 
+  const [customCourts, setCustomCourtsState] = useState<string[]>(() => {
+    if (!initialTournamentId) return [];
+    const saved = localStorage.getItem(getStorageKey(BASE_STORAGE_KEYS.CUSTOM_COURTS, initialTournamentId));
+    try { return saved ? JSON.parse(saved) : []; } catch { return []; }
+  });
+
   const [activeMatchId, setActiveMatchId] = useState<string | null>(() => {
     if (!initialTournamentId) return 'm-9';
     return localStorage.getItem(getStorageKey(BASE_STORAGE_KEYS.ACTIVE_MATCH_ID, initialTournamentId)) || 'm-9';
@@ -253,8 +265,11 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       setCategoryNoAdSettings(cachedNoAd ? JSON.parse(cachedNoAd) : {});
       const cachedInfo = localStorage.getItem(getStorageKey(BASE_STORAGE_KEYS.TOURNAMENT_INFO, id));
       setTournamentInfoState(cachedInfo ? { ...{ tbType: 'standard', tvPages: [] }, ...JSON.parse(cachedInfo) } : { ad: '', yer: '', tarih: '', not: '', tbType: 'standard', tvPages: [] });
+      const cachedCourts = localStorage.getItem(getStorageKey(BASE_STORAGE_KEYS.CUSTOM_COURTS, id));
+      setCustomCourtsState(cachedCourts ? JSON.parse(cachedCourts) : []);
     } else {
       setMatches([]); setReferees([]); setTournamentInfoState({ ad: '', yer: '', tarih: '', not: '', tbType: 'standard', tvPages: [] });
+      setCustomCourtsState([]);
     }
   };
 
@@ -265,8 +280,9 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       localStorage.setItem(getStorageKey(BASE_STORAGE_KEYS.CATEGORY_FORMATS, tournamentId), JSON.stringify(categoryFormats));
       localStorage.setItem(getStorageKey(BASE_STORAGE_KEYS.CATEGORY_NOAD, tournamentId), JSON.stringify(categoryNoAdSettings));
       localStorage.setItem(getStorageKey(BASE_STORAGE_KEYS.TOURNAMENT_INFO, tournamentId), JSON.stringify(tournamentInfoState));
+      localStorage.setItem(getStorageKey(BASE_STORAGE_KEYS.CUSTOM_COURTS, tournamentId), JSON.stringify(customCourts));
     }
-  }, [matches, referees, categoryFormats, categoryNoAdSettings, tournamentInfoState, tournamentId]);
+  }, [matches, referees, categoryFormats, categoryNoAdSettings, tournamentInfoState, customCourts, tournamentId]);
 
   useEffect(() => {
     if (currentReferee) { localStorage.setItem(getStorageKey(BASE_STORAGE_KEYS.CURRENT_REF, tournamentId), JSON.stringify(currentReferee)); } 
@@ -321,6 +337,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         if (remote.categoryNoAdSettings) setCategoryNoAdSettings(remote.categoryNoAdSettings);
         if (remote.deskPin) setDeskPin(remote.deskPin);
         if (remote.tournamentInfo) setTournamentInfoState({ ...{ tbType: 'standard', tvPages: [] }, ...remote.tournamentInfo });
+        if (Array.isArray(remote.customCourts) && remote.customCourts.length > 0) setCustomCourtsState(remote.customCourts);
       }
     }).catch(() => {});
 
@@ -348,6 +365,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         if (meta.categoryNoAdSettings) setCategoryNoAdSettings(meta.categoryNoAdSettings);
         if (meta.deskPin) setDeskPin(meta.deskPin);
         if (meta.tournamentInfo) setTournamentInfoState({ ...{ tbType: 'standard', tvPages: [] }, ...meta.tournamentInfo });
+        if (Array.isArray(meta.customCourts) && meta.customCourts.length > 0) setCustomCourtsState(meta.customCourts);
       },
       () => {}
     );
@@ -400,6 +418,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         if (remote.categoryNoAdSettings) setCategoryNoAdSettings(remote.categoryNoAdSettings);
         if (remote.deskPin) setDeskPin(remote.deskPin);
         if (remote.tournamentInfo) setTournamentInfoState({ ...{ tbType: 'standard', tvPages: [] }, ...remote.tournamentInfo }); 
+        if (Array.isArray(remote.customCourts) && remote.customCourts.length > 0) setCustomCourtsState(remote.customCourts);
         
         setCloudSyncStatus('connected');
         setLastCloudSync(new Date().toLocaleTimeString('tr-TR'));
@@ -422,8 +441,9 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       localStorage.removeItem(getStorageKey(BASE_STORAGE_KEYS.CATEGORY_NOAD, tournamentId));
       localStorage.removeItem(getStorageKey(BASE_STORAGE_KEYS.DESK_PIN, tournamentId));
       localStorage.removeItem(getStorageKey(BASE_STORAGE_KEYS.TOURNAMENT_INFO, tournamentId));
+      localStorage.removeItem(getStorageKey(BASE_STORAGE_KEYS.CUSTOM_COURTS, tournamentId));
       
-      setMatches([]); setReferees([]);
+      setMatches([]); setReferees([]); setCustomCourtsState([]);
 
       const remote = await fetchTournamentFromCloud(tournamentId);
       if (remote) {
@@ -1457,6 +1477,60 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setCategoryNoAdSettings((prev) => ({ ...prev, ...noAdMap }));
   };
 
+  const addCustomCourt = (courtName: string) => {
+    const trimmed = courtName.trim();
+    if (!trimmed) return;
+    setCustomCourtsState((prev) => {
+      // Mevcut maçlardaki kortları da topla
+      const matchCourts = matches.map((m) => m.Kort).filter(Boolean);
+      const combined = Array.from(new Set([...prev, ...matchCourts]));
+      if (combined.includes(trimmed)) return prev;
+      const next = [...combined, trimmed];
+      if (tournamentId) pushCustomCourtsToCloud(next, tournamentId);
+      return next;
+    });
+  };
+
+  const renameCustomCourt = (oldName: string, newName: string) => {
+    const trimmedNew = newName.trim();
+    if (!trimmedNew || oldName === trimmedNew) return;
+
+    // 1. customCourts listesinde güncelle
+    setCustomCourtsState((prev) => {
+      const matchCourts = matches.map((m) => m.Kort).filter(Boolean);
+      const combined = Array.from(new Set([...prev, ...matchCourts]));
+      const next = combined.map((c) => (c === oldName ? trimmedNew : c));
+      const deduped = Array.from(new Set(next));
+      if (tournamentId) pushCustomCourtsToCloud(deduped, tournamentId);
+      return deduped;
+    });
+
+    // 2. Bu korta atanmış maçların kort ismini otomatik güncelle
+    const affectedMatches = matches.filter((m) => m.Kort === oldName);
+    if (affectedMatches.length > 0) {
+      setMatches((prev) => {
+        const next = prev.map((m) => (m.Kort === oldName ? { ...m, Kort: trimmedNew } : m));
+        broadcastAndSyncMatches(next);
+        return next;
+      });
+    }
+  };
+
+  const deleteCustomCourt = (courtName: string) => {
+    setCustomCourtsState((prev) => {
+      const matchCourts = matches.map((m) => m.Kort).filter(Boolean);
+      const combined = Array.from(new Set([...prev, ...matchCourts]));
+      const next = combined.filter((c) => c !== courtName);
+      if (tournamentId) pushCustomCourtsToCloud(next, tournamentId);
+      return next;
+    });
+  };
+
+  const reorderCustomCourts = (courts: string[]) => {
+    setCustomCourtsState(courts);
+    if (tournamentId) pushCustomCourtsToCloud(courts, tournamentId);
+  };
+
   const saveTournamentInfo = (info: { ad: string; yer: string; tarih: string; not: string; tbType?: 'standard' | 'coman'; tvPages?: string[][] }) => {
     setTournamentInfoState(info);
     if (tournamentId) { pushTournamentInfoToCloud(info, tournamentId); }
@@ -1553,6 +1627,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         saveMatchSetup, awardPointToMatch, undoLastPoint, recordChallenge, setMatchStatus,
         resumeMatchToLive, resetMatchScore, manualUpdateScoreString, addReferee, deleteReferee,
         updateCategoryFormat, bulkApplyCategoryFormats, bulkApplyCategoryNoAdSettings, 
+        customCourts, addCustomCourt, renameCustomCourt, deleteCustomCourt, reorderCustomCourts,
         tournamentInfo: tournamentInfoState, saveTournamentInfo, importMatchesList, resetTournamentToDefault,
       }}
     >

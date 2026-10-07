@@ -24,7 +24,7 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
   onClose,
   onStartMatch,
 }) => {
-  const { saveMatchSetup, categoryFormats, categoryNoAdSettings, matches } = useTennisData();
+  const { saveMatchSetup, categoryFormats, categoryNoAdSettings, matches, customCourts } = useTennisData();
 
   const [kuraKazanan, setKuraKazanan] = useState<string>('Secilmedi');
   const [kuraTercih, setKuraTercih] = useState<string>('Servis');
@@ -46,7 +46,12 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
   const [rotation, setRotation] = useState<number>(0);
   const [hasTossed, setHasTossed] = useState<boolean>(false); 
 
-  const distinctKortlar = Array.from(new Set(matches.map((m: any) => m.Kort).filter(Boolean))).sort() as string[];
+  const distinctKortlar = React.useMemo(() => {
+    const list = new Set<string>();
+    (customCourts || []).forEach((c) => { if (c) list.add(c); });
+    matches.forEach((m: any) => { if (m.Kort) list.add(m.Kort); });
+    return Array.from(list).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  }, [customCourts, matches]);
 
   React.useEffect(() => {
     if (match) {

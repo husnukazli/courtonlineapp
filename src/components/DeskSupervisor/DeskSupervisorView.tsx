@@ -3,7 +3,7 @@ import {
   Tv, Filter, Search, ZoomIn, ZoomOut, RefreshCw, Plus, Trash2, CheckCircle2,
   Clock, Award, Layers, Users, FileSpreadsheet, Download, Upload, AlertCircle,
   Eye, Lock, KeyRound, ShieldCheck, FileText, RotateCcw, Sun, Moon, MonitorPlay,
-  Maximize2, Minimize2
+  Maximize2, Minimize2, Edit3, ArrowUpDown, Check, X
 } from 'lucide-react';
 import { useTennisData } from '../../context/TennisDataContext';
 import { MatchItem, ScoreFormatType } from '../../types/tennis';
@@ -33,6 +33,10 @@ export const DeskSupervisorView: React.FC = () => {
     deleteReferee,
     bulkApplyCategoryFormats,
     bulkApplyCategoryNoAdSettings,
+    customCourts,
+    addCustomCourt,
+    renameCustomCourt,
+    deleteCustomCourt,
     tournamentInfo,
     saveTournamentInfo,
     purgeOrphanMatches,
@@ -53,11 +57,11 @@ export const DeskSupervisorView: React.FC = () => {
     });
   };
 
-  const [activeSubTab, setActiveSubTab] = useState<'grid' | 'stats' | 'formats' | 'referees' | 'manage' | 'info' | 'tv'>(() => {
+  const [activeSubTab, setActiveSubTab] = useState<'grid' | 'stats' | 'formats' | 'courts' | 'referees' | 'manage' | 'info' | 'tv'>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('courtonline_desk_subtab');
-      if (saved && ['grid', 'stats', 'formats', 'referees', 'manage', 'info', 'tv'].includes(saved)) {
-        return saved as 'grid' | 'stats' | 'formats' | 'referees' | 'manage' | 'info' | 'tv';
+      if (saved && ['grid', 'stats', 'formats', 'courts', 'referees', 'manage', 'info', 'tv'].includes(saved)) {
+        return saved as 'grid' | 'stats' | 'formats' | 'courts' | 'referees' | 'manage' | 'info' | 'tv';
       }
     }
     return 'grid';
@@ -82,6 +86,12 @@ export const DeskSupervisorView: React.FC = () => {
   const [newRefName, setNewRefName] = useState<string>('');
   const [newRefPin, setNewRefPin] = useState<string>('');
 
+  // Kort Yönetimi State'leri
+  const [newCourtNameInput, setNewCourtNameInput] = useState<string>('');
+  const [editingCourtOldName, setEditingCourtOldName] = useState<string | null>(null);
+  const [editingCourtNewName, setEditingCourtNewName] = useState<string>('');
+  const [courtFeedbackMsg, setCourtFeedbackMsg] = useState<string>('');
+
   const [editingDeskPin, setEditingDeskPin] = useState<string>(deskPin);
   const [deskPinSuccessMsg, setDeskPinSuccessMsg] = useState<string>('');
 
@@ -94,7 +104,14 @@ export const DeskSupervisorView: React.FC = () => {
   const [isSyncingAction, setIsSyncingAction] = useState(false);
   const [raporAlindi, setRaporAlindi] = useState<boolean>(false);
 
-  const distinctCourts = Array.from(new Set(matches.map((m) => m.Kort))).sort();
+  // Otomatik Analiz ve Dinamik Kort Listesi
+  const distinctCourts = React.useMemo(() => {
+    const list = new Set<string>();
+    (customCourts || []).forEach((c) => { if (c && c.trim()) list.add(c.trim()); });
+    matches.forEach((m) => { if (m.Kort && m.Kort.trim()) list.add(m.Kort.trim()); });
+    return Array.from(list).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  }, [customCourts, matches]);
+
   const distinctCategories = Array.from(new Set(matches.map((m) => m.Kategori).filter(Boolean))).sort();
 
   const totalMatches = matches.length;
@@ -535,6 +552,9 @@ export const DeskSupervisorView: React.FC = () => {
               </button>
               <button type="button" onClick={() => setActiveSubTab('formats')} className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition ${activeSubTab === 'formats' ? (isLightMode ? 'bg-cyan-600 text-white shadow-md font-black' : 'bg-cyan-400 text-slate-950 shadow-md font-black') : (isLightMode ? 'text-slate-500 hover:text-slate-900' : 'text-slate-400 hover:text-slate-200')}`}>
                 <Layers className="w-3.5 h-3.5" /><span>Format Hafızası</span>
+              </button>
+              <button type="button" onClick={() => setActiveSubTab('courts')} className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition ${activeSubTab === 'courts' ? (isLightMode ? 'bg-amber-600 text-white shadow-md font-black' : 'bg-amber-400 text-slate-950 shadow-md font-black') : (isLightMode ? 'text-slate-500 hover:text-slate-900' : 'text-slate-400 hover:text-slate-200')}`}>
+                <span>🏟️</span><span>Kort Yönetimi ({distinctCourts.length})</span>
               </button>
               <button type="button" onClick={() => setActiveSubTab('tv')} className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition ${activeSubTab === 'tv' ? (isLightMode ? 'bg-indigo-600 text-white shadow-md font-black' : 'bg-indigo-400 text-slate-950 shadow-md font-black') : (isLightMode ? 'text-slate-500 hover:text-slate-900' : 'text-slate-400 hover:text-slate-200')}`}>
                 <MonitorPlay className="w-3.5 h-3.5" /><span>TV / Yayın Ayarları</span>
@@ -1041,6 +1061,263 @@ export const DeskSupervisorView: React.FC = () => {
           </div>
           <div className={`pt-4 border-t flex justify-end ${isLightMode ? 'border-slate-200' : 'border-slate-800'}`}>
             <button type="button" onClick={handleApplyFormats} className={`px-6 py-3 font-bold rounded-xl shadow-lg transition ${isLightMode ? 'bg-cyan-600 hover:bg-cyan-500 text-white' : 'bg-cyan-400 hover:bg-cyan-300 text-slate-950'}`}>Formatları Kaydet ve Tüm Maçlara Uygula</button>
+          </div>
+        </div>
+      )}
+
+      {/* YENİ: KORT YÖNETİMİ SEKMESİ */}
+      {activeSubTab === 'courts' && (
+        <div className="space-y-6">
+          {/* Kort Ekleme ve Bilgilendirme Kutusu */}
+          <div className={`border rounded-3xl p-6 space-y-4 ${isLightMode ? 'bg-white border-slate-300' : 'bg-slate-900 border-slate-800'}`}>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800">
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-2xl border flex items-center justify-center font-bold text-lg ${
+                  isLightMode ? 'bg-amber-50 text-amber-600 border-amber-200' : 'bg-amber-400/20 text-amber-400 border-amber-400/30'
+                }`}>
+                  🏟️
+                </div>
+                <div>
+                  <h3 className={`font-bold text-base ${isLightMode ? 'text-slate-900' : 'text-white'}`}>
+                    Kort Analizi & Yönetim Havuzu
+                  </h3>
+                  <p className={`text-xs mt-0.5 ${isLightMode ? 'text-slate-500' : 'text-slate-400'}`}>
+                    Sistem mevcut maç programındaki tüm kortları otomatik tespit eder. Buradan yeni kort ekleyebilir, isimlerini yeniden adlandırabilir ve silebilirsiniz.
+                  </p>
+                </div>
+              </div>
+              <div className={`font-mono text-xs px-3 py-1.5 rounded-xl font-bold border shrink-0 ${
+                isLightMode ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-amber-950/60 text-amber-400 border-amber-500/30'
+              }`}>
+                Toplam Aktif Kort: {distinctCourts.length}
+              </div>
+            </div>
+
+            {courtFeedbackMsg && (
+              <div className={`p-3 border rounded-xl text-xs font-bold flex items-center gap-2 animate-in fade-in ${
+                isLightMode ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-emerald-950/50 border-emerald-500/40 text-emerald-300'
+              }`}>
+                <CheckCircle2 className="w-4 h-4 shrink-0" />
+                <span>{courtFeedbackMsg}</span>
+              </div>
+            )}
+
+            {/* Yeni Kort Ekle Formu */}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const trimmed = newCourtNameInput.trim();
+                if (!trimmed) return;
+                if (distinctCourts.includes(trimmed)) {
+                  setCourtFeedbackMsg(`⚠️ "${trimmed}" isimli bir kort zaten mevcut!`);
+                  setTimeout(() => setCourtFeedbackMsg(''), 3000);
+                  return;
+                }
+                addCustomCourt(trimmed);
+                setNewCourtNameInput('');
+                setCourtFeedbackMsg(`✅ "${trimmed}" başarıyla sisteme eklendi ve tüm listelere yansıtıldı!`);
+                setTimeout(() => setCourtFeedbackMsg(''), 3500);
+              }}
+              className="flex flex-col sm:flex-row items-stretch sm:items-end gap-3 pt-1"
+            >
+              <div className="flex-1 space-y-1">
+                <label className={`block text-xs font-bold uppercase tracking-wider ${isLightMode ? 'text-slate-600' : 'text-slate-400'}`}>
+                  Yeni Kort Adı Ekle
+                </label>
+                <input
+                  type="text"
+                  placeholder="örn. KORT 5, MERKEZ KORT, KAPALI KORT 2..."
+                  value={newCourtNameInput}
+                  onChange={(e) => setNewCourtNameInput(e.target.value)}
+                  className={`w-full px-4 py-2.5 border rounded-xl text-sm font-bold focus:outline-none focus:border-amber-400 ${
+                    isLightMode ? 'bg-white border-slate-300 text-slate-900 placeholder:text-slate-400' : 'bg-slate-950 border-slate-800 text-white placeholder:text-slate-500'
+                  }`}
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={!newCourtNameInput.trim()}
+                className={`px-6 py-2.5 font-bold text-sm rounded-xl shadow transition flex items-center justify-center gap-2 disabled:opacity-50 ${
+                  isLightMode ? 'bg-amber-600 hover:bg-amber-500 text-white' : 'bg-amber-400 hover:bg-amber-300 text-slate-950'
+                }`}
+              >
+                <Plus className="w-4 h-4" />
+                <span>Kort Ekle</span>
+              </button>
+            </form>
+          </div>
+
+          {/* Mevcut Kortların Listesi & Düzenleme Kartları */}
+          <div className={`border rounded-3xl p-6 space-y-4 ${isLightMode ? 'bg-white border-slate-300' : 'bg-slate-900 border-slate-800'}`}>
+            <div className="flex items-center justify-between pb-2 border-b border-slate-200 dark:border-slate-800">
+              <h3 className={`font-bold text-base ${isLightMode ? 'text-slate-900' : 'text-white'}`}>
+                Sistemdeki Kortlar & Canlı Durum ({distinctCourts.length})
+              </h3>
+              <span className="text-[11px] text-slate-400 font-mono">
+                İsim değiştirdiğinizde o korta ait maçlar otomatik yeni isme geçer
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-1">
+              {distinctCourts.map((courtName) => {
+                const courtMatches = matches.filter((m) => m.Kort === courtName);
+                const liveCount = courtMatches.filter((m) => m.Durum === 'Oynaniyor').length;
+                const finishedCount = courtMatches.filter((m) => ['Bitti', 'Retired', 'Walkover'].includes(m.Durum)).length;
+                const upcomingCount = courtMatches.filter((m) => m.Durum === 'Baslamadi').length;
+                const isEditing = editingCourtOldName === courtName;
+
+                return (
+                  <div
+                    key={courtName}
+                    className={`p-4 rounded-2xl border transition shadow-sm space-y-3 ${
+                      isLightMode ? 'bg-slate-50/80 border-slate-200 hover:border-slate-300' : 'bg-slate-950 border-slate-800 hover:border-slate-700'
+                    }`}
+                  >
+                    {isEditing ? (
+                      /* Kort İsmi Düzenleme Alanı */
+                      <form
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          const trimmed = editingCourtNewName.trim();
+                          if (!trimmed || trimmed === courtName) {
+                            setEditingCourtOldName(null);
+                            return;
+                          }
+                          renameCustomCourt(courtName, trimmed);
+                          setCourtFeedbackMsg(`✅ "${courtName}" ismi "${trimmed}" olarak güncellendi! Tüm maçlar taşındı.`);
+                          setEditingCourtOldName(null);
+                          setTimeout(() => setCourtFeedbackMsg(''), 3500);
+                        }}
+                        className="space-y-2"
+                      >
+                        <label className="text-[10px] font-bold uppercase tracking-wider text-amber-500 block">
+                          Yeni İsmi Girin:
+                        </label>
+                        <input
+                          type="text"
+                          value={editingCourtNewName}
+                          autoFocus
+                          onChange={(e) => setEditingCourtNewName(e.target.value)}
+                          className={`w-full px-3 py-1.5 border rounded-xl text-xs font-bold focus:outline-none focus:border-amber-400 ${
+                            isLightMode ? 'bg-white border-slate-300 text-slate-900' : 'bg-slate-900 border-slate-700 text-white'
+                          }`}
+                        />
+                        <div className="flex items-center gap-2 pt-1">
+                          <button
+                            type="submit"
+                            className="flex-1 py-1.5 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center justify-center gap-1 shadow"
+                          >
+                            <Check className="w-3.5 h-3.5" />
+                            <span>Kaydet</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditingCourtOldName(null)}
+                            className="py-1.5 px-3 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold flex items-center justify-center gap-1"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                            <span>İptal</span>
+                          </button>
+                        </div>
+                      </form>
+                    ) : (
+                      /* Normal Kart Görünümü */
+                      <>
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-base">🏟️</span>
+                            <span className={`font-black text-sm tracking-wide ${isLightMode ? 'text-slate-900' : 'text-white'}`}>
+                              {courtName}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingCourtOldName(courtName);
+                                setEditingCourtNewName(courtName);
+                              }}
+                              className={`p-1.5 rounded-lg border transition ${
+                                isLightMode
+                                  ? 'bg-white border-slate-200 text-slate-600 hover:text-amber-600 hover:border-amber-300'
+                                  : 'bg-slate-900 border-slate-700 text-slate-400 hover:text-amber-400 hover:border-amber-500/50'
+                              }`}
+                              title="Kort İsmini Değiştir"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (courtMatches.length > 0) {
+                                  const confirmDelete = window.confirm(
+                                    `DİKKAT: "${courtName}" kortunda tanımlı ${courtMatches.length} adet maç bulunmaktadır!\n\nKortu listeden kaldırmak istediğinize emin misiniz? (Maçlar silinmez ancak kort havuzundan düşer)`
+                                  );
+                                  if (!confirmDelete) return;
+                                } else {
+                                  const confirmDelete = window.confirm(`"${courtName}" kortunu silmek istediğinize emin misiniz?`);
+                                  if (!confirmDelete) return;
+                                }
+                                deleteCustomCourt(courtName);
+                                setCourtFeedbackMsg(`🗑️ "${courtName}" listeden kaldırıldı.`);
+                                setTimeout(() => setCourtFeedbackMsg(''), 3000);
+                              }}
+                              className={`p-1.5 rounded-lg border transition ${
+                                isLightMode
+                                  ? 'bg-white border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-300 hover:bg-rose-50'
+                                  : 'bg-slate-900 border-slate-700 text-slate-500 hover:text-rose-400 hover:border-rose-500/50 hover:bg-rose-950/30'
+                              }`}
+                              title="Kortu Sil"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Maç Durum Özetleri */}
+                        <div className="grid grid-cols-3 gap-1.5 text-center text-[10px] font-mono pt-1">
+                          <div className={`p-1.5 rounded-lg border ${
+                            liveCount > 0
+                              ? isLightMode ? 'bg-emerald-100 border-emerald-300 text-emerald-800 font-bold animate-pulse' : 'bg-emerald-950/60 border-emerald-500/40 text-emerald-300 font-bold animate-pulse'
+                              : isLightMode ? 'bg-white border-slate-200 text-slate-400' : 'bg-slate-900 border-slate-800 text-slate-500'
+                          }`}>
+                            <div className="font-sans font-semibold">Canlı</div>
+                            <div className="text-xs font-black">{liveCount}</div>
+                          </div>
+
+                          <div className={`p-1.5 rounded-lg border ${
+                            upcomingCount > 0
+                              ? isLightMode ? 'bg-cyan-50 border-cyan-200 text-cyan-800 font-bold' : 'bg-cyan-950/40 border-cyan-500/30 text-cyan-300 font-bold'
+                              : isLightMode ? 'bg-white border-slate-200 text-slate-400' : 'bg-slate-900 border-slate-800 text-slate-500'
+                          }`}>
+                            <div className="font-sans font-semibold">Bekleyen</div>
+                            <div className="text-xs font-black">{upcomingCount}</div>
+                          </div>
+
+                          <div className={`p-1.5 rounded-lg border ${
+                            finishedCount > 0
+                              ? isLightMode ? 'bg-slate-100 border-slate-200 text-slate-700 font-bold' : 'bg-slate-900 border-slate-700 text-slate-300 font-bold'
+                              : isLightMode ? 'bg-white border-slate-200 text-slate-400' : 'bg-slate-900 border-slate-800 text-slate-500'
+                          }`}>
+                            <div className="font-sans font-semibold">Biten</div>
+                            <div className="text-xs font-black">{finishedCount}</div>
+                          </div>
+                        </div>
+
+                        <div className={`text-[11px] font-mono flex items-center justify-between pt-1 border-t ${
+                          isLightMode ? 'border-slate-200 text-slate-500' : 'border-slate-800 text-slate-400'
+                        }`}>
+                          <span>Korttaki Toplam Maç:</span>
+                          <span className="font-bold text-slate-900 dark:text-white">{courtMatches.length} Maç</span>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
       )}
