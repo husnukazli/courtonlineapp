@@ -15,7 +15,7 @@ export const QuickScoreEditModal: React.FC<QuickScoreEditModalProps> = ({
   isOpen,
   onClose,
 }) => {
-  const { saveDirectScoreAndStatus } = useTennisData();
+  const { saveDirectScoreAndStatus, currentReferee } = useTennisData();
 
   const [scores, setScores] = useState({
     s1_p1: 0, s1_p2: 0,
@@ -27,6 +27,7 @@ export const QuickScoreEditModal: React.FC<QuickScoreEditModalProps> = ({
   const [status, setStatus] = useState<MatchStatus>('Oynaniyor');
   const [winner, setWinner] = useState<string>('Secilmedi');
   const [validationError, setValidationError] = useState<string>('');
+  const [showChairConfirm, setShowChairConfirm] = useState(false);
 
   useEffect(() => {
     if (match && isOpen) {
@@ -75,10 +76,16 @@ export const QuickScoreEditModal: React.FC<QuickScoreEditModalProps> = ({
       setStatus(match.Durum || 'Oynaniyor');
       setWinner(match.Kazanan || 'Secilmedi');
       setValidationError('');
+      setShowChairConfirm(false);
     }
   }, [match, isOpen]);
 
   if (!isOpen || !match) return null;
+
+  const isAnotherRefOnChair = Boolean(
+    match.isChairActive && (!currentReferee || match.chairUmpireName !== currentReferee.name)
+  );
+  const activeChairRefName = match.chairUmpireName || match.Gorevli_Hakem || match.Son_Hakem || 'Kule Hakemi';
 
   const handleScoreChange = (field: keyof typeof scores, value: string) => {
     if (field.includes('tb')) {
@@ -99,7 +106,7 @@ export const QuickScoreEditModal: React.FC<QuickScoreEditModalProps> = ({
     }
   };
 
-  const handleSave = () => {
+  const executeSave = () => {
     const format = match.Skor_Formati || '3 Normal Set';
     const isEndingNormally = status === 'Bitti';
     let finalWinner = winner;
@@ -171,8 +178,31 @@ export const QuickScoreEditModal: React.FC<QuickScoreEditModalProps> = ({
     }
 
     saveDirectScoreAndStatus(match.id, payload);
-
     onClose();
+  };
+
+  const handleSave = () => {
+    const format = match.Skor_Formati || '3 Normal Set';
+    const isEndingNormally = status === 'Bitti';
+    const validation = validateFullMatchScores(
+      scores.s1_p1, scores.s1_p2,
+      scores.s2_p1, scores.s2_p2,
+      scores.s3_p1, scores.s3_p2,
+      format,
+      isEndingNormally
+    );
+
+    if (!validation.valid) {
+      setValidationError(validation.error || 'Girdiğiniz skorlar turnuva formatına uygun değil.');
+      return;
+    }
+
+    if (isAnotherRefOnChair && !showChairConfirm) {
+      setShowChairConfirm(true);
+      return;
+    }
+
+    executeSave();
   };
 
   return (
@@ -193,6 +223,15 @@ export const QuickScoreEditModal: React.FC<QuickScoreEditModalProps> = ({
             <X className="w-5 h-5" />
           </button>
         </div>
+
+        {isAnotherRefOnChair && (
+          <div className="bg-amber-500/15 border border-amber-500/40 rounded-2xl p-2.5 flex items-center gap-2 text-xs text-amber-300 animate-in fade-in">
+            <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
+            <span className="font-semibold text-[11px] leading-tight">
+              Bu maç kule hakemi <strong className="text-white underline">{activeChairRefName}</strong> tarafından canlı yönetilmektedir.
+            </span>
+          </div>
+        )}
 
         {/* Oyuncu İsimleri Başlıkları */}
         <div className="grid grid-cols-12 gap-2 text-[10px] font-black uppercase text-slate-500 tracking-wider text-center">
@@ -371,19 +410,53 @@ export const QuickScoreEditModal: React.FC<QuickScoreEditModalProps> = ({
         </div>
 
         {/* Butonlar */}
-        <div className="flex items-center gap-3 pt-2">
-          <button type="button" onClick={onClose} className="w-full py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition">
-            İptal
-          </button>
-          <button 
-            type="button" 
-            onClick={handleSave} 
-            className="w-full py-3 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 transition active:scale-95 shadow-lg shadow-cyan-500/20"
-          >
-            <Save className="w-4 h-4" />
-            Kurallı Kaydet
-          </button>
-        </div>
+        {showChairConfirm ? (
+          <div className="bg-amber-950/90 border-2 border-amber-500 rounded-2xl p-3.5 text-center space-y-2.5 animate-in fade-in zoom-in-95">
+            <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center mx-auto text-lg font-bold">
+              ⚠️
+            </div>
+            <h4 className="font-black text-amber-300 text-xs">Kule Hakemi Canlı Yönetimde!</h4>
+            <p className="text-[11px] text-slate-300 leading-snug">
+              Bu maç şu anda <span className="font-bold text-white underline">{activeChairRefName}</span> tarafından yönetiliyor. Gireceğiniz skor kuledeki canlı maçı doğrudan değiştirecektir.
+            </p>
+            <p className="text-[10px] font-bold text-amber-400">
+              Skoru güncellemek istediğinize emin misiniz?
+            </p>
+            <div className="flex items-center gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setShowChairConfirm(false)}
+                className="flex-1 py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition"
+              >
+                Vazgeç
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowChairConfirm(false);
+                  executeSave();
+                }}
+                className="flex-1 py-2 px-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 text-xs font-black transition shadow-lg shadow-amber-500/20"
+              >
+                Onayla ve Kaydet
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center gap-3 pt-2">
+            <button type="button" onClick={onClose} className="w-full py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition">
+              İptal
+            </button>
+            <button 
+              type="button" 
+              onClick={handleSave} 
+              className="w-full py-3 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 transition active:scale-95 shadow-lg shadow-cyan-500/20"
+            >
+              <Save className="w-4 h-4" />
+              Kurallı Kaydet
+            </button>
+          </div>
+        )}
 
       </div>
     </div>

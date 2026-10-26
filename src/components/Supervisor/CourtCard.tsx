@@ -5,7 +5,8 @@ import { parseScoreString, validateSingleSet } from '../../utils/tennisScoringEn
 import { MatchLiveTimer } from '../Common/MatchLiveTimer';
 import {
   Trophy, Clock, CheckCircle2, PlayCircle, Plus, Minus, RotateCcw,
-  Swords, PauseCircle, Timer, X, ArrowRightLeft, Settings, LogOut, Info, PenLine, Sun, Moon, Lock, Unlock
+  Swords, PauseCircle, Timer, X, ArrowRightLeft, Settings, LogOut, Info, PenLine, Sun, Moon, Lock, Unlock,
+  AlertTriangle
 } from 'lucide-react';
 
 interface CourtCardProps {
@@ -157,6 +158,20 @@ export const CourtCard: React.FC<CourtCardProps> = ({
 
   const [isEditingSetup, setIsEditingSetup] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const isChairActive = !!match.isChairActive;
+  const isAnotherRefOnChair = Boolean(
+    isChairActive && (!currentReferee || match.chairUmpireName !== currentReferee.name)
+  );
+  const activeChairRefName = match.chairUmpireName || match.Gorevli_Hakem || match.Son_Hakem || 'Kule Hakemi';
+
+  const [pendingScoreAction, setPendingScoreAction] = useState<{
+    type: 'quick_score' | 'edit_modal' | 'enter_chair';
+    player?: 1 | 2;
+    delta?: number;
+    title: string;
+    description: string;
+  } | null>(null);
 
   const [isChairMode, setIsChairMode] = useState<boolean>(() => {
     return localStorage.getItem('courtonline_active_chair_match') === match.id;
@@ -952,10 +967,54 @@ export const CourtCard: React.FC<CourtCardProps> = ({
     };
   }, [activeTimer]);
 
+  const executeEnterChair = () => {
+    setMatchChairActive(match.id, true, currentReferee?.name);
+    setIsChairMode(true); 
+    if (!isSetupValid) {
+       setSetupForm({
+          firstServingTeam: computedServerTeam,
+          leftTeam: computedLeftTeam,
+          tbType: globalTbType,
+          t1ServerIdx: currentT1ServerIdx as 0 | 1,
+          t2ServerIdx: currentT2ServerIdx as 0 | 1,
+          t1RecIdx: 0,
+          t2RecIdx: 0
+       });
+    }
+  };
+
+  const handleScoreEditClick = (e: React.MouseEvent) => {
+    handleProtectedAction(e, () => {
+      if (isAnotherRefOnChair) {
+        setPendingScoreAction({
+          type: 'edit_modal',
+          title: 'Hızlı Skor Girişi Uyarısı',
+          description: `Bu maç şu anda "${activeChairRefName}" tarafından kule hakemi olarak canlı yönetilmektedir. Hızlı skor düzenleme ekranını açmak ve skor girmek istediğinize emin misiniz? Yapacağınız değişiklik canlı skoru doğrudan etkileyecektir.`,
+        });
+        return;
+      }
+      if (onEditScore) onEditScore(match);
+    });
+  };
+
   const handleQuickScore = (e: React.MouseEvent, player: 1 | 2, delta: number) => {
     e.preventDefault();
     e.stopPropagation();
     vibrateDevice(40); 
+
+    if (isAnotherRefOnChair) {
+      const playerName = player === 1 ? match['Oyuncu 1'] : match['Oyuncu 2'];
+      const actionDesc = delta > 0 ? `+1 Oyun ekleme (${playerName})` : `1 Oyun geri alma (${playerName})`;
+      setPendingScoreAction({
+        type: 'quick_score',
+        player,
+        delta,
+        title: 'Hızlı Skor Değişikliği Uyarısı',
+        description: `Bu maç şu anda "${activeChairRefName}" tarafından kule hakemi olarak canlı yönetilmektedir. Dışarıdan ${actionDesc} işlemi yapmak istediğinize emin misiniz? Yapılan değişiklik kule ekranına ve canlı skora anında yansıyacaktır.`,
+      });
+      return;
+    }
+
     updateGameScore(match.id, selectedSet, player, delta);
   };
 
@@ -1071,8 +1130,6 @@ export const CourtCard: React.FC<CourtCardProps> = ({
     );
   };
 
-  const isChairActive = !!match.isChairActive;
-
   const baseCardClass = `transition-all duration-300 overflow-hidden flex flex-col justify-between shadow-md relative ${
     isCardLocked ? '!fixed !inset-0 !z-[100000] !w-screen !h-[100dvh] !rounded-none !m-0 !max-w-none overflow-y-auto overflow-x-hidden overscroll-none touch-pan-y' : 'rounded-3xl'
   } ${
@@ -1087,6 +1144,82 @@ export const CourtCard: React.FC<CourtCardProps> = ({
 
   return (
     <>
+      {/* KULE HAKEMİ AKTİFKEN HIZLI SKOR VE GİRİŞ UYARI MODALI */}
+      {pendingScoreAction && (
+        <div 
+          className="fixed inset-0 z-[100020] bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in zoom-in-95 duration-200" 
+          style={{ touchAction: 'none' }} 
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className={`border-2 rounded-3xl p-5 sm:p-7 w-full max-w-md text-center shadow-2xl relative ${
+            isLightMode ? 'bg-white border-amber-400 text-slate-900' : 'bg-slate-900 border-amber-500/80 text-white'
+          }`}>
+            <div className="w-14 h-14 rounded-2xl bg-amber-500/20 border border-amber-500/40 text-amber-500 flex items-center justify-center mx-auto mb-3 shadow-lg">
+              <AlertTriangle className="w-8 h-8 animate-bounce" />
+            </div>
+
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-cyan-500/20 border border-cyan-500/40 text-cyan-400 mb-2">
+              <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
+              <span>💺 Kule Hakemi: {activeChairRefName}</span>
+            </div>
+
+            <h3 className={`text-lg sm:text-xl font-black mb-2 ${isLightMode ? 'text-slate-900' : 'text-white'}`}>
+              {pendingScoreAction.title}
+            </h3>
+
+            <div className={`p-3.5 rounded-2xl my-3 text-xs font-medium leading-relaxed border ${
+              isLightMode ? 'bg-amber-50/80 border-amber-200 text-slate-700' : 'bg-amber-950/30 border-amber-500/30 text-amber-100'
+            }`}>
+              {pendingScoreAction.description}
+            </div>
+
+            <p className={`text-[11px] font-bold mb-5 ${isLightMode ? 'text-slate-500' : 'text-slate-400'}`}>
+              {pendingScoreAction.type === 'enter_chair'
+                ? 'Kule moduna geçmek için onay veriniz.'
+                : 'Kuledeki canlı maçın etkilenmemesi için işlemi teyit ediniz.'}
+            </p>
+
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setPendingScoreAction(null);
+                }}
+                className={`flex-1 py-3 px-4 rounded-xl font-bold text-xs sm:text-sm border transition active:scale-95 ${
+                  isLightMode 
+                    ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300' 
+                    : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
+                }`}
+              >
+                Vazgeç
+              </button>
+
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const action = pendingScoreAction;
+                  setPendingScoreAction(null);
+                  if (!action) return;
+                  vibrateDevice([60, 40, 60]);
+                  if (action.type === 'quick_score') {
+                    updateGameScore(match.id, selectedSet, action.player!, action.delta!);
+                  } else if (action.type === 'edit_modal') {
+                    if (onEditScore) onEditScore(match);
+                  } else if (action.type === 'enter_chair') {
+                    executeEnterChair();
+                  }
+                }}
+                className="flex-1 py-3 px-4 rounded-xl font-black text-xs sm:text-sm bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 shadow-lg shadow-amber-500/25 transition active:scale-95"
+              >
+                {pendingScoreAction.type === 'enter_chair' ? 'Onayla ve Devam Et' : 'Onayla ve Skor Gir'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {thirdSetWarning.show && (
         <div className="fixed inset-0 z-[100000] bg-slate-950/95 flex flex-col items-center justify-center p-6 animate-in fade-in zoom-in duration-300" style={{ touchAction: 'none' }}>
           <div className={`border-4 rounded-3xl p-6 sm:p-8 w-full max-w-lg text-center shadow-xl ${isLightMode ? 'bg-white border-amber-500' : 'bg-slate-900 border-amber-500'}`}>
@@ -1240,24 +1373,15 @@ export const CourtCard: React.FC<CourtCardProps> = ({
             <div className={`border rounded-2xl p-3 mt-2 ${isLightMode ? 'bg-slate-100 border-slate-300' : 'bg-slate-900 border-slate-700/80'}`}>
               <button type="button" onClick={(e) => { 
                   e.stopPropagation(); 
-                  if (isChairActive && match.chairUmpireName && match.chairUmpireName !== currentReferee?.name) {
-                    if (!window.confirm(`Bu maç şu anda Kule Hakemi (${match.chairUmpireName}) tarafından canlı yönetiliyor. Yine de kule moduna geçmek istiyor musunuz?`)) {
-                      return;
-                    }
+                  if (isAnotherRefOnChair) {
+                    setPendingScoreAction({
+                      type: 'enter_chair',
+                      title: 'Kule Hakemi Yönetimi Uyarısı',
+                      description: `Bu maç şu anda "${activeChairRefName}" tarafından kule hakemi olarak canlı yönetilmektedir. Kule hakemi moduna geçiş yapıp yönetimi devralmak istiyor musunuz?`,
+                    });
+                    return;
                   }
-                  setMatchChairActive(match.id, true, currentReferee?.name);
-                  setIsChairMode(true); 
-                  if (!isSetupValid) {
-                     setSetupForm({
-                        firstServingTeam: computedServerTeam,
-                        leftTeam: computedLeftTeam,
-                        tbType: globalTbType,
-                        t1ServerIdx: currentT1ServerIdx as 0|1,
-                        t2ServerIdx: currentT2ServerIdx as 0|1,
-                        t1RecIdx: 0,
-                        t2RecIdx: 0
-                     });
-                  }
+                  executeEnterChair();
                 }} 
                 className={`w-full py-3 mb-3 font-black rounded-xl transition active:scale-95 flex items-center justify-center gap-2 shadow-sm ${
                   isChairActive
@@ -1342,7 +1466,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
               {onOpenSetup && <button type="button" onClick={(e) => handleProtectedAction(e, () => onOpenSetup(match))} className={`py-2.5 px-3 rounded-xl font-bold text-xs border transition shadow-sm ${isLightMode ? 'bg-white hover:bg-slate-200 text-slate-800 border-slate-300' : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'}`} title="Kura Çek">🪙 Kura</button>}
               
               {onEditScore && (
-                <button type="button" onClick={(e) => handleProtectedAction(e, () => onEditScore(match))} className={`py-2.5 px-3 rounded-xl font-bold text-xs border transition flex items-center gap-1.5 shadow-sm ${isLightMode ? 'bg-white hover:bg-slate-200 text-slate-800 border-slate-300' : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'}`} title="Hızlı Skor Gir">
+                <button type="button" onClick={handleScoreEditClick} className={`py-2.5 px-3 rounded-xl font-bold text-xs border transition flex items-center gap-1.5 shadow-sm ${isLightMode ? 'bg-white hover:bg-slate-200 text-slate-800 border-slate-300' : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'}`} title="Hızlı Skor Gir">
                   <PenLine className="w-3.5 h-3.5" /> Skor
                 </button>
               )}
@@ -1358,7 +1482,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
               )}
               
               {onEditScore && (
-                <button type="button" onClick={(e) => handleProtectedAction(e, () => onEditScore(match))} className={`h-12 w-12 flex items-center justify-center shrink-0 border rounded-xl transition active:scale-95 shadow-sm ${isLightMode ? 'bg-white hover:bg-slate-200 text-slate-800 border-slate-300' : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'}`} title="Doğrudan Skor Düzenle">
+                <button type="button" onClick={handleScoreEditClick} className={`h-12 w-12 flex items-center justify-center shrink-0 border rounded-xl transition active:scale-95 shadow-sm ${isLightMode ? 'bg-white hover:bg-slate-200 text-slate-800 border-slate-300' : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'}`} title="Doğrudan Skor Düzenle">
                   <PenLine className="w-5 h-5" />
                 </button>
               )}
