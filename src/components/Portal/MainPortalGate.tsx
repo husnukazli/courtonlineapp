@@ -5,7 +5,8 @@ import {
   Shield, Smartphone, Tv, Lock, KeyRound, CheckCircle2,
   AlertCircle, X, User, Eye, EyeOff, ChevronRight,
   RefreshCw, Trash2, Cloud, QrCode, Activity, Clock,
-  Trophy, Circle, MapPin, CalendarPlus, Sun, Moon, Maximize, Minimize
+  Trophy, Circle, MapPin, CalendarPlus, Sun, Moon, Maximize, Minimize,
+  Check, ArrowRight, RotateCcw, SlidersHorizontal
 } from 'lucide-react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../utils/firebase';
@@ -51,7 +52,8 @@ const generateGoogleCalendarLink = (match: MatchItem, location: string) => {
 export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) => {
   const {
     referees, matches, loginReferee, deskPin,
-    cloudSyncStatus, lastCloudSync, pullFromCloudNow, clearLocalCacheAndResetFromCloud, tournamentInfo, tournamentId, setAuthRole
+    cloudSyncStatus, lastCloudSync, pullFromCloudNow, clearLocalCacheAndResetFromCloud, tournamentInfo, tournamentId, setAuthRole,
+    setActiveCourtFilter
   } = useTennisData();
 
   // TEMA (GECE / GÜNDÜZ MODU)
@@ -118,7 +120,8 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
   }, [isMonitorMode, tournamentInfo?.tvPages]);
 
 
-  const [activeModal, setActiveModal] = useState<'referee' | 'desk' | null>(null);
+  const [activeModal, setActiveModal] = useState<'referee' | 'desk' | 'referee_court_select' | null>(null);
+  const [selectedCourtsForReferee, setSelectedCourtsForReferee] = useState<string[]>([]);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [pin, setPin] = useState('');
   const [selectedRefName, setSelectedRefName] = useState('');
@@ -202,9 +205,9 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
     }
   }, [activeModal, tournamentId]);
 
-  const openRefereeModal = () => { setActiveModal('referee'); setPin(''); setSelectedRefName(''); setErrorMsg(''); setSuccessMsg(''); setShowPin(false); };
+  const openRefereeModal = () => { setActiveModal('referee'); setPin(''); setSelectedRefName(''); setErrorMsg(''); setSuccessMsg(''); setShowPin(false); setSelectedCourtsForReferee([]); };
   const openDeskModal = () => { setActiveModal('desk'); setPin(''); setSelectedRefName(''); setErrorMsg(''); setSuccessMsg(''); setShowPin(false); };
-  const closeModal = () => { setActiveModal(null); setPin(''); setErrorMsg(''); setSuccessMsg(''); };
+  const closeModal = () => { setActiveModal(null); setPin(''); setErrorMsg(''); setSuccessMsg(''); setSelectedCourtsForReferee([]); };
   const handleKeypadPress = (d: string) => { if (pin.length < 8) { setPin(p => p + d); setErrorMsg(''); } };
   const handleKeypadBackspace = () => setPin(p => p.slice(0, -1));
   const handleKeypadClear = () => setPin('');
@@ -214,12 +217,28 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
     if (!pin) { setErrorMsg('PIN şifresi boş olamaz.'); return; }
     const ok = loginReferee(selectedRefName, pin);
     if (ok) { 
-      setSuccessMsg(`✅ Hoş geldiniz ${selectedRefName}! Yönlendiriliyorsunuz...`); 
-      setTimeout(() => {
-        closeModal();
-      }, 600); 
+      setActiveModal('referee_court_select');
+      setSelectedCourtsForReferee(distinctKortlar);
+      setErrorMsg('');
+      setSuccessMsg('');
     }
     else setErrorMsg('❌ PIN hatalı. Lütfen tekrar deneyin.');
+  };
+
+  const handleToggleCourtForReferee = (court: string) => {
+    setSelectedCourtsForReferee((prev) =>
+      prev.includes(court) ? prev.filter((c) => c !== court) : [...prev, court]
+    );
+  };
+
+  const handleConfirmRefereeCourts = () => {
+    if (selectedCourtsForReferee.length === 0 || selectedCourtsForReferee.length === distinctKortlar.length) {
+      setActiveCourtFilter(null);
+    } else {
+      setActiveCourtFilter(selectedCourtsForReferee);
+    }
+    setAuthRole('referee');
+    closeModal();
   };
 
   const handleDeskSubmit = async () => {
@@ -675,7 +694,7 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
       </main>
 
       {/* GİRİŞ MODALLARI KISMI (Sadece admin/hakem erişimi) */}
-      {activeModal && !isMonitorMode && (
+      {(activeModal === 'referee' || activeModal === 'desk') && !isMonitorMode && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md animate-in fade-in duration-150 overflow-y-auto">
           <div className="bg-slate-900 border-2 border-slate-700/80 rounded-3xl p-5 sm:p-7 w-full max-w-md shadow-2xl space-y-4 my-auto">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
@@ -756,8 +775,149 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
             <button type="button"
               onClick={() => activeModal === 'referee' ? handleRefereeSubmit() : handleDeskSubmit()}
               className={`w-full py-3.5 px-4 rounded-2xl font-black text-sm text-slate-950 flex items-center justify-center gap-2 shadow-xl active:scale-95 transition ${activeModal === 'referee' ? 'bg-gradient-to-r from-lime-400 to-emerald-400' : 'bg-gradient-to-r from-cyan-400 to-teal-400'}`}>
-              <KeyRound className="w-4 h-4" /> Giriş Yap
+              <KeyRound className="w-4 h-4" /> {activeModal === 'referee' ? 'Devam Et (Kort Seçimine Geç)' : 'Giriş Yap'}
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* KORT SEÇİM EKRANI (Hakem Şifresini Girdikten Sonra Gelen Açılır Ekran) */}
+      {activeModal === 'referee_court_select' && !isMonitorMode && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/90 backdrop-blur-md animate-in fade-in duration-150 overflow-y-auto">
+          <div className="bg-slate-900 border-2 border-slate-700/80 rounded-3xl p-5 sm:p-7 w-full max-w-lg shadow-2xl space-y-4 my-auto max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-lime-400/20 text-lime-400 border border-lime-400/30 flex items-center justify-center font-black shrink-0">
+                  <SlidersHorizontal className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-white text-base">Görevli Kortlarınızı Seçin</h3>
+                  <p className="text-xs text-lime-400 font-bold">👤 {selectedRefName || 'Hakem'}</p>
+                </div>
+              </div>
+              <button onClick={closeModal} className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+              <div className="bg-slate-950/70 border border-slate-800 p-3.5 rounded-2xl space-y-1">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-slate-300">Bugün hangi kortları yöneteceksiniz?</span>
+                  <span className="text-[11px] font-black text-lime-400">
+                    {selectedCourtsForReferee.length === 0 || selectedCourtsForReferee.length === distinctKortlar.length
+                      ? 'Tüm Kortlar Seçili'
+                      : `${selectedCourtsForReferee.length} / ${distinctKortlar.length} Kort`}
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-400">
+                  Seçtiğiniz kortlar ekranda odaklanır, diğer kortlar dikkatinizi dağıtmamak için gizlenir.
+                </p>
+              </div>
+
+              {/* Hızlı Seçim Butonları */}
+              <div className="flex items-center justify-between gap-2 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setSelectedCourtsForReferee([...distinctKortlar])}
+                  className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold transition flex items-center gap-1.5"
+                >
+                  <Check className="w-3.5 h-3.5 text-lime-400" />
+                  <span>Tümünü Seç</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedCourtsForReferee([])}
+                  className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-rose-300 font-semibold transition flex items-center gap-1"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Temizle</span>
+                </button>
+              </div>
+
+              {/* Kort Kartları */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {distinctKortlar.map((court) => {
+                  const isSelected = selectedCourtsForReferee.includes(court);
+                  const courtMatches = matches.filter((m: any) => m.Kort === court);
+                  const hasLive = courtMatches.some((m: any) => m.Durum === 'Oynaniyor');
+                  return (
+                    <button
+                      key={court}
+                      type="button"
+                      onClick={() => handleToggleCourtForReferee(court)}
+                      className={`p-3 rounded-2xl border text-left transition-all duration-150 flex items-center justify-between gap-3 ${
+                        isSelected
+                          ? 'bg-lime-400/15 border-lime-400 text-white shadow-md shadow-lime-400/10'
+                          : 'bg-slate-950 hover:bg-slate-800/80 border-slate-800 text-slate-300 hover:border-slate-700'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div
+                          className={`w-6 h-6 rounded-lg flex items-center justify-center font-bold text-xs shrink-0 transition ${
+                            isSelected
+                              ? 'bg-lime-400 text-slate-950 font-black'
+                              : 'bg-slate-800 border border-slate-700 text-slate-400'
+                          }`}
+                        >
+                          {isSelected ? <Check className="w-4 h-4 stroke-[3]" /> : null}
+                        </div>
+                        <div className="min-w-0">
+                          <h4 className="font-extrabold text-sm text-white truncate">{court}</h4>
+                          <div className="flex items-center gap-2 text-[10px] text-slate-400">
+                            <span>{courtMatches.length} Maç</span>
+                            {hasLive && (
+                              <span className="flex items-center gap-0.5 text-emerald-400 font-bold bg-emerald-950/60 px-1.5 py-0.2 rounded">
+                                Canlı
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <span
+                        className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-lg border ${
+                          isSelected
+                            ? 'bg-lime-400 text-slate-950 border-lime-300'
+                            : 'bg-slate-900 border-slate-800 text-slate-500'
+                        }`}
+                      >
+                        {isSelected ? 'Sorumlu' : 'Dışarıda'}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {distinctKortlar.length === 0 && (
+                <div className="text-center py-6 text-xs text-slate-500 bg-slate-950 rounded-2xl border border-slate-800">
+                  Henüz tanımlı kort bulunmuyor.
+                </div>
+              )}
+            </div>
+
+            <div className="pt-3 border-t border-slate-800 flex items-center justify-between gap-3 shrink-0">
+              <button
+                type="button"
+                onClick={() => setActiveModal('referee')}
+                className="py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition"
+              >
+                Geri
+              </button>
+
+              <button
+                type="button"
+                onClick={handleConfirmRefereeCourts}
+                className="flex-1 py-3 px-4 rounded-2xl bg-gradient-to-r from-lime-400 to-emerald-400 hover:from-lime-300 hover:to-emerald-300 text-slate-950 font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-lime-400/20 active:scale-95 transition"
+              >
+                <span>
+                  {selectedCourtsForReferee.length === 0 || selectedCourtsForReferee.length === distinctKortlar.length
+                    ? 'Tüm Kortlarla Göreve Başla'
+                    : `${selectedCourtsForReferee.length} Kort ile Göreve Başla`}
+                </span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         </div>
       )}

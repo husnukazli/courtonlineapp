@@ -142,6 +142,8 @@ interface TennisDataContextType {
   tournamentInfo: { ad: string; yer: string; tarih: string; not: string; tbType?: 'standard' | 'coman'; tvPages?: string[][] };
   saveTournamentInfo: (info: { ad: string; yer: string; tarih: string; not: string; tbType?: 'standard' | 'coman'; tvPages?: string[][] }) => void;
   importMatchesList: (newMatches: MatchItem[]) => void; resetTournamentToDefault: () => void;
+  activeCourtFilter: string[] | null;
+  setActiveCourtFilter: (courts: string[] | null) => void;
 }
 
 const TennisDataContext = createContext<TennisDataContextType | null>(null);
@@ -152,6 +154,7 @@ const BASE_STORAGE_KEYS = {
   TOURNAMENT_INFO: 'courtonline_t_info_v2', ACTIVE_MATCH_ID: 'courtonline_active_match_id_v2',
   DESK_PIN: 'courtonline_desk_pin_v2', AUTH_ROLE: 'courtonline_auth_role_v2', ACTIVE_TOURNAMENT: 'courtonline_active_tournament_id',
   CUSTOM_COURTS: 'courtonline_custom_courts_v2',
+  ACTIVE_COURT_FILTER: 'courtonline_active_court_filter_v2',
 };
 
 const getStorageKey = (key: string, tId: string) => (tId ? `${key}_${tId}` : key);
@@ -250,6 +253,21 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     if (!initialTournamentId) return 'm-9';
     return localStorage.getItem(getStorageKey(BASE_STORAGE_KEYS.ACTIVE_MATCH_ID, initialTournamentId)) || 'm-9';
   });
+
+  const [activeCourtFilter, setActiveCourtFilterState] = useState<string[] | null>(() => {
+    if (!initialTournamentId) return null;
+    const saved = localStorage.getItem(getStorageKey(BASE_STORAGE_KEYS.ACTIVE_COURT_FILTER, initialTournamentId));
+    try { return saved ? JSON.parse(saved) : null; } catch { return null; }
+  });
+
+  const setActiveCourtFilter = (courts: string[] | null) => {
+    setActiveCourtFilterState(courts);
+    if (!courts || courts.length === 0) {
+      localStorage.removeItem(getStorageKey(BASE_STORAGE_KEYS.ACTIVE_COURT_FILTER, tournamentId));
+    } else {
+      localStorage.setItem(getStorageKey(BASE_STORAGE_KEYS.ACTIVE_COURT_FILTER, tournamentId), JSON.stringify(courts));
+    }
+  };
 
   const setTournamentId = (id: string) => {
     setTournamentIdState(id);
@@ -526,7 +544,13 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     return false;
   };
 
-  const loginRefereeDirect = (name?: string) => {};
+  const loginRefereeDirect = (name?: string) => {
+    const refName = name || 'Saha Gözlemcisi';
+    const found = referees.find((r) => r.name.toLowerCase() === refName.toLowerCase());
+    const refObj = found || { name: refName, pin: '1234' };
+    setCurrentReferee(refObj);
+    setAuthRole('referee');
+  };
 
   const loginSupervisorByPin = (pin: string, name?: string): boolean => {
     const cleanPin = pin.trim();
@@ -546,8 +570,16 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     return cleanPin === deskPin || cleanPin === '2026' || cleanPin === '1923';
   };
 
-  const logoutReferee = () => setCurrentReferee(null);
-  const logoutAuth = () => { setCurrentReferee(null); setAuthRole('none'); };
+  const logoutReferee = () => {
+    setCurrentReferee(null);
+    setAuthRole('none');
+    setActiveCourtFilter(null);
+  };
+  const logoutAuth = () => {
+    setCurrentReferee(null);
+    setAuthRole('none');
+    setActiveCourtFilter(null);
+  };
 
   const updateMatch = (updated: MatchItem) => {
     const activeRef = currentReferee ? currentReferee.name : (updated.Son_Islem_Hakem || updated.Son_Hakem || 'Turnuva Masası');
@@ -1629,6 +1661,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         updateCategoryFormat, bulkApplyCategoryFormats, bulkApplyCategoryNoAdSettings, 
         customCourts, addCustomCourt, renameCustomCourt, deleteCustomCourt, reorderCustomCourts,
         tournamentInfo: tournamentInfoState, saveTournamentInfo, importMatchesList, resetTournamentToDefault,
+        activeCourtFilter, setActiveCourtFilter,
       }}
     >
       {children}

@@ -6,6 +6,7 @@ import { FinishedMatchRibbon } from './FinishedMatchRibbon';
 import { FinishMatchModal } from './FinishMatchModal';
 import { QuickScoreEditModal } from './QuickScoreEditModal';
 import { MatchSetupModal } from './MatchSetupModal';
+import { RefereeLoginModal } from '../RefereeLoginModal';
 import {
   Smartphone,
   Search,
@@ -25,7 +26,8 @@ import {
   ChevronRight,
   ChevronLeft,
   Sun,
-  Moon
+  Moon,
+  SlidersHorizontal
 } from 'lucide-react';
 
 const isLiveMatch = (status?: string) => ['oynaniyor', 'duraklatildi'].includes((status || '').toLowerCase().trim());
@@ -39,6 +41,9 @@ export const CourtSupervisorView: React.FC = () => {
     cloudSyncStatus,
     lastCloudSync,
     pullFromCloudNow,
+    activeCourtFilter,
+    setActiveCourtFilter,
+    currentReferee,
   } = useTennisData();
 
   // GECE / GÜNDÜZ MODU
@@ -96,6 +101,8 @@ export const CourtSupervisorView: React.FC = () => {
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncStatusMsg, setSyncStatusMsg] = useState('');
 
+  const [isCourtFilterModalOpen, setIsCourtFilterModalOpen] = useState(false);
+
   // Kaydırma (Swipe) ve Mıknatıs (Snap) Referansları
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const pillsContainerRef = useRef<HTMLDivElement>(null);
@@ -110,11 +117,20 @@ export const CourtSupervisorView: React.FC = () => {
     return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
   }, [matches, customCourts]);
 
-  useEffect(() => {
-    if (uniqueCourts.length > 0 && !uniqueCourts.includes(selectedCourt)) {
-      setSelectedCourt(uniqueCourts[0]);
+  // Aktif hakem filtresine göre yalnızca izinli/seçili kortları listele
+  const displayedCourts = useMemo(() => {
+    if (!activeCourtFilter || activeCourtFilter.length === 0) {
+      return uniqueCourts;
     }
-  }, [uniqueCourts, selectedCourt]);
+    const filtered = uniqueCourts.filter((c) => activeCourtFilter.includes(c));
+    return filtered.length > 0 ? filtered : uniqueCourts;
+  }, [uniqueCourts, activeCourtFilter]);
+
+  useEffect(() => {
+    if (displayedCourts.length > 0 && !displayedCourts.includes(selectedCourt)) {
+      setSelectedCourt(displayedCourts[0]);
+    }
+  }, [displayedCourts, selectedCourt]);
 
   // Kaydırma Sensörü (Intersection Observer)
   useEffect(() => {
@@ -144,7 +160,7 @@ export const CourtSupervisorView: React.FC = () => {
     });
 
     return () => observer.disconnect();
-  }, [uniqueCourts]);
+  }, [displayedCourts]);
 
   const liveMatchesCount = matches.filter((m) => isLiveMatch(m.Durum)).length;
   const finishedMatchesCount = matches.filter((m) => isFinishedMatch(m.Durum)).length;
@@ -298,6 +314,19 @@ export const CourtSupervisorView: React.FC = () => {
             </div>
 
             <button
+              onClick={() => setIsCourtFilterModalOpen(true)}
+              className={`py-1.5 px-3 rounded-xl border text-xs font-bold transition flex items-center gap-1.5 shadow-sm active:scale-95 ${
+                activeCourtFilter && activeCourtFilter.length > 0
+                  ? (isLightMode ? 'bg-emerald-100 hover:bg-emerald-200 text-emerald-800 border-emerald-300 font-black' : 'bg-lime-400/20 hover:bg-lime-400/30 text-lime-300 border-lime-400/50 font-black')
+                  : (isLightMode ? 'bg-white hover:bg-slate-100 text-slate-700 border-slate-300' : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700')
+              }`}
+              title="Sorumlu olduğunuz kortları seçin ve diğerlerini gizleyin"
+            >
+              <SlidersHorizontal className="w-3.5 h-3.5" />
+              <span>{activeCourtFilter && activeCourtFilter.length > 0 ? `Kortlarım (${activeCourtFilter.length})` : 'Kort Filtrele'}</span>
+            </button>
+
+            <button
               onClick={handleCopyReport}
               className={`py-1.5 px-3 rounded-xl border text-xs font-bold transition flex items-center gap-1.5 shadow-sm ${isLightMode ? 'bg-white hover:bg-slate-100 text-slate-700 border-slate-300' : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'}`}
               title="Sonuç raporunu kopyala"
@@ -371,13 +400,62 @@ export const CourtSupervisorView: React.FC = () => {
         </div>
       </div>
 
+      {/* Sorumlu Olduğunuz Kortlar Rozet ve Hızlı Değiştirme Çubuğu */}
+      {activeCourtFilter && activeCourtFilter.length > 0 && (
+        <div className={`mx-3 sm:mx-0 p-3 sm:p-3.5 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 transition shadow-sm ${
+          isLightMode ? 'bg-emerald-50 border-emerald-300 text-emerald-900' : 'bg-lime-950/40 border-lime-500/40 text-lime-300'
+        }`}>
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className={`w-2.5 h-2.5 rounded-full animate-pulse shrink-0 ${isLightMode ? 'bg-emerald-600' : 'bg-lime-400'}`} />
+            <div className="min-w-0">
+              <div className="text-xs font-black flex items-center gap-1.5 flex-wrap">
+                <span>🎯 Sorumlu Olduğunuz Kortlar ({displayedCourts.length}):</span>
+                <span className={`font-mono px-2 py-0.5 rounded-lg border text-xs font-black ${
+                  isLightMode ? 'bg-white border-emerald-200 text-emerald-800' : 'bg-slate-900/90 border-lime-400/40 text-white'
+                }`}>
+                  {displayedCourts.join(', ')}
+                </span>
+              </div>
+              <p className="text-[10px] opacity-80 mt-0.5">
+                {currentReferee ? `👤 ${currentReferee.name} hakemine odaklandı.` : 'Seçili kortlar gösteriliyor.'} Diğer kortlar ekrandan gizlendi.
+              </p>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => setIsCourtFilterModalOpen(true)}
+              className={`px-3 py-1.5 rounded-xl border text-xs font-black transition flex items-center gap-1.5 shadow-sm active:scale-95 ${
+                isLightMode 
+                  ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-700' 
+                  : 'bg-lime-400 hover:bg-lime-300 text-slate-950 border-lime-300'
+              }`}
+            >
+              <span>Kortları Değiştir ✎</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveCourtFilter(null)}
+              className={`px-2.5 py-1.5 rounded-xl border text-xs font-bold transition ${
+                isLightMode
+                  ? 'bg-white hover:bg-slate-100 text-slate-700 border-slate-300'
+                  : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
+              }`}
+            >
+              Tümünü Göster
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* KORT SEÇİM HAPLARI (PILLS) */}
       <div className="px-3 sm:px-0">
         <div 
           ref={pillsContainerRef}
           className="flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar scroll-smooth"
         >
-          {uniqueCourts.map((court) => {
+          {displayedCourts.map((court) => {
             const courtMatches = matches.filter((m) => m.Kort === court);
             const hasLive = courtMatches.some((m) => isLiveMatch(m.Durum));
             const isSelected = selectedCourt === court;
@@ -418,7 +496,7 @@ export const CourtSupervisorView: React.FC = () => {
         ref={scrollContainerRef}
         className="flex flex-nowrap overflow-x-auto snap-x snap-mandatory scroll-smooth w-full no-scrollbar pb-6"
       >
-        {uniqueCourts.map((courtName) => {
+        {displayedCourts.map((courtName) => {
           const courtMatches = filteredMatches.filter((m) => m.Kort === courtName);
           
           const courtLive = courtMatches.filter((m) => isLiveMatch(m.Durum));
@@ -539,6 +617,12 @@ export const CourtSupervisorView: React.FC = () => {
         match={editScoreModalMatch}
         isOpen={Boolean(editScoreModalMatch)}
         onClose={() => setEditScoreModalMatch(null)}
+      />
+
+      <RefereeLoginModal
+        isOpen={isCourtFilterModalOpen}
+        onClose={() => setIsCourtFilterModalOpen(false)}
+        initialStep="court_select"
       />
     </div>
   );

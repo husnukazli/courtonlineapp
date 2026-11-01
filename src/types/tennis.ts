@@ -129,4 +129,5 @@ export interface MatchItem {
 export interface RefereeUser {
   name: string;
   pin: string;
+  assignedCourts?: string[];
 }
