@@ -171,6 +171,16 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
       finalFirstServer = kuraTercih === 'Servis' ? 2 : 1;
     }
 
+    let finalLeftTeam: 1 | 2 = 1;
+    const isSol = (sahaTarafi || '').toLowerCase().includes('sol');
+    if (kuraKazanan === p2Name) {
+      finalLeftTeam = isSol ? 2 : 1;
+    } else if (kuraKazanan === p1Name) {
+      finalLeftTeam = isSol ? 1 : 2;
+    } else {
+      finalLeftTeam = isSol ? 1 : 2;
+    }
+
     saveMatchSetup(match.id, {
       durum: match.Durum, // Mevcut durumu korur (Büyük ihtimalle "Baslamadi")
       kuraKazanan,
@@ -182,6 +192,7 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
       isNoAd, 
       yeniKort: secilenKort !== match.Kort ? secilenKort : undefined, // Kort değişikliği varsa bildir
       ilkServisOyuncusu: finalFirstServer,
+      ilkSolTakim: finalLeftTeam,
       tbType: tbRule,
       t1ServerIdx: isDoubles ? t1ServerIdx : undefined,
       t2ServerIdx: isDoubles ? t2ServerIdx : undefined,
@@ -202,6 +213,16 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
       finalFirstServer = kuraTercih === 'Servis' ? 2 : 1;
     }
 
+    let finalLeftTeam: 1 | 2 = 1;
+    const isSol = (sahaTarafi || '').toLowerCase().includes('sol');
+    if (kuraKazanan === p2Name) {
+      finalLeftTeam = isSol ? 2 : 1;
+    } else if (kuraKazanan === p1Name) {
+      finalLeftTeam = isSol ? 1 : 2;
+    } else {
+      finalLeftTeam = isSol ? 1 : 2;
+    }
+
     saveMatchSetup(match.id, {
       durum: 'Oynaniyor',
       kuraKazanan,
@@ -213,6 +234,7 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
       isNoAd, 
       yeniKort: secilenKort !== match.Kort ? secilenKort : undefined, // Kort değişikliği varsa bildir
       ilkServisOyuncusu: finalFirstServer,
+      ilkSolTakim: finalLeftTeam,
       tbType: tbRule,
       t1ServerIdx: isDoubles ? t1ServerIdx : undefined,
       t2ServerIdx: isDoubles ? t2ServerIdx : undefined,
@@ -431,14 +453,16 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
           </div>
 
           <div>
-            <label className="text-[10px] font-extrabold uppercase text-slate-400 block mb-1">Saha Tarafı</label>
+            <label className="text-[10px] font-extrabold uppercase text-slate-400 block mb-1">
+              {kuraKazanan !== 'Secilmedi' ? `${kuraKazanan.split(' ')[0]} Sahası` : '1. Oyuncunun Sahası'}
+            </label>
             <select
               value={sahaTarafi}
               onChange={(e) => setSahaTarafi(e.target.value)}
               className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-bold focus:border-slate-500"
             >
-              <option value="Sandalyenin Sağı">🪑 Sandalyenin Sağı</option>
               <option value="Sandalyenin Solu">🪑 Sandalyenin Solu</option>
+              <option value="Sandalyenin Sağı">🪑 Sandalyenin Sağı</option>
             </select>
           </div>
         </div>

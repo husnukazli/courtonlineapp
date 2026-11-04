@@ -382,6 +382,29 @@ export const CourtCard: React.FC<CourtCardProps> = ({
     return 1;
   }, [match.ilkSolTakim, match.Saha_Tarafi, match.Kura_Kazanan, match['Oyuncu 2']]);
 
+  // Kura ve Kurulum özet bilgisi
+  const tossSummary = useMemo(() => {
+    const hasToss = !!(match.Kura_Kazanan && match.Kura_Kazanan !== 'Secilmedi');
+    const winnerName = hasToss ? match.Kura_Kazanan : null;
+    const choice = match.Kura_Tercih || (hasToss ? 'Servis' : null);
+    
+    const leftPlayerName = initialTossLeft === 1 ? match['Oyuncu 1'] : match['Oyuncu 2'];
+    const rightPlayerName = initialTossLeft === 1 ? match['Oyuncu 2'] : match['Oyuncu 1'];
+    const serverPlayerName = initialTossServer === 1 ? match['Oyuncu 1'] : match['Oyuncu 2'];
+
+    return {
+      hasToss,
+      winnerName,
+      choice,
+      sahaTarafi: match.Saha_Tarafi || (initialTossLeft === 1 ? 'Sandalyenin Solu' : 'Sandalyenin Sağı'),
+      leftPlayerName,
+      rightPlayerName,
+      serverPlayerName,
+      initialTossServer,
+      initialTossLeft
+    };
+  }, [match.Kura_Kazanan, match.Kura_Tercih, match.Saha_Tarafi, match['Oyuncu 1'], match['Oyuncu 2'], initialTossServer, initialTossLeft]);
+
   const [setupsBySet, setSetupsBySet] = useState<Record<number, ChairSetup>>(() => {
     if (match.chairSetups && Object.keys(match.chairSetups).length > 0) {
       return match.chairSetups;
@@ -389,20 +412,34 @@ export const CourtCard: React.FC<CourtCardProps> = ({
     return {};
   });
 
-  // Gelen veriler güncellendiğinde setupsBySet'i senkronize et
+  // Gelen veriler güncellendiğinde setupsBySet'i senkronize et (yeni gelen match.chairSetups öncelikli olmalıdır)
   useEffect(() => {
     if (match.chairSetups && Object.keys(match.chairSetups).length > 0) {
       setSetupsBySet(prev => ({
-        ...match.chairSetups,
-        ...prev
+        ...prev,
+        ...match.chairSetups
       }));
     }
   }, [match.chairSetups]);
 
   const chairSetup: ChairSetup | null = useMemo(() => {
-    if (setupsBySet[selectedSet]) return setupsBySet[selectedSet];
-    if (match.chairSetups && match.chairSetups[selectedSet]) return match.chairSetups[selectedSet];
     if (selectedSet === 1) {
+      const isStart = (s1_p1 + s1_p2 === 0) && (!match.pointHistory || match.pointHistory.length === 0);
+      if (isStart) {
+        const baseSetup = match.chairSetups?.[1] || setupsBySet[1];
+        return {
+          setupSetNum: 1,
+          firstServingTeam: initialTossServer,
+          leftTeam: initialTossLeft,
+          tbType: (match.tbKurali as any) || baseSetup?.tbType || globalTbType,
+          t1ServerIdx: match.ilkT1ServisOyuncusu ?? baseSetup?.t1ServerIdx ?? 0,
+          t2ServerIdx: match.ilkT2ServisOyuncusu ?? baseSetup?.t2ServerIdx ?? 0,
+          t1DeuceReceiverIdx: match.ilkT1KarsilayanOyuncusu ?? baseSetup?.t1DeuceReceiverIdx ?? 0,
+          t2DeuceReceiverIdx: match.ilkT2KarsilayanOyuncusu ?? baseSetup?.t2DeuceReceiverIdx ?? 0
+        };
+      }
+      if (match.chairSetups && match.chairSetups[1]) return match.chairSetups[1];
+      if (setupsBySet[1]) return setupsBySet[1];
       return {
         setupSetNum: 1,
         firstServingTeam: initialTossServer,
@@ -414,8 +451,10 @@ export const CourtCard: React.FC<CourtCardProps> = ({
         t2DeuceReceiverIdx: match.ilkT2KarsilayanOyuncusu ?? 0
       };
     }
+    if (setupsBySet[selectedSet]) return setupsBySet[selectedSet];
+    if (match.chairSetups && match.chairSetups[selectedSet]) return match.chairSetups[selectedSet];
     return null;
-  }, [setupsBySet, match.chairSetups, selectedSet, initialTossServer, initialTossLeft, match.tbKurali, globalTbType, match.ilkT1ServisOyuncusu, match.ilkT2ServisOyuncusu, match.ilkT1KarsilayanOyuncusu, match.ilkT2KarsilayanOyuncusu]);
+  }, [setupsBySet, match.chairSetups, selectedSet, initialTossServer, initialTossLeft, match.tbKurali, globalTbType, match.ilkT1ServisOyuncusu, match.ilkT2ServisOyuncusu, match.ilkT1KarsilayanOyuncusu, match.ilkT2KarsilayanOyuncusu, s1_p1, s1_p2, match.pointHistory]);
 
   const isSetupValid = !!chairSetup;
   const showSetupOverlay = isEditingSetup || (!isSetupValid && selectedSet > 1);
@@ -1327,6 +1366,31 @@ export const CourtCard: React.FC<CourtCardProps> = ({
         </div>
 
         <div className="p-4 sm:p-5 space-y-3">
+          {/* KURA VE SAHA DAĞILIMI BİLGİ ROZETİ */}
+          {tossSummary.hasToss && (
+            <div className={`flex items-center justify-between gap-2 px-3 py-1.5 rounded-xl text-[11px] font-bold border transition ${
+              isLightMode 
+                ? 'bg-amber-50/90 border-amber-300 text-amber-950 shadow-sm' 
+                : 'bg-amber-950/30 border-amber-500/30 text-amber-200'
+            }`}>
+              <div className="flex items-center gap-1.5 min-w-0 truncate">
+                <span className="text-xs">🪙</span>
+                <span className="opacity-70 font-semibold">Kura:</span>
+                <span className="font-extrabold truncate text-amber-600 dark:text-amber-400">{tossSummary.winnerName}</span>
+                <span className="opacity-40">•</span>
+                <span className="font-semibold">{tossSummary.choice}</span>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0 text-[10px]">
+                <span className={`px-2 py-0.5 rounded font-mono font-bold border ${isLightMode ? 'bg-white/80 border-amber-200 text-slate-800' : 'bg-slate-900 border-amber-500/30 text-slate-200'}`} title="Sandalyenin Solundaki Oyuncu">
+                  🪑 Sol: <strong className={isLightMode ? 'text-green-700' : 'text-emerald-400'}>{tossSummary.leftPlayerName.split(' ')[0]}</strong>
+                </span>
+                <span className={`px-2 py-0.5 rounded font-mono font-bold border ${isLightMode ? 'bg-white/80 border-amber-200 text-slate-800' : 'bg-slate-900 border-amber-500/30 text-slate-200'}`} title="İlk Servisçi">
+                  🎾 Servis: <strong className={isLightMode ? 'text-blue-700' : 'text-blue-400'}>{tossSummary.serverPlayerName.split(' ')[0]}</strong>
+                </span>
+              </div>
+            </div>
+          )}
+
           <div className={`rounded-2xl border overflow-hidden ${isLightMode ? 'bg-white border-slate-300' : 'bg-slate-950 border-slate-800/90'}`}>
             <div className={`grid grid-cols-12 text-[10px] font-black uppercase py-1.5 px-3 border-b ${isLightMode ? 'bg-slate-200 text-slate-700 border-slate-300' : 'bg-slate-900/80 text-slate-400 border-slate-800'}`}>
               <div className="col-span-6">Oyuncu / Takım</div><div className="col-span-2 text-center">1. Set</div><div className="col-span-2 text-center">2. Set</div><div className="col-span-2 text-center">3. Set</div>
@@ -1733,6 +1797,32 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                        {isSideChangePoint && <div className={`flex items-center gap-1.5 font-black text-[9px] sm:text-sm uppercase px-2 sm:px-3 py-1 rounded-lg border shadow-sm text-white bg-rose-500 border-rose-600 ${!activeTimer ? 'animate-pulse' : ''}`}><ArrowRightLeft className="w-3 h-3 sm:w-4 sm:h-4"/> Saha Değişimi</div>}
                     </div>
                   </div>
+
+                  {/* KULE HAKEMİ KURA VE SAHA DAĞILIMI BİLGİ BARI */}
+                  {tossSummary.hasToss && (
+                    <div className={`flex items-center justify-between flex-wrap gap-2 px-3 sm:px-4 py-2 rounded-2xl border text-xs font-bold transition shadow-sm ${
+                      isLightMode 
+                        ? 'bg-amber-50/90 border-amber-300 text-amber-950' 
+                        : 'bg-amber-950/30 border-amber-500/30 text-amber-200'
+                    }`}>
+                      <div className="flex items-center gap-2">
+                        <span className="text-base">🪙</span>
+                        <span className="font-semibold opacity-70">Kura Kazananı:</span>
+                        <strong className="text-amber-700 dark:text-amber-400 font-black">{tossSummary.winnerName}</strong>
+                        <span className="px-2 py-0.5 rounded-lg text-[11px] font-black uppercase tracking-wider bg-amber-200/60 dark:bg-amber-900/60 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700">
+                          {tossSummary.choice === 'Servis' ? '🎾 Servis Tercihi' : tossSummary.choice === 'Karşılama' ? '🛡️ Karşılama Tercihi' : '🏟️ Saha Seçimi'}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 sm:gap-3 font-mono text-[11px]">
+                        <span className={`px-2 py-1 rounded-lg border ${isLightMode ? 'bg-white border-amber-200 text-slate-800' : 'bg-slate-900 border-amber-500/30 text-slate-200'}`}>
+                          🪑 Başlangıç Sol: <strong className={isLightMode ? 'text-green-700' : 'text-emerald-400'}>{tossSummary.leftPlayerName}</strong>
+                        </span>
+                        <span className={`px-2 py-1 rounded-lg border ${isLightMode ? 'bg-white border-amber-200 text-slate-800' : 'bg-slate-900 border-amber-500/30 text-slate-200'}`}>
+                          🎾 1. Servisçi: <strong className={isLightMode ? 'text-blue-700' : 'text-blue-400'}>{tossSummary.serverPlayerName}</strong>
+                        </span>
+                      </div>
+                    </div>
+                  )}
 
                   {activeTimer && (
                     <div className="absolute inset-0 z-50 flex items-center justify-center p-4 sm:p-8 bg-black/10 animate-in fade-in duration-300">

@@ -1,128 +1,74 @@
-# Hakem Girişinde O Günkü Kortları Seçme ve Filtreleme Sistemi
+# Kura ve Kurulum Seçimlerinin Skor Ekranına Yansıtılması
 
-Hakemlerin sisteme PIN şifreleriyle giriş yaptıktan hemen sonra karşılarına gelen açılır pencereden o günkü aktif kortları çoklu olarak seçmelerini ve ekranlarında yalnızca sorumlu oldukları kortları görüntülemelerini sağlayan akıllı kort odaklama mimarisi.
-
-## Kullanıcı İncelemesi & Kritik Kararlar
-
-> [!IMPORTANT]
-> Kullanıcının belirttiği akış birebir uygulanacaktır: Hakem şifresini girdikten sonra otomatik olarak o günkü kort listesinin yer aldığı bir ara açılır ekran (modal) açılacak; hakem buradan bir veya birden fazla kortu seçip devam ettiğinde diğer kortlar ekrandan gizlenecektir.
-
-- **Onaylanan Akış**: Giriş PIN şifresi onaylandıktan sonra doğrudan ana ekrana geçilmez; araya 2. adım olarak "Sorumlu Olduğunuz Kortları Seçin" adımı gelir.
-- **Çoklu Seçim Desteği**: Hakem aynı anda 1 kort, 2 kort veya "Tüm Kortlar" seçeneğini seçebilir.
-- **Hızlı Güncelleme**: Gün içerisinde hakemin kortu değişirse, ekranı terk etmeden üst bardaki "🎯 Kortlarım: KORT 1, KORT 2 [Değiştir]" butonundan anında seçimini güncelleyebilir.
-- **Baş Hakem Esnekliği**: Baş hakem (Masa/Tesk) varsayılan olarak her zaman tüm kortları görebilir veya dilerse filtreleyebilir.
+Kura ve Maç Kurulumu (`MatchSetupModal`) ekranında yapılan seçimlerin (Kura Kazananı, Kura Tercihi, Saha Tarafı ve İlk Servisçi) hem kort kartı hızlı skor girişine hem de Kule Hakemi canlı skor ekranına anında ve eksiksiz yansıması, oyuncuların doğru kort taraflarına (Sol/Sağ) yerleşmesi ve ekranda belirgin bir Kura Bilgi Rozeti ile gösterilmesi sağlanacaktır.
 
 ---
 
-## 1. Genel Bakış ve Temel Konsept
+## 1. Tespit Edilen Kök Nedenler
 
-- **Ne Yapıyor**: Hakem giriş yaptığında turnuva programındaki ve sistemdeki kortlar (örn. KORT 1, KORT 2, KORT 3...) taranarak listelenir. Hakem görevli olduğu kortları işaretler ve "Seçili Kortlarla Devam Et" butonuna basar. Ekranda sadece bu kortlar ve bu kortlara ait maçlar gösterilir.
-- **Hedef Kitle**: Sahadaki kort hakemleri ve gözlemciler. Küçük telefon veya tablet ekranlarında gereksiz kortları kaydırmak zorunda kalmadan yalnızca kendi kortlarına odaklanırlar.
-- **Temel Değer**: Ekran kalabalığını ve karışıklığı sıfıra indirir; hakemin yanlış korta skor girmesini engeller; turnuva operasyonunu hızlandırır.
+```
+┌─────────────────────────────────┐
+│       MatchSetupModal.tsx       │
+│  Kura Kazanan / Tercih / Saha   │
+└────────────────┬────────────────┘
+                 │ (1. Eksiklik: 'ilkSolTakim' doğrudan hesaplanıp saveMatchSetup'a gönderilmiyordu)
+                 ▼
+┌─────────────────────────────────┐
+│     TennisDataContext.tsx       │
+│   saveMatchSetup / MatchItem    │
+└────────────────┬────────────────┘
+                 │ (2. Kritik Hata: CourtCard içindeki 'setupsBySet' senkronizasyonunda
+                 │  { ...match.chairSetups, ...prev } yazımı nedeniyle 'prev' state'i
+                 │  güncellenen kura/saha verisini eziyordu)
+                 ▼
+┌─────────────────────────────────┐
+│          CourtCard.tsx          │
+│   Kort Kartı & Kule Hakemi Modu │
+└─────────────────────────────────┘
+  (3. Görsel Eksiklik: Kura kazananı, tercihi ve sahası skor ekranında hakeme gösterilmiyordu)
+```
+
+1. **`MatchSetupModal.tsx` içerisinde eksik `ilkSolTakim` parametresi**:
+   Modal kaydedilirken `finalFirstServer` hesaplanıyor ancak `finalLeftTeam` hesaplanıp `saveMatchSetup` çağrısına iletilmiyordu. Saha seçimi kura kazananına göre ("Sandalyenin Solu" / "Sandalyenin Sağı") doğrudan `ilkSolTakim: 1 | 2` olarak hesaplanacak ve veriye yazılacaktır.
+2. **`CourtCard.tsx` State Ezilme Hatası (`setSetupsBySet`)**:
+   `setSetupsBySet(prev => ({ ...match.chairSetups, ...prev }))` ifadesinde `...prev` sona yazıldığı için eski yerel state güncellenen `match.chairSetups[1]` verisini eziyordu. `{ ...prev, ...match.chairSetups }` olarak düzeltilecek ve maç başında kura değiştiğinde Set 1 kurulumu anında güncellenecektir.
+3. **Skor ve Kule Ekranında Görsel Kura Bilgi Rozeti Eksikliği**:
+   Hakemin kura sonucunu, oyuncunun tercihini (Servis/Karşılama/Saha) ve başlangıç sahasını (Sol/Sağ) hem normal kort görünümünde hem de tam ekran Kule Hakemi modunda net olarak görebileceği şık bir "Kura & Kurulum Özeti" rozeti eklenecektir.
 
 ---
 
 ## 2. Kullanıcı Deneyimi ve Görsel Tasarım
 
-```
-┌────────────────────────────────────────────────────────┐
-│                   HAKEM GİRİŞİ                         │
-│  [ Hakem Seçimi: Hasan Yılmaz ]                        │
-│  [ PIN: • • • • ]  ──> [ Giriş Yap Butonu ]            │
-└───────────────────────────┬────────────────────────────┘
-                            │ (Şifre Doğrulandı)
-                            ▼
-┌────────────────────────────────────────────────────────┐
-│        🎯 GÖREVLİ OLDUĞUNUZ KORTLARI SEÇİN            │
-│  "Hoş geldiniz Hasan Yılmaz, bugün hangi kortlardasınız?"│
-│                                                        │
-│  [ ✓ Tüm Kortlar (Seç/Kaldır) ]                        │
-│                                                        │
-│  ┌──────────────────┐  ┌──────────────────┐            │
-│  │ ☑ KORT 1         │  │ ☐ KORT 2         │            │
-│  │ 4 Maç • 1 Canlı  │  │ 3 Maç            │            │
-│  └──────────────────┘  └──────────────────┘            │
-│  ┌──────────────────┐  ┌──────────────────┐            │
-│  │ ☑ KORT 3         │  │ ☐ KORT 4         │            │
-│  │ 5 Maç • 1 Canlı  │  │ 2 Maç            │            │
-│  └──────────────────┘  └──────────────────┘            │
-│                                                        │
-│  [ 🚀 2 Kort ile Göreve Başla → ]                      │
-└───────────────────────────┬────────────────────────────┘
-                            │ (Devam Et)
-                            ▼
-┌────────────────────────────────────────────────────────┐
-│  CourtOnline Hakem Paneli                              │
-│  Filtre: [ 🎯 Kortlarım: KORT 1, KORT 3 ✎ (Değiştir) ] │
-│                                                        │
-│  ┌────────────────────────┐  ┌───────────────────────┐ │
-│  │ KORT 1                 │  │ KORT 3                │ │
-│  │ [CANLI] Ali v Veli     │  │ [BEKLİYOR] Can v Mert │ │
-│  └────────────────────────┘  └───────────────────────┘ │
-└────────────────────────────────────────────────────────┘
-```
-
-### Adım Adım Kullanıcı Akışı:
-1. **Adım 1 (Giriş & Doğrulama)**:
-   - Hakem `RefereeLoginModal` üzerinde adını seçer ve PIN kodunu girer.
-   - PIN doğru girildiğinde modal kapanmaz; otomatik ve akıcı bir animasyonla **Adım 2: Kort Seçim Ekranı**'na geçer.
-2. **Adım 2 (Kort Seçim Ekranı)**:
-   - O günkü maçlarda yer alan tüm kortlar + Başhakemin eklediği özel kortlar dinamik olarak listelenir.
-   - Her kort butonunda kort adı ve o korttaki maç sayısı yer alır (örn. `KORT 1 • 4 Maç`).
-   - Seçilen kortlar parlak neon yeşili (`border-lime-400 bg-lime-400/15`) ve onay işareti (`CheckCircle2`) ile belirginleşir.
-   - "Hepsini Seç" ve "Seçimi Temizle" hızlı aksiyonları mevcuttur.
-3. **Adım 3 (Göreve Başlama & Filtrelenmiş Ekran)**:
-   - Hakem "2 Kort ile Devam Et" butonuna tıklar.
-   - Sistem `assignedCourts` veya `activeCourtFilter` durumunu günceller ve tarayıcı oturumuna kaydeder.
-   - `CourtSupervisorView` ekranında sadece seçilen kortlar (örn. KORT 1 ve KORT 3) listelenir; diğer kortlar filtrelenir.
-4. **Adım 4 (Dinamik Değiştirme)**:
-   - Hakem ekranının üstünde kompakt bir bilgi hapı (pill) bulunur:
-     `🎯 Aktif Kortlar: KORT 1, KORT 3 • [Değiştir]`
-   - Hakem istediğinde tek tıkla bu modalı açıp kort ekleyip çıkarabilir veya "Tüm Kortları Göster"e dönebilir.
+- **Kule Hakemi Canlı Ekranı**:
+  - Skor tablosunun üst veya alt paneline zarif bir kura kartı eklenecektir:
+    `🪙 Kura: [Kazanan] • Tercih: [Servis / Karşılama / Saha] • Sol Saha: [Oyuncu/Takım Adı]`
+  - Sol ve Sağ saha kutularında ilk servisçinin yanında tenis topu (`🎾 Servis`) ve doğru oyuncu adı görünecektir.
+- **Kort Kartı (Dış Görünüm)**:
+  - Skor tablosunun hemen üzerinde veya hakem rozetinin yanında kura tercihi ve saha dağılımını belirten kompakt rozet yer alacaktır.
+- **Kura Animasyonu ve Kurallar**:
+  - Mevcut para atma animasyonu (`DİĞER GÜNCEL ÖZELLİKLERİ EKLE VEYA KORU AMA KURA ANİMASYONUNU DEĞİŞTİRME`) kesinlikle korunacaktır.
 
 ---
 
-## 3. Ürün Kararları ve Mimari Tercihler
+## 3. Teknik Mimari ve Uygulama Adımları
 
-- **Karar 1: Şifre sonrası ara modal (2 Aşamalı Giriş Akışı)**:
-  - *Neden*: Hakemin şifreyi girdikten sonra ayrıca başka bir menüye gidip filtre aramasına gerek kalmaz; akış doğal, kesintisiz ve hatasız olur.
-- **Karar 2: Yerel Oturum & Hafıza (State + LocalStorage)**:
-  - *Neden*: Hakem sayfası yenilense bile seçtiği kortlar kaybolmaz. Başka bir cihazdan giren başka bir hakem ise kendi kortlarını bağımsız olarak seçer; birbirlerinin ekranını etkilemezler.
-- **Karar 3: Boş Seçim Durumu Koruması**:
-  - *Neden*: Eğer hakem hiçbir kort seçmezse veya yanlışlıkla hepsini kaldırırsa, sistem otomatik olarak "Tüm Kortlar" moduna döner veya uyarı verir; böylece boş beyaz ekran riski önlenir.
+### Adım 1: `MatchSetupModal.tsx` Düzenlemesi
+- `handleJustSave` ve `handleSaveAndStart` fonksiyonlarında `finalLeftTeam` hesaplanması:
+  - Kura Kazananı 1. Oyuncu ve `sahaTarafi === 'Sandalyenin Solu'` -> `finalLeftTeam = 1`
+  - Kura Kazananı 1. Oyuncu ve `sahaTarafi === 'Sandalyenin Sağı'` -> `finalLeftTeam = 2`
+  - Kura Kazananı 2. Oyuncu ve `sahaTarafi === 'Sandalyenin Solu'` -> `finalLeftTeam = 2`
+  - Kura Kazananı 2. Oyuncu ve `sahaTarafi === 'Sandalyenin Sağı'` -> `finalLeftTeam = 1`
+  - Kura seçilmemişse -> Sol ise 1, Sağ ise 2.
+- `saveMatchSetup` çağrısına `ilkSolTakim: finalLeftTeam` parametresinin eksiksiz gönderilmesi.
+- Saha seçimi etiketinin kullanıcı açısından daha açık hale getirilmesi ("Kura Kazananın / 1. Oyuncunun Sahası").
 
----
+### Adım 2: `TennisDataContext.tsx` Düzenlemesi
+- `saveMatchSetup` içinde `ilkSolTakim` ve `ilkServisOyuncusu` değerlerinin `chairSetups[1]` ve `detailedState` ile senkronizasyonunun garanti altına alınması.
 
-## 4. Teknik Mimari ve Durum Yönetimi
+### Adım 3: `CourtCard.tsx` Düzenlemesi
+- `setSetupsBySet` güncellemesinde öncelik sırasının düzeltilmesi (`{ ...prev, ...match.chairSetups }`).
+- `initialTossServer` ve `initialTossLeft` değişiminde `setupsBySet[1]`'in anında reaktif olarak güncellenmesi.
+- Hem Kort Kartı üzerinde hem de Kule Hakemi modunda kura sonucu, oyuncunun tercihi ve sol/sağ saha bilgisini gösteren şık kura bilgi rozetinin eklenmesi.
 
-### Veri ve Durum Akışı:
-
-```
-┌────────────────────────────────────────────────────────┐
-│                TennisDataContext                       │
-│                                                        │
-│  - currentReferee: RefereeUser | null                  │
-│  - refereeCourtFilters: Record<string, string[]>       │
-│  - activeCourtFilter: string[] | null (null = Tümü)    │
-│  - setActiveCourtFilter: (courts: string[]) => void    │
-└───────────┬────────────────────────────────┬───────────┘
-            │                                │
-            ▼                                ▼
-┌────────────────────────┐      ┌────────────────────────┐
-│  RefereeLoginModal     │      │  CourtSupervisorView   │
-│  (Step 1: PIN doğrulama│      │  - Filtrelenmiş kortlar│
-│   Step 2: Kort seçimi) │      │  - Hızlı kort değiştir │
-└────────────────────────┘      └────────────────────────┘
-```
-
-1. **Context Seviyesi (`TennisDataContext.tsx`)**:
-   - `activeCourtFilter: string[] | null`: Aktif hakemin ekranda görmek istediği kortların dizisi (`null` ise hepsi gösterilir).
-   - `setActiveCourtFilter(courts: string[])`: Kort filtresini güncelleyen ve localStorage'a kaydeden fonksiyon.
-2. **Giriş Modalı (`RefereeLoginModal.tsx`)**:
-   - `step: 'credentials' | 'court_select'` durum kontrolü eklenir.
-   - PIN onaylandığında `step = 'court_select'` olur.
-   - O günkü tekil kortlar `uniqueCourts` listesinden çekilir.
-   - Seçim tamamlanıp "Devam Et" butonuna basıldığında oturum tamamlanır ve modal kapanır.
-3. **Gözlemci / Hakem Ekranı (`CourtSupervisorView.tsx`)**:
-   - `filteredCourts = uniqueCourts.filter(c => !activeCourtFilter || activeCourtFilter.length === 0 || activeCourtFilter.includes(c))`
-   - Ekranın üst kısmına seçili kortları gösteren ve tek tıkla değiştirmeyi sağlayan şık bir filtre başlığı entegre edilir.
+### Adım 4: Doğrulama ve Derleme
+- `compile_applet` ile sıfır hata doğrulaması yapılması.
