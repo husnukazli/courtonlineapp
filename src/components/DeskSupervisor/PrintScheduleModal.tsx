@@ -6,7 +6,7 @@ import {
   Plus, Minus, Sliders, CheckCircle2, AlertCircle, RefreshCw
 } from 'lucide-react';
 import { MatchItem } from '../../types/tennis';
-import { compareMatchesChronologically } from '../../utils/timerUtils';
+import { compareMatchesChronologically, parsePlayerDoublesNames } from '../../utils/timerUtils';
 
 interface PrintScheduleModalProps {
   isOpen: boolean;
@@ -41,6 +41,7 @@ export const PrintScheduleModal: React.FC<PrintScheduleModalProps> = ({
   const [showScores, setShowScores] = useState<boolean>(true);
   const [showReferees, setShowReferees] = useState<boolean>(true);
   const [showSignatures, setShowSignatures] = useState<boolean>(true);
+  const [stackDoubles, setStackDoubles] = useState<boolean>(true);
   const [customTitle, setCustomTitle] = useState<string>(() => tournamentInfo?.ad || 'Tenis Turnuvası');
   const [customSubtitle, setCustomSubtitle] = useState<string>('GÜNLÜK MAÇ PROGRAMI / ORDER OF PLAY');
   const [customDate, setCustomDate] = useState<string>(() => {
@@ -586,6 +587,19 @@ export const PrintScheduleModal: React.FC<PrintScheduleModalProps> = ({
                     />
                     <span className="font-bold">Alt Kısımda Yetkili İmza Kutuları</span>
                   </label>
+
+                  <label className="flex items-center gap-2 p-2.5 rounded-xl border bg-cyan-950/30 border-cyan-500/40 cursor-pointer col-span-2">
+                    <input
+                      type="checkbox"
+                      checked={stackDoubles}
+                      onChange={(e) => setStackDoubles(e.target.checked)}
+                      className="rounded accent-cyan-400"
+                    />
+                    <div className="flex flex-col">
+                      <span className="font-black text-cyan-300">👥 Çiftler Partnerlerini Alt Alta Yaz</span>
+                      <span className="text-[10px] text-slate-400 font-normal">Dar kort sütunlarında 2. oyuncu isminin sığmama sorununu önler</span>
+                    </div>
+                  </label>
                 </div>
               </div>
 
@@ -773,6 +787,7 @@ export const PrintScheduleModal: React.FC<PrintScheduleModalProps> = ({
                       showScores={showScores}
                       showReferees={showReferees}
                       showSignatures={showSignatures}
+                      stackDoubles={stackDoubles}
                       chiefReferee={chiefRefereeName}
                     />
                   </div>
@@ -894,6 +909,7 @@ export const PrintScheduleModal: React.FC<PrintScheduleModalProps> = ({
                 showScores={showScores}
                 showReferees={showReferees}
                 showSignatures={showSignatures}
+                stackDoubles={stackDoubles}
                 chiefReferee={chiefRefereeName}
               />
             </div>
@@ -929,6 +945,7 @@ interface SinglePageContentProps {
   showScores: boolean;
   showReferees: boolean;
   showSignatures: boolean;
+  stackDoubles?: boolean;
   chiefReferee: string;
 }
 
@@ -944,6 +961,7 @@ const SingleSchedulePageContent: React.FC<SinglePageContentProps> = ({
   showScores,
   showReferees,
   showSignatures,
+  stackDoubles = true,
   chiefReferee,
 }) => {
   // Dinamik oransal font ve boşluk hesabı
@@ -1125,38 +1143,65 @@ const SingleSchedulePageContent: React.FC<SinglePageContentProps> = ({
                     </div>
 
                     {/* Hücre Ortası: Oyuncular */}
-                    <div className="py-0.5 space-y-0.5 min-h-0 flex flex-col justify-center">
-                      {/* Oyuncu 1 */}
-                      <div className={`flex items-center justify-between gap-1 ${p1Winner ? 'font-black text-black' : 'font-medium text-slate-800'}`}>
-                        <div className="flex items-center gap-1 truncate">
-                          {p1Winner && <span className="text-black font-black">✓</span>}
-                          <span
-                            className="truncate"
-                            style={{ fontSize: dynStyles.playerName }}
-                          >
-                            {match['Oyuncu 1']}
-                          </span>
-                        </div>
-                      </div>
+                    {(() => {
+                      const renderTeamMember = (name: string, isWinner: boolean) => {
+                        const { isDoubles, partners } = parsePlayerDoublesNames(name);
+                        if (!stackDoubles || !isDoubles || partners.length <= 1) {
+                          return (
+                            <div className="flex items-center gap-1 truncate">
+                              {isWinner && <span className="text-black font-black shrink-0">✓</span>}
+                              <span className="truncate" style={{ fontSize: dynStyles.playerName }}>
+                                {name}
+                              </span>
+                            </div>
+                          );
+                        }
 
-                      {/* VS Ayracı */}
-                      <div className="text-[8px] font-bold text-slate-400 text-center uppercase tracking-widest leading-none">
-                        vs
-                      </div>
+                        return (
+                          <div className="flex flex-col min-w-0 leading-tight">
+                            <div className="flex items-center gap-1 truncate">
+                              {isWinner && <span className="text-black font-black shrink-0">✓</span>}
+                              <span className="truncate font-bold" style={{ fontSize: dynStyles.playerName }}>
+                                {partners[0]}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-0.5 truncate pl-1.5 opacity-90" style={{ fontSize: `calc(${dynStyles.playerName} * 0.92)` }}>
+                              <span className="opacity-40 shrink-0 text-[0.85em]">/</span>
+                              <span className="truncate font-normal">
+                                {partners[1] || ''}
+                              </span>
+                            </div>
+                            {partners.length > 2 && (
+                              <div className="flex items-center gap-0.5 truncate pl-1.5 opacity-90" style={{ fontSize: `calc(${dynStyles.playerName} * 0.92)` }}>
+                                <span className="opacity-40 shrink-0 text-[0.85em]">/</span>
+                                <span className="truncate font-normal">
+                                  {partners.slice(2).join(' / ')}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      };
 
-                      {/* Oyuncu 2 */}
-                      <div className={`flex items-center justify-between gap-1 ${p2Winner ? 'font-black text-black' : 'font-medium text-slate-800'}`}>
-                        <div className="flex items-center gap-1 truncate">
-                          {p2Winner && <span className="text-black font-black">✓</span>}
-                          <span
-                            className="truncate"
-                            style={{ fontSize: dynStyles.playerName }}
-                          >
-                            {match['Oyuncu 2']}
-                          </span>
+                      return (
+                        <div className="py-0.5 space-y-0.5 min-h-0 flex flex-col justify-center">
+                          {/* Oyuncu 1 */}
+                          <div className={p1Winner ? 'font-black text-black' : 'font-medium text-slate-800'}>
+                            {renderTeamMember(match['Oyuncu 1'], p1Winner)}
+                          </div>
+
+                          {/* VS Ayracı */}
+                          <div className="text-[8px] font-bold text-slate-400 text-center uppercase tracking-widest leading-none my-0.5">
+                            vs
+                          </div>
+
+                          {/* Oyuncu 2 */}
+                          <div className={p2Winner ? 'font-black text-black' : 'font-medium text-slate-800'}>
+                            {renderTeamMember(match['Oyuncu 2'], p2Winner)}
+                          </div>
                         </div>
-                      </div>
-                    </div>
+                      );
+                    })()}
 
                     {/* Hücre Altı: Skor / Durum / Hakem */}
                     <div className="pt-0.5 border-t border-slate-200 space-y-0.5 shrink-0">

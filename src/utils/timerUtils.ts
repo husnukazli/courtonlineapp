@@ -178,4 +178,20 @@ export function compareMatchesChronologically(a: any, b: any, allMatches?: any[]
   return (a.Saat || '').localeCompare(b.Saat || '', undefined, { numeric: true });
 }
 
+/**
+ * Çiftler maçlarında partner isimlerini tespit edip ayrıştırır.
+ * "Ahmet Yılmaz / Mehmet Demir", "Ali Can & Veli Han" gibi formatları destekler.
+ */
+export function parsePlayerDoublesNames(name?: string): { isDoubles: boolean; partners: string[] } {
+  if (!name || !name.trim()) return { isDoubles: false, partners: [] };
+  const trimmed = name.trim();
+  if (trimmed.includes('/') || trimmed.includes('&') || trimmed.includes('+')) {
+    const parts = trimmed.split(/\s*[/&+]\s*/).map(p => p.trim()).filter(Boolean);
+    if (parts.length > 1) {
+      return { isDoubles: true, partners: parts };
+    }
+  }
+  return { isDoubles: false, partners: [trimmed] };
+}
+
 

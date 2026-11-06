@@ -10,7 +10,7 @@ import { MatchItem, ScoreFormatType } from '../../types/tennis';
 import { parseScoreString } from '../../utils/tennisScoringEngine';
 import { MatchDetailModal } from '../Common/MatchDetailModal';
 import { MatchLiveTimer } from '../Common/MatchLiveTimer';
-import { compareMatchesChronologically } from '../../utils/timerUtils';
+import { compareMatchesChronologically, parsePlayerDoublesNames } from '../../utils/timerUtils';
 import { PrintScheduleModal } from './PrintScheduleModal';
 
 const SCORE_FORMAT_OPTIONS: ScoreFormatType[] = [
@@ -858,38 +858,75 @@ export const DeskSupervisorView: React.FC = () => {
                                 </div>
                               </div>
                               <div className={`text-[10px] font-black uppercase tracking-wider truncate mb-2 ${isLightMode ? 'text-slate-500' : 'text-slate-500'}`}>{m.Kategori}</div>
-                              <div className="space-y-1.5 my-2">
-                                <div className="flex items-center justify-between text-xs">
-                                  <div className="flex items-center gap-1.5 truncate pr-2">
-                                    {state?.currentServer === 1 && isLive && <span className="text-lime-400 text-[10px] animate-bounce">🎾</span>}
-                                    <span className={`truncate ${playerTextClass(m.Kazanan === p1Name)}`}>{isFinished && m.Kazanan === p1Name ? '🏆 ' : ''}{p1Name}</span>
+                              {(() => {
+                                const renderCardTeam = (name: string, isWinner: boolean, isServer: boolean) => {
+                                  const { isDoubles, partners } = parsePlayerDoublesNames(name);
+                                  if (!isDoubles || partners.length <= 1) {
+                                    return (
+                                      <div className="flex items-center gap-1.5 truncate pr-2">
+                                        {isServer && isLive && <span className="text-lime-400 text-[10px] animate-bounce shrink-0">🎾</span>}
+                                        <span className={`truncate ${playerTextClass(isWinner)}`}>
+                                          {isFinished && isWinner ? '🏆 ' : ''}{name}
+                                        </span>
+                                      </div>
+                                    );
+                                  }
+
+                                  return (
+                                    <div className="flex flex-col min-w-0 pr-2 leading-tight">
+                                      <div className="flex items-center gap-1.5 truncate">
+                                        {isServer && isLive && <span className="text-lime-400 text-[10px] animate-bounce shrink-0">🎾</span>}
+                                        <span className={`truncate ${playerTextClass(isWinner)}`}>
+                                          {isFinished && isWinner ? '🏆 ' : ''}{partners[0]}
+                                        </span>
+                                      </div>
+                                      <div className="flex items-center gap-0.5 truncate pl-3 opacity-80 text-[10px]">
+                                        <span className="opacity-40 text-[9px] shrink-0">/</span>
+                                        <span className={`truncate ${playerTextClass(isWinner)} font-normal`}>
+                                          {partners[1] || ''}
+                                        </span>
+                                      </div>
+                                      {partners.length > 2 && (
+                                        <div className="flex items-center gap-0.5 truncate pl-3 opacity-80 text-[10px]">
+                                          <span className="opacity-40 text-[9px] shrink-0">/</span>
+                                          <span className={`truncate ${playerTextClass(isWinner)} font-normal`}>
+                                            {partners.slice(2).join(' / ')}
+                                          </span>
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                };
+
+                                return (
+                                  <div className="space-y-1.5 my-2">
+                                    <div className="flex items-center justify-between text-xs">
+                                      {renderCardTeam(p1Name, m.Kazanan === p1Name, state?.currentServer === 1)}
+                                      <div className={`font-mono text-xs font-black shrink-0 tabular-nums flex gap-3 ${scoreNumberClass(m.Kazanan === p1Name)}`}>
+                                        {isUpcoming ? <span>-</span> : (
+                                          <>
+                                            {renderMiniSet(s1p1, s1p2, s1tb1, true)}
+                                            {renderMiniSet(s2p1, s2p2, s2tb1, setsToDisplay >= 2)}
+                                            {renderMiniSet(s3p1, s3p2, s3tb1, setsToDisplay >= 3)}
+                                          </>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center justify-between text-xs">
+                                      {renderCardTeam(p2Name, m.Kazanan === p2Name, state?.currentServer === 2)}
+                                      <div className={`font-mono text-xs font-black shrink-0 tabular-nums flex gap-3 ${scoreNumberClass(m.Kazanan === p2Name)}`}>
+                                        {isUpcoming ? <span>-</span> : (
+                                          <>
+                                            {renderMiniSet(s1p2, s1p1, s1tb2, true)}
+                                            {renderMiniSet(s2p2, s2p1, s2tb2, setsToDisplay >= 2)}
+                                            {renderMiniSet(s3p2, s3p1, s3tb2, setsToDisplay >= 3)}
+                                          </>
+                                        )}
+                                      </div>
+                                    </div>
                                   </div>
-                                  <div className={`font-mono text-xs font-black shrink-0 tabular-nums flex gap-3 ${scoreNumberClass(m.Kazanan === p1Name)}`}>
-                                    {isUpcoming ? <span>-</span> : (
-                                      <>
-                                        {renderMiniSet(s1p1, s1p2, s1tb1, true)}
-                                        {renderMiniSet(s2p1, s2p2, s2tb1, setsToDisplay >= 2)}
-                                        {renderMiniSet(s3p1, s3p2, s3tb1, setsToDisplay >= 3)}
-                                      </>
-                                    )}
-                                  </div>
-                                </div>
-                                <div className="flex items-center justify-between text-xs">
-                                  <div className="flex items-center gap-1.5 truncate pr-2">
-                                    {state?.currentServer === 2 && isLive && <span className="text-cyan-400 text-[10px] animate-bounce">🎾</span>}
-                                    <span className={`truncate ${playerTextClass(m.Kazanan === p2Name)}`}>{isFinished && m.Kazanan === p2Name ? '🏆 ' : ''}{p2Name}</span>
-                                  </div>
-                                  <div className={`font-mono text-xs font-black shrink-0 tabular-nums flex gap-3 ${scoreNumberClass(m.Kazanan === p2Name)}`}>
-                                    {isUpcoming ? <span>-</span> : (
-                                      <>
-                                        {renderMiniSet(s1p2, s1p1, s1tb2, true)}
-                                        {renderMiniSet(s2p2, s2p1, s2tb2, setsToDisplay >= 2)}
-                                        {renderMiniSet(s3p2, s3p1, s3tb2, setsToDisplay >= 3)}
-                                      </>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
+                                );
+                              })()}
                               <div className={`pt-2 mt-2 border-t flex flex-col gap-1 text-[10px] ${isLightMode ? 'border-slate-200' : 'border-slate-800/50'}`}>
                                 <div className="flex items-center justify-between gap-1">
                                   {isLive && state ? (
@@ -1722,43 +1759,76 @@ export const DeskSupervisorView: React.FC = () => {
             </div>
 
             {/* Oyuncular ve Skorlar */}
-            <div className="space-y-2 my-2">
-              <div className="flex items-center justify-between text-sm">
-                <div className="flex items-center gap-1.5 truncate pr-2">
-                  {state?.currentServer === 1 && isLive && <span className="text-lime-400 text-xs animate-bounce">🎾</span>}
-                  <span className={`truncate text-sm font-bold ${playerTextClass(m.Kazanan === p1Name)}`}>
-                    {isFinished && m.Kazanan === p1Name ? '🏆 ' : ''}{p1Name}
-                  </span>
-                </div>
-                <div className={`font-mono text-sm font-black shrink-0 tabular-nums flex gap-3 ${scoreNumberClass(m.Kazanan === p1Name)}`}>
-                  {isUpcoming ? <span>-</span> : (
-                    <>
-                      {renderMiniSet(s1p1, s1p2, s1tb1, true)}
-                      {renderMiniSet(s2p1, s2p2, s2tb1, setsToDisplay >= 2)}
-                      {renderMiniSet(s3p1, s3p2, s3tb1, setsToDisplay >= 3)}
-                    </>
-                  )}
-                </div>
-              </div>
+            {(() => {
+              const renderPopupTeam = (name: string, isWinner: boolean, isServer: boolean) => {
+                const { isDoubles, partners } = parsePlayerDoublesNames(name);
+                if (!isDoubles || partners.length <= 1) {
+                  return (
+                    <div className="flex items-center gap-1.5 truncate pr-2">
+                      {isServer && isLive && <span className="text-lime-400 text-xs animate-bounce shrink-0">🎾</span>}
+                      <span className={`truncate text-sm font-bold ${playerTextClass(isWinner)}`}>
+                        {isFinished && isWinner ? '🏆 ' : ''}{name}
+                      </span>
+                    </div>
+                  );
+                }
 
-              <div className="flex items-center justify-between text-sm">
-                <div className="flex items-center gap-1.5 truncate pr-2">
-                  {state?.currentServer === 2 && isLive && <span className="text-cyan-400 text-xs animate-bounce">🎾</span>}
-                  <span className={`truncate text-sm font-bold ${playerTextClass(m.Kazanan === p2Name)}`}>
-                    {isFinished && m.Kazanan === p2Name ? '🏆 ' : ''}{p2Name}
-                  </span>
+                return (
+                  <div className="flex flex-col min-w-0 pr-2 leading-snug">
+                    <div className="flex items-center gap-1.5 truncate">
+                      {isServer && isLive && <span className="text-lime-400 text-xs animate-bounce shrink-0">🎾</span>}
+                      <span className={`truncate text-sm font-bold ${playerTextClass(isWinner)}`}>
+                        {isFinished && isWinner ? '🏆 ' : ''}{partners[0]}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-0.5 truncate pl-3 opacity-80 text-xs">
+                      <span className="opacity-40 text-[10px] shrink-0">/</span>
+                      <span className={`truncate ${playerTextClass(isWinner)} font-medium`}>
+                        {partners[1] || ''}
+                      </span>
+                    </div>
+                    {partners.length > 2 && (
+                      <div className="flex items-center gap-0.5 truncate pl-3 opacity-80 text-xs">
+                        <span className="opacity-40 text-[10px] shrink-0">/</span>
+                        <span className={`truncate ${playerTextClass(isWinner)} font-medium`}>
+                          {partners.slice(2).join(' / ')}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                );
+              };
+
+              return (
+                <div className="space-y-2 my-2">
+                  <div className="flex items-center justify-between text-sm">
+                    {renderPopupTeam(p1Name, m.Kazanan === p1Name, state?.currentServer === 1)}
+                    <div className={`font-mono text-sm font-black shrink-0 tabular-nums flex gap-3 ${scoreNumberClass(m.Kazanan === p1Name)}`}>
+                      {isUpcoming ? <span>-</span> : (
+                        <>
+                          {renderMiniSet(s1p1, s1p2, s1tb1, true)}
+                          {renderMiniSet(s2p1, s2p2, s2tb1, setsToDisplay >= 2)}
+                          {renderMiniSet(s3p1, s3p2, s3tb1, setsToDisplay >= 3)}
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between text-sm">
+                    {renderPopupTeam(p2Name, m.Kazanan === p2Name, state?.currentServer === 2)}
+                    <div className={`font-mono text-sm font-black shrink-0 tabular-nums flex gap-3 ${scoreNumberClass(m.Kazanan === p2Name)}`}>
+                      {isUpcoming ? <span>-</span> : (
+                        <>
+                          {renderMiniSet(s1p2, s1p1, s1tb2, true)}
+                          {renderMiniSet(s2p2, s2p1, s2tb2, setsToDisplay >= 2)}
+                          {renderMiniSet(s3p2, s3p1, s3tb2, setsToDisplay >= 3)}
+                        </>
+                      )}
+                    </div>
+                  </div>
                 </div>
-                <div className={`font-mono text-sm font-black shrink-0 tabular-nums flex gap-3 ${scoreNumberClass(m.Kazanan === p2Name)}`}>
-                  {isUpcoming ? <span>-</span> : (
-                    <>
-                      {renderMiniSet(s1p2, s1p1, s1tb2, true)}
-                      {renderMiniSet(s2p2, s2p1, s2tb2, setsToDisplay >= 2)}
-                      {renderMiniSet(s3p2, s3p1, s3tb2, setsToDisplay >= 3)}
-                    </>
-                  )}
-                </div>
-              </div>
-            </div>
+              );
+            })()}
 
             {/* Alt Bilgi: Canlı Puan / Skor ve Hakem */}
             <div className={`pt-2 mt-2 border-t flex flex-col gap-1.5 text-[11px] ${isLightMode ? 'border-slate-200' : 'border-slate-800'}`}>
