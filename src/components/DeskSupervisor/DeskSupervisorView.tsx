@@ -10,6 +10,7 @@ import { MatchItem, ScoreFormatType } from '../../types/tennis';
 import { parseScoreString } from '../../utils/tennisScoringEngine';
 import { MatchDetailModal } from '../Common/MatchDetailModal';
 import { MatchLiveTimer } from '../Common/MatchLiveTimer';
+import { compareMatchesChronologically } from '../../utils/timerUtils';
 
 const SCORE_FORMAT_OPTIONS: ScoreFormatType[] = [
   '3 Normal Set',
@@ -705,7 +706,7 @@ export const DeskSupervisorView: React.FC = () => {
                     const bIsFinished = ['bitti', 'retired', 'walkover'].includes((b.Durum || '').toLowerCase());
                     if (aIsFinished && !bIsFinished) return -1;
                     if (!aIsFinished && bIsFinished) return 1; 
-                    return (a.Saat || '').localeCompare(b.Saat || '');
+                    return compareMatchesChronologically(a, b, matches);
                   });
 
                 return (

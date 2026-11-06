@@ -7,6 +7,7 @@ import { FinishMatchModal } from './FinishMatchModal';
 import { QuickScoreEditModal } from './QuickScoreEditModal';
 import { MatchSetupModal } from './MatchSetupModal';
 import { RefereeLoginModal } from '../RefereeLoginModal';
+import { compareMatchesChronologically } from '../../utils/timerUtils';
 import {
   Smartphone,
   Search,
@@ -184,7 +185,7 @@ export const CourtSupervisorView: React.FC = () => {
       }
 
       return true;
-    }).sort((a, b) => (a.Saat || '').localeCompare(b.Saat || '')); 
+    }).sort((a, b) => compareMatchesChronologically(a, b, matches)); 
   }, [matches, statusFilter, searchQuery]);
 
   const liveMatches = useMemo(() => filteredMatches.filter((m) => isLiveMatch(m.Durum)), [filteredMatches]);

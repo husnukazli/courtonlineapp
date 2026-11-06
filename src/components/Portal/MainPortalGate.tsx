@@ -12,6 +12,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../utils/firebase';
 import { MatchItem } from '../../types/tennis';
 import { parseScoreString } from '../../utils/tennisScoringEngine';
+import { compareMatchesChronologically } from '../../utils/timerUtils';
 
 interface MainPortalGateProps {
   onBackToList?: () => void;
@@ -53,7 +54,7 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
   const {
     referees, matches, loginReferee, deskPin,
     cloudSyncStatus, lastCloudSync, pullFromCloudNow, clearLocalCacheAndResetFromCloud, tournamentInfo, tournamentId, setAuthRole,
-    setActiveCourtFilter
+    setActiveCourtFilter, customCourts
   } = useTennisData();
 
   // TEMA (GECE / GÜNDÜZ MODU)
@@ -281,7 +282,12 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
     }
   };
 
-  const distinctKortlar = Array.from(new Set(matches.map((m: any) => m.Kort).filter(Boolean))).sort() as string[];
+  const distinctKortlar = React.useMemo(() => {
+    const list = new Set<string>();
+    (customCourts || []).forEach((c) => { if (c && c.trim()) list.add(c.trim()); });
+    matches.forEach((m: any) => { if (m.Kort && m.Kort.trim()) list.add(m.Kort.trim()); });
+    return Array.from(list).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  }, [customCourts, matches]);
   const live = matches.filter(m => m.Durum === 'Oynaniyor');
   const waiting = matches.filter(m => m.Durum === 'Baslamadi');
   const done = matches.filter(m => m.Durum === 'Bitti' || m.Durum === 'Retired' || m.Durum === 'Walkover');
@@ -637,7 +643,7 @@ export const MainPortalGate: React.FC<MainPortalGateProps> = ({ onBackToList }) 
                       if (filterDurum === 'Bitti') return m.Durum === 'Bitti' || m.Durum === 'Retired' || m.Durum === 'Walkover';
                       return true;
                     })
-                    .sort((a: any, b: any) => (a.Saat || '99:99').localeCompare(b.Saat || '99:99'));
+                    .sort((a: any, b: any) => compareMatchesChronologically(a, b, matches));
                   
                   return (
                     // EKRANA YAYILMA MANTIĞI: Monitörde flex-1 ile eşit genişlikte sığarlar. Dikeyde h-full olurlar.

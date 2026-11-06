@@ -133,3 +133,49 @@ export function formatPauseDurationText(totalSeconds: number): string {
   return `${seconds} sn`;
 }
 
+/**
+ * Saat string'ini (örn: "09:30", "9:30", "14:00", "NB 11:00") gün içi dakika değerine çevirir.
+ * Eğer saat bulunamazsa (örn: "TAKİBEN", "SONRA") -1 döner.
+ */
+export function parseMatchTime(saatStr?: string): number {
+  if (!saatStr || !saatStr.trim()) return -1;
+  const trimmed = saatStr.trim().toUpperCase();
+  const match = trimmed.match(/(\d{1,2})[:.](\d{2})/);
+  if (match) {
+    const h = parseInt(match[1], 10);
+    const m = parseInt(match[2], 10);
+    if (!isNaN(h) && !isNaN(m)) return h * 60 + m;
+  }
+  const single = trimmed.match(/^(\d{1,2})$/);
+  if (single) {
+    const h = parseInt(single[1], 10);
+    if (h >= 7 && h <= 23) return h * 60;
+  }
+  return -1;
+}
+
+/**
+ * Maçları tenis turnuva akışına göre kronolojik olarak sıralar:
+ * 1. Geçerli saatleri olan maçlar saat sırasına (dakika cinsinden) göre dizilir ("9:00" < "10:00").
+ * 2. Saatleri aynı olan veya metinsel ("TAKİBEN" vb.) olan maçlar orijinal fikstür dizisindeki indeks sırasını korur.
+ */
+export function compareMatchesChronologically(a: any, b: any, allMatches?: any[]): number {
+  const timeA = parseMatchTime(a.Saat);
+  const timeB = parseMatchTime(b.Saat);
+
+  if (timeA !== -1 && timeB !== -1 && timeA !== timeB) {
+    return timeA - timeB;
+  }
+
+  if (allMatches && Array.isArray(allMatches)) {
+    const idxA = allMatches.indexOf(a);
+    const idxB = allMatches.indexOf(b);
+    if (idxA !== -1 && idxB !== -1 && idxA !== idxB) {
+      return idxA - idxB;
+    }
+  }
+
+  return (a.Saat || '').localeCompare(b.Saat || '', undefined, { numeric: true });
+}
+
+
