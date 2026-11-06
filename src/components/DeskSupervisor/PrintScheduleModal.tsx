@@ -423,19 +423,21 @@ export const PrintScheduleModal: React.FC<PrintScheduleModalProps> = ({
                 </div>
               </div>
 
-              {/* 4. SAYFA BAŞINA KORT SAYISI */}
-              <div className="space-y-2">
+              {/* 4. SAYFA BAŞINA KORT SAYISI (GENİŞLETİLMİŞ & ESNEK SEÇENEKLER) */}
+              <div className="space-y-2.5 p-3 rounded-2xl border border-cyan-500/30 bg-cyan-950/20">
                 <div className="flex items-center justify-between">
-                  <label className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                    <Columns className="w-3.5 h-3.5 text-cyan-400" />
-                    <span>4. Sayfa Başına Kort</span>
+                  <label className="text-xs font-black uppercase tracking-wider text-cyan-400 flex items-center gap-1.5">
+                    <Columns className="w-3.5 h-3.5" />
+                    <span>4. Sayfa Başına Kort Sayısı</span>
                   </label>
-                  <span className="text-xs font-mono font-bold text-cyan-400">
+                  <span className="text-xs font-mono font-black px-2 py-0.5 rounded-lg bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
                     {courtsPerPage >= 99 ? 'Tüm Kortlar' : `${courtsPerPage} Kort`}
                   </span>
                 </div>
+
+                {/* Hızlı Seçim Butonları (1'den 16'ya kadar zengin seçenekler) */}
                 <div className="grid grid-cols-6 gap-1">
-                  {[1, 2, 3, 4, 5, 6].map((num) => (
+                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 16].map((num) => (
                     <button
                       key={num}
                       type="button"
@@ -443,24 +445,50 @@ export const PrintScheduleModal: React.FC<PrintScheduleModalProps> = ({
                       className={`py-1.5 rounded-lg text-xs font-bold border transition ${
                         courtsPerPage === num
                           ? 'bg-cyan-500 text-slate-950 border-cyan-400 font-black shadow'
-                          : isLightMode ? 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200' : 'bg-slate-950 border-slate-800 text-slate-300 hover:bg-slate-800'
+                          : isLightMode ? 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100' : 'bg-slate-950 border-slate-800 text-slate-300 hover:bg-slate-800'
                       }`}
                     >
-                      {num}
+                      {num} Kort
                     </button>
                   ))}
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setCourtsPerPage(99)}
-                  className={`w-full py-1.5 rounded-xl text-[11px] font-bold border transition ${
-                    courtsPerPage >= 99
-                      ? 'bg-cyan-500 text-slate-950 border-cyan-400 font-black'
-                      : isLightMode ? 'bg-slate-100 border-slate-200 text-slate-600' : 'bg-slate-950 border-slate-800 text-slate-400'
-                  }`}
-                >
-                  Tüm Kortları Tek Sayfa Genişliğinde Göster ({selectedCourts.length} Kort)
-                </button>
+
+                {/* Hassas Ayar: Artı/Eksi Stepper ve Özel Değer */}
+                <div className="flex items-center justify-between gap-2 pt-1">
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setCourtsPerPage((prev) => Math.max(1, (prev >= 99 ? selectedCourts.length : prev) - 1))}
+                      className="p-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 text-white active:scale-95"
+                      title="1 Kort Azalt"
+                    >
+                      <Minus className="w-3.5 h-3.5" />
+                    </button>
+                    <span className="text-xs font-mono font-bold px-2">
+                      Özel: {courtsPerPage >= 99 ? 'Tümü' : courtsPerPage}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setCourtsPerPage((prev) => Math.min(30, (prev >= 99 ? 1 : prev) + 1))}
+                      className="p-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 text-white active:scale-95"
+                      title="1 Kort Arttır"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setCourtsPerPage(99)}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition ${
+                      courtsPerPage >= 99
+                        ? 'bg-cyan-500 text-slate-950 border-cyan-400 font-black'
+                        : isLightMode ? 'bg-slate-100 border-slate-300 text-slate-600' : 'bg-slate-900 border-slate-800 text-slate-400'
+                    }`}
+                  >
+                    Tüm Kortları Sığdır ({selectedCourts.length})
+                  </button>
+                </div>
               </div>
 
               {/* SAYFA BÖLÜMÜ BİLGİ ROZETİ */}
@@ -920,19 +948,31 @@ const SingleSchedulePageContent: React.FC<SinglePageContentProps> = ({
 }) => {
   // Dinamik oransal font ve boşluk hesabı
   const scale = fontScalePercent / 100;
+  const courtCount = slice.courts.length;
+  // Çoklu kort sıkıştırma katsayısı: 7 ve üzeri kortta sütunların rahat sığması için fontları ve dolguları oransal dengeler
+  const courtFactor = courtCount <= 4 ? 1 : courtCount <= 6 ? 0.96 : courtCount <= 8 ? 0.9 : courtCount <= 10 ? 0.82 : 0.74;
+  const effectiveScale = scale * courtFactor;
   
   const dynStyles = useMemo(() => ({
     title: `${Math.round(20 * scale)}px`,
     subtitle: `${Math.max(10, Math.round(11 * scale))}px`,
-    courtHeader: `${Math.max(11, Math.round(13 * scale))}px`,
-    matchNum: `${Math.max(10, Math.round(11 * scale))}px`,
-    matchTime: `${Math.max(9, Math.round(10.5 * scale))}px`,
-    category: `${Math.max(9, Math.round(10 * scale))}px`,
-    playerName: `${Math.max(10, Math.round(12 * scale))}px`,
-    score: `${Math.max(9, Math.round(10.5 * scale))}px`,
-    referee: `${Math.max(8, Math.round(9.5 * scale))}px`,
-    padding: scale < 0.85 ? '3px 4px' : scale > 1.25 ? '7px 8px' : '5px 6px',
-  }), [scale]);
+    courtHeader: `${Math.max(9, Math.round(13 * effectiveScale))}px`,
+    matchNum: `${Math.max(8.5, Math.round(11 * effectiveScale))}px`,
+    matchTime: `${Math.max(8, Math.round(10.5 * effectiveScale))}px`,
+    category: `${Math.max(7.5, Math.round(10 * effectiveScale))}px`,
+    playerName: `${Math.max(8.5, Math.round(12 * effectiveScale))}px`,
+    score: `${Math.max(8, Math.round(10.5 * effectiveScale))}px`,
+    referee: `${Math.max(7.5, Math.round(9.5 * effectiveScale))}px`,
+    padding: courtCount >= 9
+      ? '2px 2px'
+      : courtCount >= 7
+        ? '3px 3px'
+        : scale < 0.85 
+          ? '3px 4px' 
+          : scale > 1.25 
+            ? '7px 8px' 
+            : '5px 6px',
+  }), [scale, effectiveScale, courtCount]);
 
   // Bu sayfadaki maksimum satır sayısı
   const rowCount = Math.max(1, slice.matchEndIndex - slice.matchStartIndex);
