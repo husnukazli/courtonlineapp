@@ -874,26 +874,18 @@ export const DeskSupervisorView: React.FC = () => {
 
                                   return (
                                     <div className="flex flex-col min-w-0 pr-2 leading-tight">
-                                      <div className="flex items-center gap-1.5 truncate">
-                                        {isServer && isLive && <span className="text-lime-400 text-[10px] animate-bounce shrink-0">🎾</span>}
-                                        <span className={`truncate ${playerTextClass(isWinner)}`}>
-                                          {isFinished && isWinner ? '🏆 ' : ''}{partners[0]}
-                                        </span>
-                                      </div>
-                                      <div className="flex items-center gap-0.5 truncate pl-3 opacity-80 text-[10px]">
-                                        <span className="opacity-40 text-[9px] shrink-0">/</span>
-                                        <span className={`truncate ${playerTextClass(isWinner)} font-normal`}>
-                                          {partners[1] || ''}
-                                        </span>
-                                      </div>
-                                      {partners.length > 2 && (
-                                        <div className="flex items-center gap-0.5 truncate pl-3 opacity-80 text-[10px]">
-                                          <span className="opacity-40 text-[9px] shrink-0">/</span>
-                                          <span className={`truncate ${playerTextClass(isWinner)} font-normal`}>
-                                            {partners.slice(2).join(' / ')}
+                                      {partners.map((partner, pIdx) => (
+                                        <div key={pIdx} className="flex items-center gap-1.5 truncate">
+                                          {pIdx === 0 && isServer && isLive ? (
+                                            <span className="text-lime-400 text-[10px] animate-bounce shrink-0">🎾</span>
+                                          ) : (isServer && isLive) ? (
+                                            <span className="w-3.5 shrink-0"></span>
+                                          ) : null}
+                                          <span className={`truncate ${playerTextClass(isWinner)}`}>
+                                            {pIdx === 0 && isFinished && isWinner ? '🏆 ' : ''}{partner}
                                           </span>
                                         </div>
-                                      )}
+                                      ))}
                                     </div>
                                   );
                                 };
@@ -1775,26 +1767,18 @@ export const DeskSupervisorView: React.FC = () => {
 
                 return (
                   <div className="flex flex-col min-w-0 pr-2 leading-snug">
-                    <div className="flex items-center gap-1.5 truncate">
-                      {isServer && isLive && <span className="text-lime-400 text-xs animate-bounce shrink-0">🎾</span>}
-                      <span className={`truncate text-sm font-bold ${playerTextClass(isWinner)}`}>
-                        {isFinished && isWinner ? '🏆 ' : ''}{partners[0]}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-0.5 truncate pl-3 opacity-80 text-xs">
-                      <span className="opacity-40 text-[10px] shrink-0">/</span>
-                      <span className={`truncate ${playerTextClass(isWinner)} font-medium`}>
-                        {partners[1] || ''}
-                      </span>
-                    </div>
-                    {partners.length > 2 && (
-                      <div className="flex items-center gap-0.5 truncate pl-3 opacity-80 text-xs">
-                        <span className="opacity-40 text-[10px] shrink-0">/</span>
-                        <span className={`truncate ${playerTextClass(isWinner)} font-medium`}>
-                          {partners.slice(2).join(' / ')}
+                    {partners.map((partner, pIdx) => (
+                      <div key={pIdx} className="flex items-center gap-1.5 truncate">
+                        {pIdx === 0 && isServer && isLive ? (
+                          <span className="text-lime-400 text-xs animate-bounce shrink-0">🎾</span>
+                        ) : (isServer && isLive) ? (
+                          <span className="w-4 shrink-0"></span>
+                        ) : null}
+                        <span className={`truncate text-sm font-bold ${playerTextClass(isWinner)}`}>
+                          {pIdx === 0 && isFinished && isWinner ? '🏆 ' : ''}{partner}
                         </span>
                       </div>
-                    )}
+                    ))}
                   </div>
                 );
               };

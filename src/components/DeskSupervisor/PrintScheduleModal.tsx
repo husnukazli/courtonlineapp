@@ -1159,26 +1159,18 @@ const SingleSchedulePageContent: React.FC<SinglePageContentProps> = ({
 
                         return (
                           <div className="flex flex-col min-w-0 leading-tight">
-                            <div className="flex items-center gap-1 truncate">
-                              {isWinner && <span className="text-black font-black shrink-0">✓</span>}
-                              <span className="truncate font-bold" style={{ fontSize: dynStyles.playerName }}>
-                                {partners[0]}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-0.5 truncate pl-1.5 opacity-90" style={{ fontSize: `calc(${dynStyles.playerName} * 0.92)` }}>
-                              <span className="opacity-40 shrink-0 text-[0.85em]">/</span>
-                              <span className="truncate font-normal">
-                                {partners[1] || ''}
-                              </span>
-                            </div>
-                            {partners.length > 2 && (
-                              <div className="flex items-center gap-0.5 truncate pl-1.5 opacity-90" style={{ fontSize: `calc(${dynStyles.playerName} * 0.92)` }}>
-                                <span className="opacity-40 shrink-0 text-[0.85em]">/</span>
-                                <span className="truncate font-normal">
-                                  {partners.slice(2).join(' / ')}
+                            {partners.map((partner, pIdx) => (
+                              <div key={pIdx} className="flex items-center gap-1 truncate">
+                                {pIdx === 0 && isWinner ? (
+                                  <span className="text-black font-black shrink-0">✓</span>
+                                ) : isWinner ? (
+                                  <span className="w-2.5 shrink-0"></span>
+                                ) : null}
+                                <span className="truncate" style={{ fontSize: dynStyles.playerName }}>
+                                  {partner}
                                 </span>
                               </div>
-                            )}
+                            ))}
                           </div>
                         );
                       };
