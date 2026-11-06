@@ -3,7 +3,7 @@ import {
   Tv, Filter, Search, ZoomIn, ZoomOut, RefreshCw, Plus, Trash2, CheckCircle2,
   Clock, Award, Layers, Users, FileSpreadsheet, Download, Upload, AlertCircle,
   Eye, Lock, KeyRound, ShieldCheck, FileText, RotateCcw, Sun, Moon, MonitorPlay,
-  Maximize2, Minimize2, Edit3, ArrowUpDown, Check, X
+  Maximize2, Minimize2, Edit3, ArrowUpDown, Check, X, Printer
 } from 'lucide-react';
 import { useTennisData } from '../../context/TennisDataContext';
 import { MatchItem, ScoreFormatType } from '../../types/tennis';
@@ -11,6 +11,7 @@ import { parseScoreString } from '../../utils/tennisScoringEngine';
 import { MatchDetailModal } from '../Common/MatchDetailModal';
 import { MatchLiveTimer } from '../Common/MatchLiveTimer';
 import { compareMatchesChronologically } from '../../utils/timerUtils';
+import { PrintScheduleModal } from './PrintScheduleModal';
 
 const SCORE_FORMAT_OPTIONS: ScoreFormatType[] = [
   '3 Normal Set',
@@ -83,6 +84,7 @@ export const DeskSupervisorView: React.FC = () => {
   const [isGridFullscreen, setIsGridFullscreen] = useState<boolean>(false);
   const [selectedMatchForModal, setSelectedMatchForModal] = useState<MatchItem | null>(null);
   const [hoveredMatchInfo, setHoveredMatchInfo] = useState<{ match: MatchItem; rect: DOMRect } | null>(null);
+  const [isPrintScheduleModalOpen, setIsPrintScheduleModalOpen] = useState<boolean>(false);
 
   const [newRefName, setNewRefName] = useState<string>('');
   const [newRefPin, setNewRefPin] = useState<string>('');
@@ -574,7 +576,22 @@ export const DeskSupervisorView: React.FC = () => {
             <div className="flex items-center gap-2 text-xs font-mono ml-auto">
               <span className={`px-2.5 py-1 rounded-lg border font-bold ${isLightMode ? 'bg-emerald-100 border-emerald-300 text-emerald-800' : 'bg-emerald-950/60 border-emerald-500/30 text-emerald-300'}`}>{liveMatches} Canlı</span>
               <span className={`px-2.5 py-1 rounded-lg border font-bold ${isLightMode ? 'bg-cyan-100 border-cyan-300 text-cyan-800' : 'bg-cyan-950/60 border-cyan-500/30 text-cyan-300'}`}>%{completionRate} Bitti</span>
-              <button onClick={toggleTheme} className={`ml-2 p-1.5 rounded-xl border transition flex items-center justify-center ${isLightMode ? 'bg-white hover:bg-slate-100 border-slate-300 text-amber-600 shadow-sm' : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-amber-300'}`} title="Temayı Değiştir">
+              
+              <button
+                type="button"
+                onClick={() => setIsPrintScheduleModalOpen(true)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-black transition shadow-sm active:scale-95 ${
+                  isLightMode
+                    ? 'bg-cyan-600 hover:bg-cyan-500 text-white border-cyan-600 shadow-cyan-600/20'
+                    : 'bg-cyan-500 hover:bg-cyan-400 text-slate-950 border-cyan-400 shadow-cyan-500/25'
+                }`}
+                title="A4 Maç Programı Çıktısı ve PDF Ayarlarını Aç"
+              >
+                <Printer className="w-3.5 h-3.5" />
+                <span>Programı Yazdır (PDF)</span>
+              </button>
+
+              <button onClick={toggleTheme} className={`ml-1 p-1.5 rounded-xl border transition flex items-center justify-center ${isLightMode ? 'bg-white hover:bg-slate-100 border-slate-300 text-amber-600 shadow-sm' : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-amber-300'}`} title="Temayı Değiştir">
                 {isLightMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
               </button>
             </div>
@@ -677,6 +694,22 @@ export const DeskSupervisorView: React.FC = () => {
                     <option value="custom">%{zoomLevel} (Özel)</option>
                   )}
                 </select>
+
+                {/* Programı Yazdır (PDF) Butonu */}
+                <button
+                  type="button"
+                  onClick={() => setIsPrintScheduleModalOpen(true)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition shadow-sm active:scale-95 border ${
+                    isLightMode 
+                      ? 'bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-300' 
+                      : 'bg-slate-900 hover:bg-slate-800 text-cyan-300 border-slate-700'
+                  }`}
+                  title="Özelleştirilebilir A4 Maç Programı ve PDF Çıktısı"
+                >
+                  <Printer className="w-3.5 h-3.5 text-cyan-500" />
+                  <span className="hidden sm:inline">Programı Yazdır (PDF)</span>
+                  <span className="sm:hidden">PDF</span>
+                </button>
               </div>
             </div>
           )}
@@ -1398,7 +1431,17 @@ export const DeskSupervisorView: React.FC = () => {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div><h3 className={`font-bold text-base ${isLightMode ? 'text-slate-900' : 'text-white'}`}>Raporlama, Program Yükleme & Sıfırlama</h3></div>
               
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
+                <button 
+                  type="button" 
+                  onClick={() => setIsPrintScheduleModalOpen(true)} 
+                  className="flex items-center gap-1.5 px-4 py-2 text-slate-950 text-xs font-black rounded-xl transition shadow bg-gradient-to-r from-cyan-400 to-teal-400 hover:from-cyan-300 hover:to-teal-300"
+                  title="Özelleştirilebilir A4 Maç Programı (Order of Play) Çıktı ve PDF Ayarları"
+                >
+                  <Printer className="w-4 h-4" />
+                  <span>Maç Programı Çıktısı (PDF)</span>
+                </button>
+
                 <button 
                   type="button" 
                   onClick={handlePrintDailyReport} 
@@ -1753,6 +1796,15 @@ export const DeskSupervisorView: React.FC = () => {
       })()}
 
       <MatchDetailModal match={selectedMatchForModal} onClose={() => setSelectedMatchForModal(null)} />
+
+      <PrintScheduleModal
+        isOpen={isPrintScheduleModalOpen}
+        onClose={() => setIsPrintScheduleModalOpen(false)}
+        matches={matches}
+        customCourts={customCourts}
+        tournamentInfo={tournamentInfo}
+        isLightMode={isLightMode}
+      />
     </div>
   );
 };
