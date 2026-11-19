@@ -233,6 +233,22 @@ export const pushSingleMatchToCloud = async (
   }
 };  
 
+export const deleteSingleMatchFromCloud = async (
+  matchId: string,
+  author = 'Turnuva Masası',
+  tournamentId = 'main'
+): Promise<boolean> => {
+  if (!matchId) return false;
+  try {
+    await deleteDoc(mDoc(tournamentId, matchId));
+    updateDoc(tDoc(tournamentId), { lastUpdated: new Date().toISOString(), updatedBy: author }).catch(() => {});
+    return true;
+  } catch (e) {
+    console.error('deleteSingleMatchFromCloud hata:', e);
+    return false;
+  }
+};  
+
 export const pushAllMatchesToCloud = async (  
   matches: MatchItem[], author = 'Saha Gözlemcisi', tournamentId = 'main'
 ): Promise<boolean> => {  

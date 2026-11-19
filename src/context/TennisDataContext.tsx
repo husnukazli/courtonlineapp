@@ -11,7 +11,7 @@ import {
 } from '../utils/tennisScoringEngine';
 import { calculateMatchDurationSeconds } from '../utils/timerUtils';
 import {
-  pushSingleMatchToCloud, pushAllMatchesToCloud, replaceAllMatchesInCloud,
+  pushSingleMatchToCloud, deleteSingleMatchFromCloud, pushAllMatchesToCloud, replaceAllMatchesInCloud,
   pushRefereesToCloud, pushCategoryFormatsToCloud, pushCategoryNoAdSettingsToCloud,
   pushTournamentInfoToCloud, pushCustomCourtsToCloud, pushDeskPinToCloud, pushFullTournamentToCloud, 
   subscribeToCloudTournament, fetchTournamentFromCloud, deleteAllMatchesFromCloud, purgeOrphanMatchesFromCloud,
@@ -119,6 +119,8 @@ interface TennisDataContextType {
   loginDesk: (pin: string) => boolean; logoutReferee: () => void; logoutAuth: () => void;
   setAuthRole: (role: 'none' | 'supervisor' | 'desk' | 'referee') => void; updateDeskPin: (newPin: string) => void;
   setActiveMatchId: (id: string | null) => void; updateMatch: (match: MatchItem) => void;
+  addManualMatch: (matchData: Partial<MatchItem>) => MatchItem;
+  deleteMatch: (matchId: string) => void;
   setMatchChairActive: (matchId: string, isActive: boolean, refereeName?: string) => void;
   updateGameScore: (matchId: string, setIndex: 1 | 2 | 3, player: 1 | 2, delta: number) => void;
   setDirectSetScores: (matchId: string, s1_p1: number, s1_p2: number, s2_p1: number, s2_p2: number, s3_p1: number, s3_p2: number) => void;
@@ -1582,6 +1584,117 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       .catch(e => console.error("JSON cloud import error:", e));
   };
 
+  const addManualMatch = (matchData: Partial<MatchItem>): MatchItem => {
+    const author = currentReferee?.name || 'Başhakem / Turnuva Masası';
+    const nowTimeStr = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+    const kategori = (matchData.Kategori || '').trim() || 'Genel';
+    const resolvedFormat =
+      matchData.Skor_Formati ||
+      categoryFormats[kategori] ||
+      '3 Normal Set';
+    const resolvedNoAd =
+      typeof matchData.isNoAd === 'boolean'
+        ? matchData.isNoAd
+        : !!categoryNoAdSettings[kategori];
+    const resolvedTbKurali = matchData.tbKurali || tournamentInfoState?.tbType || 'standard';
+    const resolvedCourt = (matchData.Kort || '').trim() || 'KORT 1';
+
+    const rawItem: any = {
+      ...matchData,
+      id: matchData.id || `m_manual_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      Kort: resolvedCourt,
+      Saat: (matchData.Saat || '').trim() || 'Takiben',
+      'Oyuncu 1': (matchData['Oyuncu 1'] || '').trim() || 'Oyuncu 1',
+      'Oyuncu 2': (matchData['Oyuncu 2'] || '').trim() || 'Oyuncu 2',
+      Kategori: kategori,
+      Skor_Formati: resolvedFormat,
+      isNoAd: resolvedNoAd,
+      tbKurali: resolvedTbKurali,
+      Durum: matchData.Durum || 'Baslamadi',
+      Skor: matchData.Skor || '-',
+      Kura_Kazanan: matchData.Kura_Kazanan || 'Secilmedi',
+      Kura_Tercih: matchData.Kura_Tercih || 'Servis',
+      Saha_Tarafi: matchData.Saha_Tarafi || 'Sandalyenin Sağı',
+      Baslangic_Saati: matchData.Baslangic_Saati || 'Secilmedi',
+      Bitis_Saati: matchData.Bitis_Saati || 'Secilmedi',
+      Gorevli_Hakem: (matchData.Gorevli_Hakem || '').trim() || 'Atanmadı',
+      Son_Hakem: (matchData.Gorevli_Hakem && matchData.Gorevli_Hakem !== 'Atanmadı') ? matchData.Gorevli_Hakem : author,
+      Son_Islem_Hakem: author,
+      Son_Islem_Zamani: nowTimeStr,
+      Kazanan: matchData.Kazanan || 'Secilmedi',
+      tournamentId: tournamentId || undefined,
+      Son_Guncelleme: new Date().toISOString(),
+    };
+
+    const newMatch = sanitizeMatchList([rawItem])[0];
+
+    // Eğer yeni bir kort ismi girildiyse kort havuzuna da ekle
+    if (resolvedCourt && !customCourts.includes(resolvedCourt)) {
+      addCustomCourt(resolvedCourt);
+    }
+
+    setMatches((prev) => {
+      const next = [...prev, newMatch];
+      if (tournamentId) {
+        try {
+          localStorage.setItem(getStorageKey(BASE_STORAGE_KEYS.MATCHES, tournamentId), JSON.stringify(next));
+          if (broadcastChannelRef.current) {
+            broadcastChannelRef.current.postMessage({ type: 'MATCH_UPDATED', match: newMatch, matches: next });
+          }
+        } catch {}
+      }
+      return next;
+    });
+
+    if (tournamentId) {
+      setCloudSyncStatus('syncing');
+      pushSingleMatchToCloud(newMatch, author, undefined, tournamentId)
+        .then(() => {
+          setCloudSyncStatus('connected');
+          setLastCloudSync(new Date().toLocaleTimeString('tr-TR'));
+        })
+        .catch(() => {
+          setCloudSyncStatus('connected');
+        });
+    }
+
+    return newMatch;
+  };
+
+  const deleteMatch = (matchId: string) => {
+    if (!matchId) return;
+    const author = currentReferee?.name || 'Başhakem / Turnuva Masası';
+
+    if (activeMatchId === matchId) {
+      setActiveMatchId(null);
+    }
+
+    setMatches((prev) => {
+      const next = prev.filter((m) => m.id !== matchId);
+      if (tournamentId) {
+        try {
+          localStorage.setItem(getStorageKey(BASE_STORAGE_KEYS.MATCHES, tournamentId), JSON.stringify(next));
+          if (broadcastChannelRef.current) {
+            broadcastChannelRef.current.postMessage({ type: 'MATCHES_UPDATED', matches: next });
+          }
+        } catch {}
+      }
+      return next;
+    });
+
+    if (tournamentId) {
+      setCloudSyncStatus('syncing');
+      deleteSingleMatchFromCloud(matchId, author, tournamentId)
+        .then(() => {
+          setCloudSyncStatus('connected');
+          setLastCloudSync(new Date().toLocaleTimeString('tr-TR'));
+        })
+        .catch(() => {
+          setCloudSyncStatus('connected');
+        });
+    }
+  };
+
   const purgeOrphanMatches = async (): Promise<number> => {
     if (!tournamentId) return 0;
     setCloudSyncStatus('syncing');
@@ -1654,6 +1767,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         wipeAllMatchesForTournament, tournamentId, setTournamentId, purgeOrphanMatches,
         resetAllScores, loginReferee, loginRefereeDirect, loginSupervisorByPin, loginDesk,
         logoutReferee, logoutAuth, setAuthRole, updateDeskPin, setActiveMatchId, updateMatch,
+        addManualMatch, deleteMatch,
         setMatchChairActive,
         updateGameScore, setDirectSetScores, saveDirectScoreAndStatus, finishAndReportMatch,
         saveMatchSetup, awardPointToMatch, undoLastPoint, recordChallenge, setMatchStatus,

@@ -12,6 +12,7 @@ import { MatchDetailModal } from '../Common/MatchDetailModal';
 import { MatchLiveTimer } from '../Common/MatchLiveTimer';
 import { compareMatchesChronologically, parsePlayerDoublesNames } from '../../utils/timerUtils';
 import { PrintScheduleModal } from './PrintScheduleModal';
+import { CreateMatchModal } from './CreateMatchModal';
 
 const SCORE_FORMAT_OPTIONS: ScoreFormatType[] = [
   '3 Normal Set',
@@ -43,6 +44,7 @@ export const DeskSupervisorView: React.FC = () => {
     saveTournamentInfo,
     purgeOrphanMatches,
     importMatchesList,
+    addManualMatch,
     wipeAllMatchesForTournament,
     resetAllScores,
     forcePushAllToCloud,
@@ -85,6 +87,8 @@ export const DeskSupervisorView: React.FC = () => {
   const [selectedMatchForModal, setSelectedMatchForModal] = useState<MatchItem | null>(null);
   const [hoveredMatchInfo, setHoveredMatchInfo] = useState<{ match: MatchItem; rect: DOMRect } | null>(null);
   const [isPrintScheduleModalOpen, setIsPrintScheduleModalOpen] = useState<boolean>(false);
+  const [isCreateMatchModalOpen, setIsCreateMatchModalOpen] = useState<boolean>(false);
+  const [createMatchInitialCourt, setCreateMatchInitialCourt] = useState<string | undefined>(undefined);
 
   const [newRefName, setNewRefName] = useState<string>('');
   const [newRefPin, setNewRefPin] = useState<string>('');
@@ -573,14 +577,31 @@ export const DeskSupervisorView: React.FC = () => {
               </button>
             </div>
 
-            <div className="flex items-center gap-2 text-xs font-mono ml-auto">
+            <div className="flex flex-wrap items-center gap-2 text-xs font-mono ml-auto">
               <span className={`px-2.5 py-1 rounded-lg border font-bold ${isLightMode ? 'bg-emerald-100 border-emerald-300 text-emerald-800' : 'bg-emerald-950/60 border-emerald-500/30 text-emerald-300'}`}>{liveMatches} Canlı</span>
               <span className={`px-2.5 py-1 rounded-lg border font-bold ${isLightMode ? 'bg-cyan-100 border-cyan-300 text-cyan-800' : 'bg-cyan-950/60 border-cyan-500/30 text-cyan-300'}`}>%{completionRate} Bitti</span>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setCreateMatchInitialCourt(selectedCourtFilter !== 'ALL' ? selectedCourtFilter : undefined);
+                  setIsCreateMatchModalOpen(true);
+                }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-black font-sans transition shadow-sm active:scale-95 ${
+                  isLightMode
+                    ? 'bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-600 shadow-emerald-600/20'
+                    : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 border-emerald-400 shadow-emerald-500/25'
+                }`}
+                title="JSON yüklemeden programa manuel olarak yeni maç ekle"
+              >
+                <Plus className="w-3.5 h-3.5 stroke-[3]" />
+                <span>Maç Oluştur</span>
+              </button>
               
               <button
                 type="button"
                 onClick={() => setIsPrintScheduleModalOpen(true)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-black transition shadow-sm active:scale-95 ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-black font-sans transition shadow-sm active:scale-95 ${
                   isLightMode
                     ? 'bg-cyan-600 hover:bg-cyan-500 text-white border-cyan-600 shadow-cyan-600/20'
                     : 'bg-cyan-500 hover:bg-cyan-400 text-slate-950 border-cyan-400 shadow-cyan-500/25'
@@ -695,6 +716,25 @@ export const DeskSupervisorView: React.FC = () => {
                   )}
                 </select>
 
+                {/* Manuel Maç Ekle Butonu */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCreateMatchInitialCourt(selectedCourtFilter !== 'ALL' ? selectedCourtFilter : undefined);
+                    setIsCreateMatchModalOpen(true);
+                  }}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition shadow-sm active:scale-95 border ${
+                    isLightMode
+                      ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-300'
+                      : 'bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border-emerald-500/40'
+                  }`}
+                  title="Programa elle yeni maç ekle"
+                >
+                  <Plus className="w-3.5 h-3.5 stroke-[3]" />
+                  <span className="hidden sm:inline">Maç Oluştur</span>
+                  <span className="sm:hidden">Ekle</span>
+                </button>
+
                 {/* Programı Yazdır (PDF) Butonu */}
                 <button
                   type="button"
@@ -749,7 +789,25 @@ export const DeskSupervisorView: React.FC = () => {
                         <div className={`w-3 h-3 rounded-full animate-pulse ${isLightMode ? 'bg-cyan-500' : 'bg-cyan-400'}`}></div>
                         <h3 className={`font-extrabold text-sm tracking-wide ${isLightMode ? 'text-slate-800' : 'text-white'}`}>{courtName}</h3>
                       </div>
-                      <span className={`text-[11px] font-mono font-bold px-2 py-0.5 rounded-full border ${isLightMode ? 'bg-slate-100 text-slate-500 border-slate-300' : 'bg-slate-950 text-slate-400 border-slate-800'}`}>{courtMatches.length} Maç</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className={`text-[11px] font-mono font-bold px-2 py-0.5 rounded-full border ${isLightMode ? 'bg-slate-100 text-slate-500 border-slate-300' : 'bg-slate-950 text-slate-400 border-slate-800'}`}>{courtMatches.length} Maç</span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setCreateMatchInitialCourt(courtName);
+                            setIsCreateMatchModalOpen(true);
+                          }}
+                          className={`p-1 rounded-lg border transition active:scale-95 ${
+                            isLightMode
+                              ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200'
+                              : 'bg-emerald-500/15 hover:bg-emerald-500/30 text-emerald-300 border-emerald-500/30'
+                          }`}
+                          title={`${courtName} için yeni maç ekle`}
+                        >
+                          <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+                        </button>
+                      </div>
                     </div>
 
                     <div className="space-y-2.5 flex-1">
@@ -1463,6 +1521,19 @@ export const DeskSupervisorView: React.FC = () => {
               <div className="flex flex-wrap gap-2">
                 <button 
                   type="button" 
+                  onClick={() => {
+                    setCreateMatchInitialCourt(undefined);
+                    setIsCreateMatchModalOpen(true);
+                  }} 
+                  className="flex items-center gap-1.5 px-4 py-2 text-slate-950 text-xs font-black rounded-xl transition shadow bg-gradient-to-r from-emerald-400 to-green-400 hover:from-emerald-300 hover:to-green-300"
+                  title="JSON yüklemeden programa tek tek manuel maç ekle"
+                >
+                  <Plus className="w-4 h-4 stroke-[3]" />
+                  <span>Manuel Maç Oluştur</span>
+                </button>
+
+                <button 
+                  type="button" 
                   onClick={() => setIsPrintScheduleModalOpen(true)} 
                   className="flex items-center gap-1.5 px-4 py-2 text-slate-950 text-xs font-black rounded-xl transition shadow bg-gradient-to-r from-cyan-400 to-teal-400 hover:from-cyan-300 hover:to-teal-300"
                   title="Özelleştirilebilir A4 Maç Programı (Order of Play) Çıktı ve PDF Ayarları"
@@ -1858,6 +1929,21 @@ export const DeskSupervisorView: React.FC = () => {
         customCourts={customCourts}
         tournamentInfo={tournamentInfo}
         isLightMode={isLightMode}
+      />
+
+      <CreateMatchModal
+        isOpen={isCreateMatchModalOpen}
+        onClose={() => setIsCreateMatchModalOpen(false)}
+        onCreateMatch={addManualMatch}
+        distinctCourts={distinctCourts}
+        distinctCategories={distinctCategories}
+        matches={matches}
+        referees={referees}
+        categoryFormats={categoryFormats}
+        categoryNoAdSettings={categoryNoAdSettings}
+        defaultTbType={tournamentInfo?.tbType || 'standard'}
+        isLightMode={isLightMode}
+        initialCourt={createMatchInitialCourt}
       />
     </div>
   );

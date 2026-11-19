@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { X, Clock, Award, Timer, RotateCcw, ArrowRightLeft, Check, CheckCircle2 } from 'lucide-react';
+import { X, Clock, Award, Timer, RotateCcw, ArrowRightLeft, Check, CheckCircle2, Trash2 } from 'lucide-react';
 import { MatchItem } from '../../types/tennis';
 import { MatchLiveTimer } from './MatchLiveTimer';
 import { useTennisData } from '../../context/TennisDataContext';
@@ -10,7 +10,7 @@ interface MatchDetailModalProps {
 }
 
 export const MatchDetailModal: React.FC<MatchDetailModalProps> = ({ match, onClose }) => {
-  const { resetMatchScore, updateMatch, matches, customCourts } = useTennisData();
+  const { resetMatchScore, updateMatch, deleteMatch, matches, customCourts } = useTennisData();
 
   const activeMatch = useMemo(() => {
     if (!match) return null;
@@ -20,12 +20,14 @@ export const MatchDetailModal: React.FC<MatchDetailModalProps> = ({ match, onClo
   const [isChangingCourt, setIsChangingCourt] = useState(false);
   const [selectedNewCourt, setSelectedNewCourt] = useState(activeMatch?.Kort || '');
   const [courtChangeSuccess, setCourtChangeSuccess] = useState('');
+  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
 
   useEffect(() => {
     if (activeMatch?.Kort) {
       setSelectedNewCourt(activeMatch.Kort);
     }
-  }, [activeMatch?.Kort]);
+    setIsConfirmingDelete(false);
+  }, [activeMatch?.id, activeMatch?.Kort]);
 
   const distinctCourts = useMemo(() => {
     const list = new Set<string>();
@@ -308,6 +310,34 @@ export const MatchDetailModal: React.FC<MatchDetailModalProps> = ({ match, onClo
             </div>
           )}
 
+          {/* Silme Onay Paneli */}
+          {isConfirmingDelete && (
+            <div className="p-3.5 bg-rose-950/50 border border-rose-500/40 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 animate-in fade-in zoom-in-95 duration-150">
+              <div className="text-xs text-rose-200 font-semibold">
+                <strong className="text-rose-400">"{p1Name} vs {p2Name}"</strong> maçını programdan kalıcı olarak silmek istiyor musunuz?
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setIsConfirmingDelete(false)}
+                  className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition"
+                >
+                  Vazgeç
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    deleteMatch(activeMatch.id);
+                    onClose();
+                  }}
+                  className="px-3.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-black transition shadow"
+                >
+                  Evet, Programdan Sil
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <div className="flex items-center gap-2 flex-wrap">
               <button
@@ -320,6 +350,7 @@ export const MatchDetailModal: React.FC<MatchDetailModalProps> = ({ match, onClo
               <button
                 onClick={() => {
                   setIsChangingCourt(prev => !prev);
+                  setIsConfirmingDelete(false);
                   setCourtChangeSuccess('');
                 }}
                 className={`px-3.5 py-2.5 text-xs font-bold rounded-xl transition flex items-center gap-2 border active:scale-95 shadow-sm ${
@@ -329,6 +360,21 @@ export const MatchDetailModal: React.FC<MatchDetailModalProps> = ({ match, onClo
                 }`}
               >
                 <ArrowRightLeft className="w-4 h-4" /> Maçın Kortunu Değiştir
+              </button>
+
+              <button
+                onClick={() => {
+                  setIsConfirmingDelete(prev => !prev);
+                  setIsChangingCourt(false);
+                }}
+                className={`px-3.5 py-2.5 text-xs font-bold rounded-xl transition flex items-center gap-2 border active:scale-95 ${
+                  isConfirmingDelete
+                    ? 'bg-rose-600 text-white border-rose-500 font-black'
+                    : 'bg-slate-900 hover:bg-rose-950/60 border-slate-700 hover:border-rose-500/40 text-slate-300 hover:text-rose-300'
+                }`}
+                title="Bu maçı programdan kalıcı olarak sil"
+              >
+                <Trash2 className="w-4 h-4" /> Maçı Sil
               </button>
             </div>
             
