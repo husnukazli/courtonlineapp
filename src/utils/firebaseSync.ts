@@ -14,6 +14,15 @@ const superAdminDoc = () => doc(db, 'superAdmin', 'config');
 
 const localWriteLocks: Record<string, number> = {};
 
+export interface CloudTournamentInfo {
+  ad: string;
+  yer: string;
+  tarih: string;
+  not: string;
+  tbType?: 'standard' | 'coman';
+  tvPages?: string[][];
+}
+
 export interface CloudTournamentMetadata {  
   referees?: RefereeUser[];  
   categoryFormats?: Record<string, string>;  
@@ -23,8 +32,8 @@ export interface CloudTournamentMetadata {
   updatedBy?: string;  
   tournamentVersion?: number;  
   matches?: MatchItem[];
-  tournamentInfo?: { ad: string; yer: string; tarih: string; not: string }; // YENİ: Bulut Hafızası
-  customCourts?: string[]; // YENİ: Otomatik analiz edilen ve başhakem tarafından yönetilen kortlar
+  tournamentInfo?: CloudTournamentInfo;
+  customCourts?: string[];
 }  
 
 export interface TournamentListItem {  
@@ -189,11 +198,15 @@ export const subscribeToCloudTournament = (
         lastUpdated: d.lastUpdated,        
         updatedBy: d.updatedBy,        
         tournamentVersion: d.version, 
-        tournamentInfo: { // YENİ: Buluttan çekerken bilgi güncelle
+        tournamentInfo: {
           ad: d.ad || d.tournamentInfo?.ad || '',
           yer: d.yer || d.tournamentInfo?.yer || '',
           tarih: d.tarih || d.tournamentInfo?.tarih || '',
-          not: d.not || d.tournamentInfo?.not || ''
+          not: d.not || d.tournamentInfo?.not || '',
+          tbType: ((d.tournamentInfo?.tbType || d.tbType || 'standard') as 'standard' | 'coman'),
+          tvPages: Array.isArray(d.tournamentInfo?.tvPages)
+            ? d.tournamentInfo.tvPages
+            : (Array.isArray(d.tvPages) ? d.tvPages : []),
         },
         customCourts: Array.isArray(d.customCourts) ? d.customCourts : undefined
       });    
@@ -314,8 +327,8 @@ export const pushDeskPinToCloud = async (deskPin: string, tournamentId = 'main')
   }
 };  
 
-// YENİ EKLENDİ: Turnuva bilgisini Firebase'e gönderir
-export const pushTournamentInfoToCloud = async (info: { ad: string; yer: string; tarih: string; not: string }, tournamentId = 'main'): Promise<boolean> => {  
+// Turnuva bilgisini (tbType ve tvPages dahil) Firebase'e gönderir
+export const pushTournamentInfoToCloud = async (info: CloudTournamentInfo, tournamentId = 'main'): Promise<boolean> => {  
   try { 
     await setDoc(tDoc(tournamentId), { tournamentInfo: info }, { merge: true }); 
     return true; 
@@ -324,6 +337,31 @@ export const pushTournamentInfoToCloud = async (info: { ad: string; yer: string;
     return false; 
   }
 };  
+
+// Format Hafızası (kategori formatları, No-Ad ve Tie-Break kuralı) tek seferde atomik olarak Firebase'e gönderir
+export const pushFormatSettingsToCloud = async (
+  categoryFormats: Record<string, string>,
+  categoryNoAdSettings: Record<string, boolean>,
+  tournamentInfo: CloudTournamentInfo,
+  tournamentId = 'main'
+): Promise<boolean> => {
+  try {
+    await setDoc(
+      tDoc(tournamentId),
+      {
+        categoryFormats,
+        categoryNoAdSettings,
+        tournamentInfo,
+        lastUpdated: new Date().toISOString(),
+      },
+      { merge: true }
+    );
+    return true;
+  } catch (e) {
+    console.error('pushFormatSettingsToCloud:', e);
+    return false;
+  }
+};
 
 // YENİ EKLENDİ: Kort havuzunu / listesini Firebase'e gönderir
 export const pushCustomCourtsToCloud = async (courts: string[], tournamentId = 'main'): Promise<boolean> => {  
@@ -360,8 +398,8 @@ export const fetchTournamentFromCloud = async (tournamentId = 'main'): Promise<{
   categoryNoAdSettings?: Record<string, boolean>; 
   deskPin?: string;  
   tournamentVersion?: number;
-  tournamentInfo?: { ad: string; yer: string; tarih: string; not: string }; // YENİ
-  customCourts?: string[]; // YENİ
+  tournamentInfo?: CloudTournamentInfo;
+  customCourts?: string[];
 } | null> => {  
   try {    
     const [metaSnap, matchSnap] = await Promise.all([      
@@ -377,11 +415,15 @@ export const fetchTournamentFromCloud = async (tournamentId = 'main'): Promise<{
       categoryNoAdSettings: meta.categoryNoAdSettings, 
       deskPin: meta.deskPin, 
       tournamentVersion: meta.version,
-      tournamentInfo: { // YENİ
+      tournamentInfo: {
         ad: meta.ad || meta.tournamentInfo?.ad || '',
         yer: meta.yer || meta.tournamentInfo?.yer || '',
         tarih: meta.tarih || meta.tournamentInfo?.tarih || '',
-        not: meta.not || meta.tournamentInfo?.not || ''
+        not: meta.not || meta.tournamentInfo?.not || '',
+        tbType: ((meta.tournamentInfo?.tbType || meta.tbType || 'standard') as 'standard' | 'coman'),
+        tvPages: Array.isArray(meta.tournamentInfo?.tvPages)
+          ? meta.tournamentInfo.tvPages
+          : (Array.isArray(meta.tvPages) ? meta.tvPages : []),
       },
       customCourts: Array.isArray(meta.customCourts) ? meta.customCourts : undefined
     };  

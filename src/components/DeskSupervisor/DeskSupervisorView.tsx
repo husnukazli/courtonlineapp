@@ -45,6 +45,7 @@ export const DeskSupervisorView: React.FC = () => {
     purgeOrphanMatches,
     importMatchesList,
     addManualMatch,
+    saveFormatMemoryBundle,
     wipeAllMatchesForTournament,
     resetAllScores,
     forcePushAllToCloud,
@@ -271,28 +272,74 @@ export const DeskSupervisorView: React.FC = () => {
   }, [categoryFormats, categoryNoAdSettings]);
 
   const handleApplyFormats = () => {
-    bulkApplyCategoryFormats(localFormats);
-    bulkApplyCategoryNoAdSettings(localNoAdSettings);
-    saveTournamentInfo(localInfo);
+    const selectedTbType: 'standard' | 'coman' = (localInfo.tbType || 'standard') as 'standard' | 'coman';
+    const nextInfo = { ...localInfo, tbType: selectedTbType };
 
+    // Kategori formatları, No-Ad tikleri ve 1-5-9 Tie-Break kuralını tek seferde buluta kaydet
+    saveFormatMemoryBundle(localFormats, localNoAdSettings, nextInfo);
+
+    let updatedCount = 0;
     const updatedMatches = matches.map(m => {
+      const normStatus = (m.Durum || '').trim().replace(/ı/g, 'i').replace(/İ/g, 'i').toLowerCase();
+      const isUnstarted = normStatus === 'baslamadi' || normStatus === '';
+      if (!isUnstarted) return m;
+
       let changed = false;
-      let newM = { ...m };
+      const newM: MatchItem = { ...m };
+
       if (localFormats[m.Kategori] && m.Skor_Formati !== localFormats[m.Kategori]) {
         newM.Skor_Formati = localFormats[m.Kategori];
         changed = true;
       }
+
       const currentNoAd = !!m.isNoAd;
       const newNoAd = !!localNoAdSettings[m.Kategori];
       if (currentNoAd !== newNoAd) {
         newM.isNoAd = newNoAd;
+        if (newM.detailedState) {
+          newM.detailedState = { ...newM.detailedState, isNoAd: newNoAd };
+        }
         changed = true;
       }
-      return changed ? newM : m;
+
+      if (m.tbKurali !== selectedTbType) {
+        newM.tbKurali = selectedTbType;
+        changed = true;
+      }
+
+      if (m.chairSetups && Object.keys(m.chairSetups).length > 0) {
+        const updatedSetups: Record<number, any> = {};
+        let setupChanged = false;
+        Object.entries(m.chairSetups).forEach(([k, v]) => {
+          if (v && v.tbType !== selectedTbType) {
+            setupChanged = true;
+            updatedSetups[Number(k)] = { ...v, tbType: selectedTbType };
+          } else {
+            updatedSetups[Number(k)] = v;
+          }
+        });
+        if (setupChanged) {
+          newM.chairSetups = updatedSetups;
+          changed = true;
+        }
+      }
+
+      if (changed) {
+        updatedCount++;
+        return newM;
+      }
+      return m;
     });
 
-    if (JSON.stringify(updatedMatches) !== JSON.stringify(matches)) importMatchesList(updatedMatches);
-    setFormatSavedMsg('✅ Kategori formatları, No-Ad ve Tie-Break ayarları kaydedildi!');
+    if (updatedCount > 0) {
+      importMatchesList(updatedMatches);
+    }
+
+    setFormatSavedMsg(
+      updatedCount > 0
+        ? `✅ Format hafızası, No-Ad tikleri ve Tie-Break kuralı kaydedildi! (${updatedCount} başlamamış maça uygulandı)`
+        : '✅ Format hafızası, No-Ad tikleri ve Tie-Break kuralı buluta kaydedildi!'
+    );
     setTimeout(() => setFormatSavedMsg(''), 4000);
   };
 
@@ -1181,7 +1228,7 @@ export const DeskSupervisorView: React.FC = () => {
             ))}
           </div>
           <div className={`pt-4 border-t flex justify-end ${isLightMode ? 'border-slate-200' : 'border-slate-800'}`}>
-            <button type="button" onClick={handleApplyFormats} className={`px-6 py-3 font-bold rounded-xl shadow-lg transition ${isLightMode ? 'bg-cyan-600 hover:bg-cyan-500 text-white' : 'bg-cyan-400 hover:bg-cyan-300 text-slate-950'}`}>Formatları Kaydet ve Tüm Maçlara Uygula</button>
+            <button type="button" onClick={handleApplyFormats} className={`px-6 py-3 font-bold rounded-xl shadow-lg transition ${isLightMode ? 'bg-cyan-600 hover:bg-cyan-500 text-white' : 'bg-cyan-400 hover:bg-cyan-300 text-slate-950'}`}>Formatları Kaydet ve Başlamamış Maçlara Uygula</button>
           </div>
         </div>
       )}

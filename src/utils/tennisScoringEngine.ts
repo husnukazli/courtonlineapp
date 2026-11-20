@@ -189,13 +189,25 @@ export function checkMatchWinner(state: TennisMatchState, format: string): { mat
   };
 }
 
+export function isTiebreakChangeoverPoint(
+  totalPts: number,
+  tbType: 'standard' | 'coman' = 'standard'
+): boolean {
+  if (totalPts <= 0) return false;
+  if (tbType === 'coman') {
+    return (totalPts - 1) % 4 === 0;
+  }
+  return totalPts % 6 === 0;
+}
+
 export function awardPoint(
   currentState: TennisMatchState,
   playerWon: 1 | 2,
   pointType: PointType = 'NORMAL',
   format: string = '3 Normal Set',
   p1Name: string = 'Oyuncu 1',
-  p2Name: string = 'Oyuncu 2'
+  p2Name: string = 'Oyuncu 2',
+  tbType: 'standard' | 'coman' = 'standard'
 ): { nextState: TennisMatchState; matchEnded: boolean; matchWinner?: 1 | 2; summary: string } {
   
   const initialMatchCheck = checkMatchWinner(currentState, format);
@@ -245,7 +257,7 @@ export function awardPoint(
     const cycle = Math.floor((totalPts - 1) / 2);
     state.currentServer = cycle % 2 === 0 ? otherServer : initialTbServer;
 
-    state.needsChangeover = totalPts % 6 === 0;
+    state.needsChangeover = isTiebreakChangeoverPoint(totalPts, tbType);
 
     const p1Score = state.tiebreak_p1;
     const p2Score = state.tiebreak_p2;

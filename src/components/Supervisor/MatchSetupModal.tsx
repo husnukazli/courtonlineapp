@@ -24,7 +24,7 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
   onClose,
   onStartMatch,
 }) => {
-  const { saveMatchSetup, categoryFormats, categoryNoAdSettings, matches, customCourts } = useTennisData();
+  const { saveMatchSetup, categoryFormats, categoryNoAdSettings, tournamentInfo, matches, customCourts } = useTennisData();
 
   const [kuraKazanan, setKuraKazanan] = useState<string>('Secilmedi');
   const [kuraTercih, setKuraTercih] = useState<string>('Servis');
@@ -53,45 +53,72 @@ export const MatchSetupModal: React.FC<MatchSetupModalProps> = ({
     return Array.from(list).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
   }, [customCourts, matches]);
 
+  const lastInitKeyRef = React.useRef<string>('');
+
   React.useEffect(() => {
-    if (match) {
-      setKuraKazanan(match.Kura_Kazanan || 'Secilmedi');
-      setKuraTercih(match.Kura_Tercih || 'Servis');
-      setSahaTarafi(match.Saha_Tarafi || 'Sandalyenin Sağı');
-
-      const headUmpireFormat = categoryFormats[match.Kategori];
-      setSkorFormati(headUmpireFormat || match.Skor_Formati || '3 Normal Set');
-
-      const headUmpireNoAd = categoryNoAdSettings ? categoryNoAdSettings[match.Kategori] : undefined;
-      setIsNoAd(headUmpireNoAd !== undefined ? headUmpireNoAd : !!match.isNoAd);
-
-      setSecilenKort(match.Kort || 'Secilmedi');
-      setTbRule((match.tbKurali as any) || 'standard');
-      setT1ServerIdx(match.ilkT1ServisOyuncusu ?? 0);
-      setT2ServerIdx(match.ilkT2ServisOyuncusu ?? 0);
-      setT1RecIdx(match.ilkT1KarsilayanOyuncusu ?? 0);
-      setT2RecIdx(match.ilkT2KarsilayanOyuncusu ?? 0);
-
-      const savedFirstServer = (match as any).ilkServisOyuncusu;
-      if (savedFirstServer === 1) setIlkServisiAtan(match['Oyuncu 1']);
-      else if (savedFirstServer === 2) setIlkServisiAtan(match['Oyuncu 2']);
-      else setIlkServisiAtan('Secilmedi');
-
-      if (match.Baslangic_Saati && match.Baslangic_Saati !== 'Secilmedi') {
-        setBaslangicSaati(match.Baslangic_Saati);
-      } else {
-        const now = new Date();
-        const hh = String(now.getHours()).padStart(2, '0');
-        const mm = String(now.getMinutes()).padStart(2, '0');
-        setBaslangicSaati(`${hh}:${mm}`);
-      }
-      setBitisSaati(match.Bitis_Saati || '');
-      
-      setRotation(0);
-      setIsFlipping(false);
-      setHasTossed(false);
+    if (!isOpen || !match) {
+      lastInitKeyRef.current = '';
+      return;
     }
-  }, [match, isOpen, categoryFormats, categoryNoAdSettings]);
+
+    const initKey = `${match.id}_${isOpen}`;
+    if (lastInitKeyRef.current === initKey) return;
+    lastInitKeyRef.current = initKey;
+
+    setKuraKazanan(match.Kura_Kazanan || 'Secilmedi');
+    setKuraTercih(match.Kura_Tercih || 'Servis');
+    setSahaTarafi(match.Saha_Tarafi || 'Sandalyenin Sağı');
+
+    const hasOwnSetup =
+      !!(match.Kura_Kazanan && match.Kura_Kazanan !== 'Secilmedi') ||
+      match.Durum === 'Oynaniyor' ||
+      !!match.chairSetups?.[1] ||
+      !!match.tbKurali;
+
+    const headUmpireFormat = categoryFormats[match.Kategori];
+    const headUmpireNoAd = categoryNoAdSettings ? categoryNoAdSettings[match.Kategori] : undefined;
+
+    if (hasOwnSetup) {
+      setSkorFormati(match.Skor_Formati || headUmpireFormat || '3 Normal Set');
+      setIsNoAd(typeof match.isNoAd === 'boolean' ? match.isNoAd : (headUmpireNoAd ?? false));
+    } else {
+      setSkorFormati(headUmpireFormat || match.Skor_Formati || '3 Normal Set');
+      setIsNoAd(headUmpireNoAd !== undefined ? headUmpireNoAd : !!match.isNoAd);
+    }
+
+    setSecilenKort(match.Kort || 'Secilmedi');
+    const resolvedTb = (
+      match.chairSetups?.[1]?.tbType ||
+      match.tbKurali ||
+      tournamentInfo?.tbType ||
+      'standard'
+    ) as 'standard' | 'coman';
+    setTbRule(resolvedTb);
+
+    setT1ServerIdx(match.ilkT1ServisOyuncusu ?? 0);
+    setT2ServerIdx(match.ilkT2ServisOyuncusu ?? 0);
+    setT1RecIdx(match.ilkT1KarsilayanOyuncusu ?? 0);
+    setT2RecIdx(match.ilkT2KarsilayanOyuncusu ?? 0);
+
+    const savedFirstServer = (match as any).ilkServisOyuncusu;
+    if (savedFirstServer === 1) setIlkServisiAtan(match['Oyuncu 1']);
+    else if (savedFirstServer === 2) setIlkServisiAtan(match['Oyuncu 2']);
+    else setIlkServisiAtan('Secilmedi');
+
+    if (match.Baslangic_Saati && match.Baslangic_Saati !== 'Secilmedi') {
+      setBaslangicSaati(match.Baslangic_Saati);
+    } else {
+      const now = new Date();
+      const hh = String(now.getHours()).padStart(2, '0');
+      const mm = String(now.getMinutes()).padStart(2, '0');
+      setBaslangicSaati(`${hh}:${mm}`);
+    }
+    setBitisSaati(match.Bitis_Saati || '');
+    
+    setRotation(0);
+    setIsFlipping(false);
+    setHasTossed(false);
+  }, [match, isOpen, categoryFormats, categoryNoAdSettings, tournamentInfo?.tbType]);
 
   if (!isOpen || !match) return null;
 

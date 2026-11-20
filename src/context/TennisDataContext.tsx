@@ -7,13 +7,14 @@ import { INITIAL_CATEGORY_FORMAT_MEMORY, INITIAL_MATCHES, INITIAL_REFEREES } fro
 import {
   awardPoint, buildScoreString, createInitialMatchState, determineWinnerFromScores,
   formatScoreString, parseScoreString, canIncrementSetScore, validateFullMatchScores,
-  validateSingleSet, checkMatchWinner, isMatchTiebreakThirdSet
+  validateSingleSet, checkMatchWinner, isMatchTiebreakThirdSet, getTargetGamesPerSet,
+  isTiebreakChangeoverPoint
 } from '../utils/tennisScoringEngine';
 import { calculateMatchDurationSeconds } from '../utils/timerUtils';
 import {
   pushSingleMatchToCloud, deleteSingleMatchFromCloud, pushAllMatchesToCloud, replaceAllMatchesInCloud,
   pushRefereesToCloud, pushCategoryFormatsToCloud, pushCategoryNoAdSettingsToCloud,
-  pushTournamentInfoToCloud, pushCustomCourtsToCloud, pushDeskPinToCloud, pushFullTournamentToCloud, 
+  pushTournamentInfoToCloud, pushFormatSettingsToCloud, pushCustomCourtsToCloud, pushDeskPinToCloud, pushFullTournamentToCloud, 
   subscribeToCloudTournament, fetchTournamentFromCloud, deleteAllMatchesFromCloud, purgeOrphanMatchesFromCloud,
 } from '../utils/firebaseSync';
 
@@ -136,6 +137,11 @@ interface TennisDataContextType {
   addReferee: (name: string, pin: string) => void; deleteReferee: (name: string) => void;
   updateCategoryFormat: (category: string, format: string) => void; bulkApplyCategoryFormats: (formatMap: Record<string, string>) => void;
   bulkApplyCategoryNoAdSettings: (noAdMap: Record<string, boolean>) => void;
+  saveFormatMemoryBundle: (
+    formatMap: Record<string, string>,
+    noAdMap: Record<string, boolean>,
+    info: { ad: string; yer: string; tarih: string; not: string; tbType?: 'standard' | 'coman'; tvPages?: string[][] }
+  ) => void;
   customCourts: string[];
   addCustomCourt: (courtName: string) => void;
   renameCustomCourt: (oldName: string, newName: string) => void;
@@ -392,7 +398,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     return () => unsubscribe();
   }, [deskPin, tournamentId]);
 
-  const broadcastAndSyncSingleMatch = (updatedMatch: MatchItem, allMatchesList?: MatchItem[]) => {
+  const broadcastAndSyncSingleMatch = (updatedMatch: MatchItem, allMatchesList?: MatchItem[], immediate = false) => {
     if (!tournamentId) return;
     const fullList = allMatchesList || matches.map((m) => (m.id === updatedMatch.id ? updatedMatch : m));
     try {
@@ -403,11 +409,17 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setCloudSyncStatus('syncing');
     if (cloudSyncTimeoutRef.current) clearTimeout(cloudSyncTimeoutRef.current);
 
-    cloudSyncTimeoutRef.current = setTimeout(() => {
+    const doPush = () => {
       pushSingleMatchToCloud(updatedMatch, currentReferee?.name || 'Turnuva Masası', fullList, tournamentId)
         .then(() => { setCloudSyncStatus('connected'); setLastCloudSync(new Date().toLocaleTimeString('tr-TR')); })
         .catch(() => { setCloudSyncStatus('connected'); setLastCloudSync(new Date().toLocaleTimeString('tr-TR')); });
-    }, 2000); 
+    };
+
+    if (immediate) {
+      doPush();
+    } else {
+      cloudSyncTimeoutRef.current = setTimeout(doPush, 2000);
+    }
   };
 
   const broadcastAndSyncMatches = (newMatches: MatchItem[]) => {
@@ -630,30 +642,37 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       const next = prev.map((m) => {
         if (!m.id || m.id !== matchId) return m;
 
-        let detState = m.detailedState;
+        let detState = m.detailedState ? JSON.parse(JSON.stringify(m.detailedState)) : undefined;
         const chosenFormat = data.skorFormati || m.Skor_Formati || '3 Normal Set';
         const chosenNoAd = data.isNoAd !== undefined ? data.isNoAd : !!m.isNoAd;
 
-        let server: 1 | 2 = 1;
+        const nextDurum: MatchStatus = data.durum !== undefined ? data.durum : m.Durum;
+        const nextKuraKazanan = data.kuraKazanan !== undefined ? data.kuraKazanan : m.Kura_Kazanan;
+        const nextKuraTercih = data.kuraTercih !== undefined ? data.kuraTercih : m.Kura_Tercih;
+        const nextSahaTarafi = data.sahaTarafi !== undefined ? data.sahaTarafi : m.Saha_Tarafi;
+        const nextBaslangicSaati = data.baslangicSaati !== undefined ? data.baslangicSaati : m.Baslangic_Saati;
+        const nextBitisSaati = data.bitisSaati !== undefined ? data.bitisSaati : m.Bitis_Saati;
+
+        let server: 1 | 2 = (m.ilkServisOyuncusu === 1 || m.ilkServisOyuncusu === 2) ? m.ilkServisOyuncusu : 1;
         if (data.ilkServisOyuncusu === 1 || data.ilkServisOyuncusu === 2) {
           server = data.ilkServisOyuncusu;
-        } else if (data.kuraKazanan && data.kuraKazanan !== 'Secilmedi' && data.kuraTercih) {
-          const isWinnerP1 = data.kuraKazanan === m['Oyuncu 1'];
-          if (data.kuraTercih === 'Servis') {
+        } else if (nextKuraKazanan && nextKuraKazanan !== 'Secilmedi' && nextKuraTercih) {
+          const isWinnerP1 = nextKuraKazanan === m['Oyuncu 1'];
+          if (nextKuraTercih === 'Servis') {
             server = isWinnerP1 ? 1 : 2;
-          } else if (data.kuraTercih === 'Karşılama') {
+          } else if (nextKuraTercih === 'Karşılama') {
             server = isWinnerP1 ? 2 : 1;
-          } else if (data.kuraTercih === 'Saha Seçimi') {
+          } else if (nextKuraTercih === 'Saha Seçimi') {
             server = isWinnerP1 ? 2 : 1;
           }
         }
 
-        let leftTeam: 1 | 2 = 1;
+        let leftTeam: 1 | 2 = (m.ilkSolTakim === 1 || m.ilkSolTakim === 2) ? m.ilkSolTakim : 1;
         if (data.ilkSolTakim === 1 || data.ilkSolTakim === 2) {
           leftTeam = data.ilkSolTakim;
-        } else if (data.sahaTarafi && data.sahaTarafi !== 'Secilmedi') {
-          const isWinnerP2 = data.kuraKazanan === m['Oyuncu 2'];
-          const isSol = (data.sahaTarafi || '').toLowerCase().includes('sol');
+        } else if (nextSahaTarafi && nextSahaTarafi !== 'Secilmedi') {
+          const isWinnerP2 = nextKuraKazanan === m['Oyuncu 2'];
+          const isSol = (nextSahaTarafi || '').toLowerCase().includes('sol');
           if (isWinnerP2) {
             leftTeam = isSol ? 2 : 1;
           } else {
@@ -668,8 +687,12 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           Number(detState?.set2_p2 || 0) > 0 ||
           Number(detState?.set3_p1 || 0) > 0 ||
           Number(detState?.set3_p2 || 0) > 0 ||
+          Number(detState?.tiebreak_p1 || 0) > 0 ||
+          Number(detState?.tiebreak_p2 || 0) > 0 ||
           (detState?.gamePoint_p1 && detState.gamePoint_p1 !== '0') ||
           (detState?.gamePoint_p2 && detState.gamePoint_p2 !== '0');
+
+        const tbRule: 'standard' | 'coman' = (data.tbType || m.tbKurali || tournamentInfoState?.tbType || 'standard') as 'standard' | 'coman';
 
         if (!detState || !hasPointsPlayed) {
           detState = createInitialMatchState(server, chosenFormat, chosenNoAd);
@@ -677,20 +700,33 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           detState.firstServerOfMatch = server;
         } else {
           detState.isNoAd = chosenNoAd;
+          checkSyncTiebreak(detState, chosenFormat);
+          if (detState.isTiebreak) {
+            const tbSum = Number(detState.tiebreak_p1 || 0) + Number(detState.tiebreak_p2 || 0);
+            detState.needsChangeover = isTiebreakChangeoverPoint(tbSum, tbRule);
+          }
         }
 
-        const t1SIdx = data.t1ServerIdx !== undefined ? (data.t1ServerIdx as 0 | 1) : (m.ilkT1ServisOyuncusu ?? 0);
-        const t2SIdx = data.t2ServerIdx !== undefined ? (data.t2ServerIdx as 0 | 1) : (m.ilkT2ServisOyuncusu ?? 0);
-        const t1RIdx = data.t1RecIdx !== undefined ? (data.t1RecIdx as 0 | 1) : (m.ilkT1KarsilayanOyuncusu ?? 0);
-        const t2RIdx = data.t2RecIdx !== undefined ? (data.t2RecIdx as 0 | 1) : (m.ilkT2KarsilayanOyuncusu ?? 0);
-        const tbRule = data.tbType || m.tbKurali || 'standard';
+        const t1SIdx = (data.t1ServerIdx ?? data.ilkT1ServisOyuncusu ?? m.ilkT1ServisOyuncusu ?? 0) as 0 | 1;
+        const t2SIdx = (data.t2ServerIdx ?? data.ilkT2ServisOyuncusu ?? m.ilkT2ServisOyuncusu ?? 0) as 0 | 1;
+        const t1RIdx = (data.t1RecIdx ?? data.ilkT1KarsilayanOyuncusu ?? m.ilkT1KarsilayanOyuncusu ?? 0) as 0 | 1;
+        const t2RIdx = (data.t2RecIdx ?? data.ilkT2KarsilayanOyuncusu ?? m.ilkT2KarsilayanOyuncusu ?? 0) as 0 | 1;
 
-        const updatedChairSetups = { ...(m.chairSetups || {}) };
+        const updatedChairSetups: Record<number, any> = {};
+        if (m.chairSetups) {
+          Object.entries(m.chairSetups).forEach(([k, v]) => {
+            updatedChairSetups[Number(k)] = { ...v };
+          });
+        }
         if (data.chairSetups) {
-          Object.assign(updatedChairSetups, data.chairSetups);
+          Object.entries(data.chairSetups).forEach(([k, v]: [string, any]) => {
+            updatedChairSetups[Number(k)] = { ...v };
+          });
         }
+
         if (!hasPointsPlayed || !updatedChairSetups[1]) {
           updatedChairSetups[1] = {
+            ...(updatedChairSetups[1] || {}),
             setupSetNum: 1,
             firstServingTeam: server,
             leftTeam: leftTeam,
@@ -702,43 +738,56 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           };
         }
 
+        // Seçilen Tie-Break kuralı (Standart / 1-5-9 Coman) tüm set kurulumlarına (Set 1, Set 2, Set 3 Maç TB) anında yansır
+        if (data.tbType !== undefined) {
+          Object.keys(updatedChairSetups).forEach((k) => {
+            const keyNum = Number(k);
+            if (updatedChairSetups[keyNum]) {
+              updatedChairSetups[keyNum] = {
+                ...updatedChairSetups[keyNum],
+                tbType: tbRule,
+              };
+            }
+          });
+        }
+
         let setupStartTs = m.startTimeTimestamp;
-        if (data.baslangicSaati && data.baslangicSaati !== 'Secilmedi') {
-          const parts = data.baslangicSaati.split(':');
+        if (nextBaslangicSaati && nextBaslangicSaati !== 'Secilmedi') {
+          const parts = nextBaslangicSaati.split(':');
           if (parts.length >= 2) {
             const d = new Date(); d.setHours(parseInt(parts[0], 10), parseInt(parts[1], 10), 0, 0);
             const candidate = d.getTime();
             setupStartTs = candidate <= Date.now() ? candidate : candidate - 86400000;
           }
         }
-        if (!setupStartTs) setupStartTs = Date.now();
+        if (!setupStartTs && nextDurum !== 'Baslamadi') setupStartTs = Date.now();
 
         let setupEndTs: number | undefined = undefined;
-        if (data.bitisSaati && data.bitisSaati !== 'Secilmedi') {
-          const parts = data.bitisSaati.split(':');
+        if (nextBitisSaati && nextBitisSaati !== 'Secilmedi') {
+          const parts = nextBitisSaati.split(':');
           if (parts.length >= 2) {
             const d = new Date(); d.setHours(parseInt(parts[0], 10), parseInt(parts[1], 10), 0, 0);
             setupEndTs = d.getTime();
-            if (setupEndTs < setupStartTs) setupEndTs += 86400000;
+            if (setupStartTs && setupEndTs < setupStartTs) setupEndTs += 86400000;
           }
         }
 
-        const targetStatus = data.durum;
+        const targetStatus = nextDurum;
         const normStatus = (targetStatus || '').trim().replace(/ı/g, 'i').replace(/İ/g, 'i').toLowerCase();
         const isEnding = ['bitti', 'retired', 'walkover'].includes(normStatus);
 
         let finalStartTs = setupStartTs;
-        let finalEndStr = data.bitisSaati;
-        let finalLastPaused = undefined;
+        let finalEndStr = nextBitisSaati;
+        let finalLastPaused = m.lastPausedTimestamp;
         let finalPausedAcc = m.pausedAccumulatedMs || 0;
         let finalTotalPaused = m.totalPausedSeconds || 0;
-        let finalTotalDuration = undefined;
+        let finalTotalDuration = m.totalDurationSeconds;
 
         if (isEnding) {
           const finalized = finalizeMatchDurationAndPause(
-            { ...m, Baslangic_Saati: data.baslangicSaati, startTimeTimestamp: setupStartTs },
+            { ...m, Baslangic_Saati: nextBaslangicSaati, startTimeTimestamp: setupStartTs },
             targetStatus,
-            data.bitisSaati
+            nextBitisSaati
           );
           finalStartTs = finalized.startTs;
           finalEndStr = finalized.bitis;
@@ -747,7 +796,10 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           finalTotalPaused = finalized.totalPausedSeconds;
           finalTotalDuration = finalized.totalDurationSeconds;
         } else if (normStatus === 'duraklatildi') {
-          finalLastPaused = Date.now();
+          finalLastPaused = m.lastPausedTimestamp || Date.now();
+        } else if (normStatus === 'oynaniyor') {
+          finalLastPaused = undefined;
+          finalTotalDuration = undefined;
         }
 
         const activeRef = currentReferee ? currentReferee.name : (m.Son_Islem_Hakem || m.Son_Hakem || 'Turnuva Masası');
@@ -756,8 +808,10 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         const res: MatchItem = {
           ...m,
           Kort: data.yeniKort || m.Kort,
-          Durum: data.durum, Kura_Kazanan: data.kuraKazanan, Kura_Tercih: data.kuraTercih,
-          Saha_Tarafi: data.sahaTarafi,
+          Durum: nextDurum,
+          Kura_Kazanan: nextKuraKazanan,
+          Kura_Tercih: nextKuraTercih,
+          Saha_Tarafi: nextSahaTarafi,
           ilkServisOyuncusu: server,
           ilkSolTakim: leftTeam,
           ilkT1ServisOyuncusu: t1SIdx,
@@ -766,11 +820,15 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           ilkT2KarsilayanOyuncusu: t2RIdx,
           tbKurali: tbRule,
           chairSetups: updatedChairSetups,
-          Baslangic_Saati: data.baslangicSaati, startTimeTimestamp: finalStartTs,
-          Bitis_Saati: finalEndStr, lastPausedTimestamp: finalLastPaused,
-          pausedAccumulatedMs: finalPausedAcc, totalPausedSeconds: finalTotalPaused,
+          Baslangic_Saati: nextBaslangicSaati,
+          startTimeTimestamp: finalStartTs,
+          Bitis_Saati: finalEndStr,
+          lastPausedTimestamp: finalLastPaused,
+          pausedAccumulatedMs: finalPausedAcc,
+          totalPausedSeconds: finalTotalPaused,
           totalDurationSeconds: finalTotalDuration,
-          Skor_Formati: chosenFormat, isNoAd: chosenNoAd,
+          Skor_Formati: chosenFormat,
+          isNoAd: chosenNoAd,
           Gorevli_Hakem: m.Gorevli_Hakem && m.Gorevli_Hakem !== 'Atanmadı' ? m.Gorevli_Hakem : activeRef,
           Son_Hakem: activeRef,
           Son_Islem_Hakem: activeRef,
@@ -781,7 +839,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         return res;
       });
 
-      if (updatedItem) broadcastAndSyncSingleMatch(updatedItem, next);
+      if (updatedItem) broadcastAndSyncSingleMatch(updatedItem, next, true);
       else broadcastAndSyncMatches(next);
       return next;
     });
@@ -790,6 +848,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const checkSyncTiebreak = (dState: any, formatStr: string) => {
     if (!dState) return;
     
+    const { tiebreakAt } = getTargetGamesPerSet(formatStr);
     const thirdSetMT = isMatchTiebreakThirdSet(formatStr);
     
     if (dState.currentSet !== 3) {
@@ -797,25 +856,33 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       dState.tiebreakTarget = 7;
     }
 
-    const isSet1Tiebreak = (dState.set1_p1 === 6 && dState.set1_p2 === 6);
-    const isSet2Tiebreak = (dState.set2_p1 === 6 && dState.set2_p2 === 6);
+    const isSet1Tiebreak = (dState.set1_p1 === tiebreakAt && dState.set1_p2 === tiebreakAt);
+    const isSet2Tiebreak = (dState.set2_p1 === tiebreakAt && dState.set2_p2 === tiebreakAt);
 
     if (dState.currentSet === 1 && isSet1Tiebreak) {
         dState.isTiebreak = true;
+        dState.isMatchTiebreak = false;
+        dState.tiebreakTarget = 7;
     } else if (dState.currentSet === 2 && isSet2Tiebreak) {
         dState.isTiebreak = true;
+        dState.isMatchTiebreak = false;
+        dState.tiebreakTarget = 7;
     } else if (dState.currentSet === 3) {
         if (thirdSetMT.isMT) {
             dState.isTiebreak = true;
             dState.isMatchTiebreak = true;
             dState.tiebreakTarget = thirdSetMT.target;
-        } else if (dState.set3_p1 === 6 && dState.set3_p2 === 6) {
+        } else if (dState.set3_p1 === tiebreakAt && dState.set3_p2 === tiebreakAt) {
             dState.isTiebreak = true;
+            dState.isMatchTiebreak = false;
+            dState.tiebreakTarget = 7;
         } else {
             dState.isTiebreak = false;
+            dState.isMatchTiebreak = false;
         }
     } else {
         dState.isTiebreak = false;
+        dState.isMatchTiebreak = false;
     }
   };
 
@@ -1159,7 +1226,23 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           scoreDisplay: formatScoreString(currState) + ` [${currState.gamePoint_p1}-${currState.gamePoint_p2}]`,
         };
 
-        const { nextState, matchEnded, matchWinner } = awardPoint(currState, playerWon, pointType, format, p1Name, p2Name);
+        const activeSetNum = currState.currentSet || 1;
+        const effectiveTbType: 'standard' | 'coman' = (
+          m.chairSetups?.[activeSetNum]?.tbType ||
+          m.tbKurali ||
+          tournamentInfoState?.tbType ||
+          'standard'
+        ) as 'standard' | 'coman';
+
+        const { nextState, matchEnded, matchWinner } = awardPoint(
+          currState,
+          playerWon,
+          pointType,
+          format,
+          p1Name,
+          p2Name,
+          effectiveTbType
+        );
 
         const newScoreStr = formatScoreString(nextState);
         const updatedHistory = [...(m.pointHistory || []), historyItem];
@@ -1500,15 +1583,45 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   };
 
   const updateCategoryFormat = (category: string, format: string) => {
-    setCategoryFormats((prev) => ({ ...prev, [category]: format }));
+    setCategoryFormats((prev) => {
+      const next = { ...prev, [category]: format };
+      if (tournamentId) pushCategoryFormatsToCloud(next, tournamentId);
+      return next;
+    });
   };
 
   const bulkApplyCategoryFormats = (formatMap: Record<string, string>) => {
-    setCategoryFormats((prev) => ({ ...prev, ...formatMap }));
+    setCategoryFormats((prev) => {
+      const next = { ...prev, ...formatMap };
+      if (tournamentId) pushCategoryFormatsToCloud(next, tournamentId);
+      return next;
+    });
   };
 
   const bulkApplyCategoryNoAdSettings = (noAdMap: Record<string, boolean>) => {
-    setCategoryNoAdSettings((prev) => ({ ...prev, ...noAdMap }));
+    setCategoryNoAdSettings((prev) => {
+      const next = { ...prev, ...noAdMap };
+      if (tournamentId) pushCategoryNoAdSettingsToCloud(next, tournamentId);
+      return next;
+    });
+  };
+
+  const saveFormatMemoryBundle = (
+    formatMap: Record<string, string>,
+    noAdMap: Record<string, boolean>,
+    info: { ad: string; yer: string; tarih: string; not: string; tbType?: 'standard' | 'coman'; tvPages?: string[][] }
+  ) => {
+    const nextFormats = { ...categoryFormats, ...formatMap };
+    const nextNoAd = { ...categoryNoAdSettings, ...noAdMap };
+    const nextInfo = { ...tournamentInfoState, ...info };
+
+    setCategoryFormats(nextFormats);
+    setCategoryNoAdSettings(nextNoAd);
+    setTournamentInfoState(nextInfo);
+
+    if (tournamentId) {
+      pushFormatSettingsToCloud(nextFormats, nextNoAd, nextInfo, tournamentId);
+    }
   };
 
   const addCustomCourt = (courtName: string) => {
@@ -1572,9 +1685,18 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   const importMatchesList = (newMatches: MatchItem[]) => {
     if (!tournamentId) return;
-    const localizedMatches = newMatches.map(m => ({
-      ...m, tournamentId: tournamentId, Son_Guncelleme: new Date().toISOString()
-    }));
+    const defaultTbType = (tournamentInfoState?.tbType || 'standard') as 'standard' | 'coman';
+    const localizedMatches = newMatches.map(m => {
+      const kat = m.Kategori || '';
+      return {
+        ...m,
+        Skor_Formati: m.Skor_Formati || categoryFormats[kat] || '3 Normal Set',
+        isNoAd: typeof m.isNoAd === 'boolean' ? m.isNoAd : !!categoryNoAdSettings[kat],
+        tbKurali: m.tbKurali || defaultTbType,
+        tournamentId: tournamentId,
+        Son_Guncelleme: new Date().toISOString()
+      };
+    });
     const sanitized = sanitizeMatchList(localizedMatches);
     setMatches(sanitized);
 
@@ -1772,7 +1894,7 @@ export const TennisDataProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         updateGameScore, setDirectSetScores, saveDirectScoreAndStatus, finishAndReportMatch,
         saveMatchSetup, awardPointToMatch, undoLastPoint, recordChallenge, setMatchStatus,
         resumeMatchToLive, resetMatchScore, manualUpdateScoreString, addReferee, deleteReferee,
-        updateCategoryFormat, bulkApplyCategoryFormats, bulkApplyCategoryNoAdSettings, 
+        updateCategoryFormat, bulkApplyCategoryFormats, bulkApplyCategoryNoAdSettings, saveFormatMemoryBundle,
         customCourts, addCustomCourt, renameCustomCourt, deleteCustomCourt, reorderCustomCourts,
         tournamentInfo: tournamentInfoState, saveTournamentInfo, importMatchesList, resetTournamentToDefault,
         activeCourtFilter, setActiveCourtFilter,

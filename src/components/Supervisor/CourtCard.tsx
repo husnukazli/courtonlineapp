@@ -423,6 +423,14 @@ export const CourtCard: React.FC<CourtCardProps> = ({
   }, [match.chairSetups]);
 
   const chairSetup: ChairSetup | null = useMemo(() => {
+    const resolvedTb = (
+      match.chairSetups?.[selectedSet]?.tbType ||
+      match.tbKurali ||
+      setupsBySet[selectedSet]?.tbType ||
+      globalTbType ||
+      'standard'
+    ) as 'standard' | 'coman';
+
     if (selectedSet === 1) {
       const isStart = (s1_p1 + s1_p2 === 0) && (!match.pointHistory || match.pointHistory.length === 0);
       if (isStart) {
@@ -431,28 +439,32 @@ export const CourtCard: React.FC<CourtCardProps> = ({
           setupSetNum: 1,
           firstServingTeam: initialTossServer,
           leftTeam: initialTossLeft,
-          tbType: (match.tbKurali as any) || baseSetup?.tbType || globalTbType,
+          tbType: resolvedTb,
           t1ServerIdx: match.ilkT1ServisOyuncusu ?? baseSetup?.t1ServerIdx ?? 0,
           t2ServerIdx: match.ilkT2ServisOyuncusu ?? baseSetup?.t2ServerIdx ?? 0,
           t1DeuceReceiverIdx: match.ilkT1KarsilayanOyuncusu ?? baseSetup?.t1DeuceReceiverIdx ?? 0,
           t2DeuceReceiverIdx: match.ilkT2KarsilayanOyuncusu ?? baseSetup?.t2DeuceReceiverIdx ?? 0
         };
       }
-      if (match.chairSetups && match.chairSetups[1]) return match.chairSetups[1];
-      if (setupsBySet[1]) return setupsBySet[1];
+      if (match.chairSetups && match.chairSetups[1]) return { ...match.chairSetups[1], tbType: resolvedTb };
+      if (setupsBySet[1]) return { ...setupsBySet[1], tbType: resolvedTb };
       return {
         setupSetNum: 1,
         firstServingTeam: initialTossServer,
         leftTeam: initialTossLeft,
-        tbType: (match.tbKurali as any) || globalTbType,
+        tbType: resolvedTb,
         t1ServerIdx: match.ilkT1ServisOyuncusu ?? 0,
         t2ServerIdx: match.ilkT2ServisOyuncusu ?? 0,
         t1DeuceReceiverIdx: match.ilkT1KarsilayanOyuncusu ?? 0,
         t2DeuceReceiverIdx: match.ilkT2KarsilayanOyuncusu ?? 0
       };
     }
-    if (setupsBySet[selectedSet]) return setupsBySet[selectedSet];
-    if (match.chairSetups && match.chairSetups[selectedSet]) return match.chairSetups[selectedSet];
+    if (match.chairSetups && match.chairSetups[selectedSet]) {
+      return { ...match.chairSetups[selectedSet], tbType: resolvedTb };
+    }
+    if (setupsBySet[selectedSet]) {
+      return { ...setupsBySet[selectedSet], tbType: resolvedTb };
+    }
     return null;
   }, [setupsBySet, match.chairSetups, selectedSet, initialTossServer, initialTossLeft, match.tbKurali, globalTbType, match.ilkT1ServisOyuncusu, match.ilkT2ServisOyuncusu, match.ilkT1KarsilayanOyuncusu, match.ilkT2KarsilayanOyuncusu, s1_p1, s1_p2, match.pointHistory]);
 
@@ -613,13 +625,14 @@ export const CourtCard: React.FC<CourtCardProps> = ({
             setupSetNum: selectedSet,
             firstServingTeam: nextServerTeam,
             leftTeam: nextLeftTeam,
+            tbType: ((match.tbKurali || prevSetup.tbType || globalTbType || 'standard') as 'standard' | 'coman'),
             t1ServerIdx: nextT1ServerIdx,
             t2ServerIdx: nextT2ServerIdx
           }
         }));
       }
     }
-  }, [selectedSet, isDoubles, setupsBySet, s1_p1, s1_p2, s2_p1, s2_p2, s3_p1, s3_p2, match.pointHistory, format]);
+  }, [selectedSet, isDoubles, setupsBySet, s1_p1, s1_p2, s2_p1, s2_p2, s3_p1, s3_p2, match.pointHistory, match.tbKurali, globalTbType, format]);
 
   const currentSetGames = selectedSet === 1 ? s1_p1 + s1_p2 : selectedSet === 2 ? s2_p1 + s2_p2 : s3_p1 + s3_p2;
 
@@ -660,6 +673,8 @@ export const CourtCard: React.FC<CourtCardProps> = ({
 
   const isTB = state?.isTiebreak || false;
   const tbPoints = isTB ? Number(state?.tiebreak_p1 || 0) + Number(state?.tiebreak_p2 || 0) : 0;
+  const effectiveTbType: 'standard' | 'coman' = ((chairSetup?.tbType || match.tbKurali || globalTbType || 'standard') as 'standard' | 'coman');
+  const effectiveGamesInSet = state?.isMatchTiebreak ? 0 : currentSetGames;
   
   let computedServerTeam: 1 | 2 = 1;
   let computedLeftTeam: 1 | 2 = 1;
@@ -668,13 +683,13 @@ export const CourtCard: React.FC<CourtCardProps> = ({
   let currentT1ServerIdx: 0 | 1 = 0;
   let currentT2ServerIdx: 0 | 1 = 0;
 
-  // MOTOR SAHA DEĞİŞİMİ TESPİTİ (Puan Girilince Otomatik Kapanır)
+  // MOTOR SAHA DEĞİŞİMİ TESPİTİ (Set Tie-Break & Maç Tie-Break dahil; Puan Girilince Otomatik Kapanır)
   let isSideChangePoint = !!state?.needsChangeover;
   const isGameStart = state?.gamePoint_p1 === '0' && state?.gamePoint_p2 === '0';
 
   if (isTB) {
-    const expectedChange = (isSetupValid && chairSetup.tbType === 'coman') 
-      ? (tbPoints > 0 && (tbPoints - 1) % 4 === 0) 
+    const expectedChange = effectiveTbType === 'coman'
+      ? (tbPoints > 0 && (tbPoints - 1) % 4 === 0)
       : (tbPoints > 0 && (tbPoints % 6 === 0));
 
     if (isSideChangePoint && !expectedChange) {
@@ -699,7 +714,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
 
   // --- KUSURSUZ OTOMATİK PİLOT ---
   if (isSetupValid) {
-    const isComan = chairSetup.tbType === 'coman';
+    const isComan = effectiveTbType === 'coman';
     const otherTeam = chairSetup.firstServingTeam === 1 ? 2 : 1;
 
     const parsePoint = (str: string) => {
@@ -726,7 +741,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
         activeServerName = match[`Oyuncu ${computedServerTeam}` as keyof MatchItem] as string;
       }
     } else {
-      const tbGameServerTeam = currentSetGames % 2 === 0 ? chairSetup.firstServingTeam : otherTeam;
+      const tbGameServerTeam = effectiveGamesInSet % 2 === 0 ? chairSetup.firstServingTeam : otherTeam;
       const tbOtherTeam = tbGameServerTeam === 1 ? 2 : 1;
       
       if (tbPoints === 0) computedServerTeam = tbGameServerTeam;
@@ -735,7 +750,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
         computedServerTeam = block % 2 === 0 ? tbOtherTeam : tbGameServerTeam;
       }
 
-      const tbStartSide = (currentSetGames % 4 === 1 || currentSetGames % 4 === 2) ? (chairSetup.leftTeam === 1 ? 2 : 1) : chairSetup.leftTeam;
+      const tbStartSide = (effectiveGamesInSet % 4 === 1 || effectiveGamesInSet % 4 === 2) ? (chairSetup.leftTeam === 1 ? 2 : 1) : chairSetup.leftTeam;
       if (tbPoints === 0) computedLeftTeam = tbStartSide;
       else if (isComan) {
         const block = Math.floor((tbPoints + 3) / 4); 
@@ -746,7 +761,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
       }
 
       if (isDoubles) {
-        const teamServicesBeforeTB = Math.floor(currentSetGames / 2);
+        const teamServicesBeforeTB = Math.floor(effectiveGamesInSet / 2);
         const tbTeamBlocksT1 = Math.floor((tbPoints + (tbGameServerTeam === 1 ? 3 : 1)) / 4);
         const tbTeamBlocksT2 = Math.floor((tbPoints + (tbGameServerTeam === 2 ? 3 : 1)) / 4);
         
@@ -784,17 +799,17 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                 const changeInCurrentSet = (currentSetGames % 4 === 1 || currentSetGames % 4 === 2);
                 if (changeInCurrentSet) autoLeft = autoLeft === 1 ? 2 : 1;
             } else {
-                const tbStartServer = currentSetGames % 2 === 0 ? autoServer : (autoServer === 1 ? 2 : 1);
+                const tbStartServer = effectiveGamesInSet % 2 === 0 ? autoServer : (autoServer === 1 ? 2 : 1);
                 if (tbPoints === 0) autoServer = tbStartServer;
                 else {
                     const block = Math.floor((tbPoints - 1) / 2);
                     autoServer = block % 2 === 0 ? (tbStartServer === 1 ? 2 : 1) : tbStartServer;
                 }
                 
-                const tbStartSide = (currentSetGames % 4 === 1 || currentSetGames % 4 === 2) ? (autoLeft === 1 ? 2 : 1) : autoLeft;
+                const tbStartSide = (effectiveGamesInSet % 4 === 1 || effectiveGamesInSet % 4 === 2) ? (autoLeft === 1 ? 2 : 1) : autoLeft;
                 if (tbPoints === 0) autoLeft = tbStartSide;
                 else {
-                    const block = globalTbType === 'coman' ? Math.floor((tbPoints + 3) / 4) : Math.floor(tbPoints / 6);
+                    const block = effectiveTbType === 'coman' ? Math.floor((tbPoints + 3) / 4) : Math.floor(tbPoints / 6);
                     autoLeft = block % 2 === 1 ? (tbStartSide === 1 ? 2 : 1) : tbStartSide;
                 }
             }
@@ -830,7 +845,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
 
                 let tbSwaps = 0;
                 if (tbPointsPlayed > 0) {
-                    tbSwaps = globalTbType === 'coman' ? Math.floor((tbPointsPlayed - 1 + 3) / 4) : Math.floor((tbPointsPlayed - 1) / 6);
+                    tbSwaps = effectiveTbType === 'coman' ? Math.floor((tbPointsPlayed - 1 + 3) / 4) : Math.floor((tbPointsPlayed - 1) / 6);
                 }
 
                 const normalSwapsBeforeTB = Math.floor((N - 1) / 2); 
@@ -874,14 +889,14 @@ export const CourtCard: React.FC<CourtCardProps> = ({
       setSetupForm({
         firstServingTeam: computedServerTeam,
         leftTeam: computedLeftTeam,
-        tbType: chairSetup?.tbType || globalTbType,
+        tbType: effectiveTbType,
         t1ServerIdx: currentT1ServerIdx as 0 | 1,
         t2ServerIdx: currentT2ServerIdx as 0 | 1,
         t1RecIdx: chairSetup?.t1DeuceReceiverIdx || 0,
         t2RecIdx: chairSetup?.t2DeuceReceiverIdx || 0
       });
     }
-  }, [showSetupOverlay, setupForm.firstServingTeam, computedServerTeam, computedLeftTeam, chairSetup, globalTbType, currentT1ServerIdx, currentT2ServerIdx]);
+  }, [showSetupOverlay, setupForm.firstServingTeam, computedServerTeam, computedLeftTeam, chairSetup, effectiveTbType, currentT1ServerIdx, currentT2ServerIdx]);
 
   // AKILLI MOLA UYARI MOTORU
   const isSetBreak = isGameStart && currentSetGames === 0 && selectedSet > 1 && !isFinished;
@@ -920,9 +935,9 @@ export const CourtCard: React.FC<CourtCardProps> = ({
       let tbGameServer = setupForm.firstServingTeam;
       if (tbPoints > 0) {
         const block = Math.floor((tbPoints - 1) / 2);
-        tbGameServer = block % 2 === 0 ? setupForm.firstServingTeam : (setupForm.firstServingTeam === 1 ? 2 : 1);
+        tbGameServer = block % 2 === 0 ? (setupForm.firstServingTeam === 1 ? 2 : 1) : setupForm.firstServingTeam;
       }
-      initialServer = currentSetGames % 2 === 0 ? tbGameServer : (tbGameServer === 1 ? 2 : 1);
+      initialServer = effectiveGamesInSet % 2 === 0 ? tbGameServer : (tbGameServer === 1 ? 2 : 1);
 
       let tbStartSide = setupForm.leftTeam;
       if (tbPoints > 0) {
@@ -934,15 +949,15 @@ export const CourtCard: React.FC<CourtCardProps> = ({
           tbStartSide = block % 2 === 1 ? (setupForm.leftTeam === 1 ? 2 : 1) : setupForm.leftTeam;
         }
       }
-      initialLeft = (currentSetGames % 4 === 1 || currentSetGames % 4 === 2) ? (tbStartSide === 1 ? 2 : 1) : tbStartSide;
+      initialLeft = (effectiveGamesInSet % 4 === 1 || effectiveGamesInSet % 4 === 2) ? (tbStartSide === 1 ? 2 : 1) : tbStartSide;
     }
 
     let t1InitSrvIdx = setupForm.t1ServerIdx;
     let t2InitSrvIdx = setupForm.t2ServerIdx;
 
     if (isDoubles) {
-      let teamServicesBeforeNowT1 = Math.floor(currentSetGames / 2);
-      let teamServicesBeforeNowT2 = Math.floor(currentSetGames / 2);
+      let teamServicesBeforeNowT1 = Math.floor(effectiveGamesInSet / 2);
+      let teamServicesBeforeNowT2 = Math.floor(effectiveGamesInSet / 2);
       if (isTB) {
         teamServicesBeforeNowT1 += Math.floor((tbPoints + (initialServer === 1 ? 3 : 1)) / 4);
         teamServicesBeforeNowT2 += Math.floor((tbPoints + (initialServer === 2 ? 3 : 1)) / 4);
@@ -951,18 +966,19 @@ export const CourtCard: React.FC<CourtCardProps> = ({
       t2InitSrvIdx = ((setupForm.t2ServerIdx - teamServicesBeforeNowT2) % 2 + 2) % 2 as 0 | 1;
     }
 
-    const updatedSetups = {
-      ...setupsBySet,
-      [selectedSet]: {
-        setupSetNum: selectedSet,
-        firstServingTeam: initialServer,
-        leftTeam: initialLeft,
-        tbType: setupForm.tbType,
-        t1ServerIdx: t1InitSrvIdx,
-        t2ServerIdx: t2InitSrvIdx,
-        t1DeuceReceiverIdx: setupForm.t1RecIdx,
-        t2DeuceReceiverIdx: setupForm.t2RecIdx
-      }
+    const updatedSetups: Record<number, ChairSetup> = {};
+    Object.entries(setupsBySet).forEach(([k, v]) => {
+      updatedSetups[Number(k)] = { ...v, tbType: setupForm.tbType };
+    });
+    updatedSetups[selectedSet] = {
+      setupSetNum: selectedSet,
+      firstServingTeam: initialServer,
+      leftTeam: initialLeft,
+      tbType: setupForm.tbType,
+      t1ServerIdx: t1InitSrvIdx,
+      t2ServerIdx: t2InitSrvIdx,
+      t1DeuceReceiverIdx: setupForm.t1RecIdx,
+      t2DeuceReceiverIdx: setupForm.t2RecIdx
     };
 
     setSetupsBySet(updatedSetups);
@@ -970,10 +986,10 @@ export const CourtCard: React.FC<CourtCardProps> = ({
       chairSetups: updatedSetups,
       ilkServisOyuncusu: updatedSetups[1]?.firstServingTeam ?? match.ilkServisOyuncusu,
       ilkSolTakim: updatedSetups[1]?.leftTeam ?? match.ilkSolTakim,
-      ilkT1ServisOyuncusu: updatedSetups[1]?.t1ServerIdx ?? match.ilkT1ServisOyuncusu,
-      ilkT2ServisOyuncusu: updatedSetups[1]?.t2ServerIdx ?? match.ilkT2ServisOyuncusu,
-      ilkT1KarsilayanOyuncusu: updatedSetups[1]?.t1DeuceReceiverIdx ?? match.ilkT1KarsilayanOyuncusu,
-      ilkT2KarsilayanOyuncusu: updatedSetups[1]?.t2DeuceReceiverIdx ?? match.ilkT2KarsilayanOyuncusu,
+      t1ServerIdx: updatedSetups[1]?.t1ServerIdx ?? match.ilkT1ServisOyuncusu,
+      t2ServerIdx: updatedSetups[1]?.t2ServerIdx ?? match.ilkT2ServisOyuncusu,
+      t1RecIdx: updatedSetups[1]?.t1DeuceReceiverIdx ?? match.ilkT1KarsilayanOyuncusu,
+      t2RecIdx: updatedSetups[1]?.t2DeuceReceiverIdx ?? match.ilkT2KarsilayanOyuncusu,
       tbType: setupForm.tbType,
     });
 
@@ -1013,7 +1029,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
        setSetupForm({
           firstServingTeam: computedServerTeam,
           leftTeam: computedLeftTeam,
-          tbType: globalTbType,
+          tbType: effectiveTbType,
           t1ServerIdx: currentT1ServerIdx as 0 | 1,
           t2ServerIdx: currentT2ServerIdx as 0 | 1,
           t1RecIdx: 0,
@@ -1630,7 +1646,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                       setSetupForm({
                         firstServingTeam: computedServerTeam,
                         leftTeam: computedLeftTeam,
-                        tbType: chairSetup.tbType,
+                        tbType: effectiveTbType,
                         t1ServerIdx: isDoubles ? currentT1ServerIdx : 0,
                         t2ServerIdx: isDoubles ? currentT2ServerIdx : 0,
                         t1RecIdx: chairSetup.t1DeuceReceiverIdx,
@@ -1793,7 +1809,7 @@ export const CourtCard: React.FC<CourtCardProps> = ({
                       </div>
                     </div>
                     <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-                       {isTB && <div className={`px-2 sm:px-3 py-1 text-[9px] sm:text-xs font-black uppercase rounded-lg border ${isLightMode ? 'bg-slate-200 text-slate-800 border-slate-400' : 'bg-slate-800 text-slate-300 border-slate-700'}`}>{(chairSetup?.tbType || globalTbType) === 'coman' ? 'Coman Tie-Break' : 'Standart Tie-Break'}</div>}
+                       {isTB && <div className={`px-2 sm:px-3 py-1 text-[9px] sm:text-xs font-black uppercase rounded-lg border ${isLightMode ? 'bg-slate-200 text-slate-800 border-slate-400' : 'bg-slate-800 text-slate-300 border-slate-700'}`}>{effectiveTbType === 'coman' ? 'Coman Tie-Break (1-5-9)' : 'Standart Tie-Break'}</div>}
                        {isSideChangePoint && <div className={`flex items-center gap-1.5 font-black text-[9px] sm:text-sm uppercase px-2 sm:px-3 py-1 rounded-lg border shadow-sm text-white bg-rose-500 border-rose-600 ${!activeTimer ? 'animate-pulse' : ''}`}><ArrowRightLeft className="w-3 h-3 sm:w-4 sm:h-4"/> Saha Değişimi</div>}
                     </div>
                   </div>
